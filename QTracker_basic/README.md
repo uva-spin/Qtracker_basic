@@ -11,7 +11,7 @@
 
 All new models or modules should preserve the information and structure of the original RUS file that you are reading and just add new variable
 with additional track-level information as needed. The RUS file is our universal file structure which is also standarized for storage and sharing.
-You can learn about that here:
+You can learn about that here:[UVA RUS files](https://github.com/uva-spin/UVA_RUS_Basic).
 
 ---
 
