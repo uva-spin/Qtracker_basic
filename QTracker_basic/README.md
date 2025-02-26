@@ -6,8 +6,9 @@
 ## How to get started:
 1.  After you clone the repository: git clone https://github.com/uva-spin/Qtracker_basic/edit/main/QTracker_basic go to QTracker_basic/data.
 2.  From here you can generate the training data by following the instructions in the readme file in that directory [data generation](https://github.com/uva-spin/Qtracker_basic/tree/main/QTracker_basic/data/README.md).
-3.  Once you have train and saved the models to the approriate location you can then run Qtracker_basic.py.
-4.  python3 Qtracker_basic.py data/JPsi_Dump.root using the file already provide.
+3.  After you generate the training data you can train the models by following the instruction [training](https://github.com/uva-spin/Qtracker_basic/blob/main/QTracker_basic/training_scripts/README.md).
+4.  Once you have train and saved the models to the approriate location you can then run Qtracker_basic.py.
+5.  python3 Qtracker_basic.py data/JPsi_Dump.root using the file already provide.
 
 All new models or modules should preserve the information and structure of the original RUS file that you are reading and just add new variable
 with additional track-level information as needed. The RUS file is our universal file structure which is also standarized for storage and sharing.
