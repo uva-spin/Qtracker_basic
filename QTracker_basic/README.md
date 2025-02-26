@@ -2,6 +2,18 @@
 
 `Qtracker_basic.py` is the main inference script in the **Qtracker reconstruction software**. It processes RUS ROOT files containing detector hit data, performs track reconstruction, predicts particle momenta, and writes the results along with the original data to a new RUS ROOT file. This script is a critical component of the Qtracker framework, enabling the reconstruction of particle tracks and the extraction of physical quantities such as momentum and chi-squared (χ²) values.  This version of Qtracker referred to as 'basic' is for learning purposes.  The models are overly simplistics but this make the full code light and easy to start experimenting with.
 
+
+## How to get started:
+1.  After you clone the repository: git clone https://github.com/uva-spin/Qtracker_basic/edit/main/QTracker_basic go to QTracker_basic/data
+2.  From here you can generate the training data by following the instructions in the readme file in that directory.
+3.  Once you have train and saved the models to the approriate location you can then run Qtracker_basic.py.
+4.  python3 Qtracker_basic.py data/JPsi_Dump.root using the file already provide.
+
+## How to get started:
+All new models or modules should preserve the information and structure of the original RUS file that you are reading and just add new variable
+with additional track-level information as needed. The RUS file is our universal file structure which is also standarized.  You can learn about
+that here:
+
 ---
 
 ## Overview
