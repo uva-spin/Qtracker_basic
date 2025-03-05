@@ -19,7 +19,7 @@ You can learn about that here: [UVA RUS files](https://github.com/uva-spin/UVA_R
 ## Overview
 
 The script performs the following steps:
-1. **Loads Data**: Reads detector hit data from a ROOT file, including `detectorID`, `elementID`, and `driftDistance`.
+1. **Loads Data**: Reads detector hit data from a RUS ROOT file, including `detectorID`, `elementID`, and `driftDistance`.
 2. **Track Finding**: Uses a pre-trained TensorFlow model to predict hit arrays for muon tracks (mu+ and mu-).
 3. **Hit Array Refinement**: Refines the predicted hit arrays by matching them with actual hits from the input data.
 4. **Momentum Prediction**: Predicts the momentum (px, py, pz) for each track using refined hit arrays.
