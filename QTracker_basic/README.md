@@ -1,6 +1,6 @@
 # Qtracker Reconstruction Software: `Qtracker_basic.py`
 
-`Qtracker_basic.py` is the main inference script in the **Qtracker reconstruction software**. It processes RUS ROOT files containing detector hit data, performs track reconstruction, predicts particle momenta, and writes the results along with the original data to a new RUS ROOT file. This script is a critical component of the Qtracker framework, enabling the reconstruction of particle tracks and the extraction of physical quantities such as momentum and chi-squared (χ²) values based on the momentum fit using the hit information.  This version of Qtracker referred to as 'basic' is for learning purposes.  The models are overly simplistics but this make the full code light and easy to start experimenting with.
+`Qtracker_basic.py` is the main inference script in the **Qtracker reconstruction software**. It processes RUS ROOT files containing detector hit data, performs track reconstruction, predicts particle momenta, and writes the results along with the original data to a new RUS ROOT file. This script is a critical component of the Qtracker framework, enabling the reconstruction of particle tracks and the extraction of physical quantities such as momentum and chi-squared (χ²) values based on the momentum fits using the hit information.  This version of Qtracker referred to as 'basic' is for learning purposes.  The models are overly simplistics but this make the full code light and easy to start experimenting with.
 
 
 ## How to get started:
