@@ -10,9 +10,7 @@
 4.  Once you have trained and saved the models to the approriate location you can then run Qtracker_basic.py.
 5.  python3 Qtracker_basic.py data/JPsi_Dump.root using the file already provide.
 
-All new models or modules should preserve the information and structure of the original RUS file that you are reading and just add new variable
-with additional track-level information as needed. The RUS file is our universal file structure which is also standarized for storage and sharing.
-You can learn about that here: [UVA RUS files](https://github.com/uva-spin/UVA_RUS_Basic).
+All newly added model inferences should maintain the original information and structure of the RUS file while incorporating additional track-level variables as needed. The RUS file structure must also remain intact when applying cuts, creating skims, or defining classifier categories. The RUS file is our universal file structure which is also standarized for storage and sharing. You can learn about that here: [UVA RUS files](https://github.com/uva-spin/UVA_RUS_Basic).
 
 ---
 
