@@ -29,6 +29,7 @@ Ensure that your dataset can be reliably organized into single-track data with i
    - `momentum_training-2.root` (for mu- momentum training)
 
 ## Model Training
+Now go into the training_scripts directory
 
 ### 1. Training the Track Finder
 ```sh
