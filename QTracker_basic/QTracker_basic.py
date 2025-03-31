@@ -326,51 +326,56 @@ def add_drift_distance_to_hit_arrays(refined_mup, refined_mum, detectorIDs, elem
     return refined_mup_with_drift, refined_mum_with_drift
 
 
-def process_data(root_file, output_file="tracker_output.root"):
+def process_data(root_file, output_file="tracker_output.root", use_chi2_model=True):
     """Loads models, predicts hit arrays and momentum, refines hit arrays, and writes to a new ROOT file."""
     with tf.keras.utils.custom_object_scope({"custom_loss": custom_loss, "Adam": tf.keras.optimizers.legacy.Adam}):
         model_track = tf.keras.models.load_model(MODEL_PATH_TRACK)
-    
+
     model_momentum_mup = tf.keras.models.load_model(MODEL_PATH_MOMENTUM_MUP)
     model_momentum_mum = tf.keras.models.load_model(MODEL_PATH_MOMENTUM_MUM)
-    
-    # Load hit matrices from ROOT file (original data loader)
-    X, event_entries, _ = load_data(root_file)
 
-    # Load detectorID, elementID, and driftDistance vectors from ROOT file (second data loader)
+    X, event_entries, _ = load_data(root_file)
     detectorIDs, elementIDs, driftDistances, _ = load_detector_element_data(root_file)
 
-    # Predict raw hit arrays using the model
     rHitArray_mup, rHitArray_mum = predict_hit_arrays(model_track, X)
 
-    # Refine the predicted hit arrays using the detectorID and elementID vectors
     refined_HitArray_mup, refined_HitArray_mum = refine_hit_arrays(
         rHitArray_mup, rHitArray_mum, detectorIDs, elementIDs
     )
 
-    # Add drift distances to the refined hit arrays
     refined_HitArray_mup_with_drift, refined_HitArray_mum_with_drift = add_drift_distance_to_hit_arrays(
         refined_HitArray_mup, refined_HitArray_mum, detectorIDs, elementIDs, driftDistances
     )
 
-    # Predict momentum using the refined hit arrays with drift distances
     results = {
         'momentum_mup': predict_momentum(refined_HitArray_mup_with_drift, model_momentum_mup),
         'momentum_mum': predict_momentum(refined_HitArray_mum_with_drift, model_momentum_mum)
     }
-    
-    # Combine refined HitArrays for mu+ and mu- into a single dataset
-    combined_hit_arrays = np.concatenate([refined_HitArray_mup, refined_HitArray_mum], axis=0)
-    combined_momentum_vectors = np.concatenate([results['momentum_mup'], results['momentum_mum']], axis=0)
-    # Predict chi^2 values for the combined HitArrays
-    chi2_predictions = predict_chi2(combined_hit_arrays, combined_momentum_vectors, chi2_model_path=MODEL_PATH_METRIC)    
-    # Split the predictions back into mu+ and mu-
-    num_events = len(refined_HitArray_mup)
-    chi2_mup = chi2_predictions[:num_events]
-    chi2_mum = chi2_predictions[num_events:]
-    
-    # Write the refined hit arrays (with drift distances), predicted momenta, and chi^2 values to a new ROOT file
-    write_predicted_root_file(output_file, root_file, refined_HitArray_mup_with_drift, refined_HitArray_mum_with_drift, results, event_entries, chi2_mup, chi2_mum)
+
+    # chi^2 computation (optional)
+    if use_chi2_model:
+        combined_hit_arrays = np.concatenate([refined_HitArray_mup, refined_HitArray_mum], axis=0)
+        combined_momentum_vectors = np.concatenate([results['momentum_mup'], results['momentum_mum']], axis=0)
+        chi2_predictions = predict_chi2(combined_hit_arrays, combined_momentum_vectors, chi2_model_path=MODEL_PATH_METRIC)
+        num_events = len(refined_HitArray_mup)
+        chi2_mup = chi2_predictions[:num_events]
+        chi2_mum = chi2_predictions[num_events:]
+    else:
+        chi2_mup = np.zeros(len(refined_HitArray_mup))
+        chi2_mum = np.zeros(len(refined_HitArray_mum))
+
+    write_predicted_root_file(
+        output_file,
+        root_file,
+        refined_HitArray_mup_with_drift,
+        refined_HitArray_mum_with_drift,
+        results,
+        event_entries,
+        chi2_mup,
+        chi2_mum
+    )
+
+
 
 
 if __name__ == "__main__":
@@ -380,3 +385,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     process_data(args.root_file, args.output_file)
+
