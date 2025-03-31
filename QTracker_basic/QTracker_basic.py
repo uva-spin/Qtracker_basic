@@ -326,7 +326,7 @@ def add_drift_distance_to_hit_arrays(refined_mup, refined_mum, detectorIDs, elem
     return refined_mup_with_drift, refined_mum_with_drift
 
 
-def process_data(root_file, output_file="tracker_output.root", use_chi2_model=True):
+def process_data(root_file, output_file="tracker_output.root", use_chi2_model=False):
     """Loads models, predicts hit arrays and momentum, refines hit arrays, and writes to a new ROOT file."""
     with tf.keras.utils.custom_object_scope({"custom_loss": custom_loss, "Adam": tf.keras.optimizers.legacy.Adam}):
         model_track = tf.keras.models.load_model(MODEL_PATH_TRACK)
