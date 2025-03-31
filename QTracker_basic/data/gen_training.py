@@ -3,8 +3,6 @@ import argparse
 import numpy as np
 import os
 
-
-
 def combine_files(file1, file2, output_file):
     f1 = ROOT.TFile.Open(file1, "READ")
     f2 = ROOT.TFile.Open(file2, "READ")
@@ -149,16 +147,18 @@ def add_hit_array(input_file, output_file):
     fout.SetCompressionLevel(5)
     output_tree = tree.CloneTree(0)
     
-    HitArray = np.zeros(62, dtype=np.int32)
-    output_tree.Branch("HitArray", HitArray, "HitArray[62]/I")
+    # Change HitArray to 3D: 62 elements for elementID and 62 elements for driftDistance
+    HitArray = np.zeros((62, 2), dtype=np.float64)  # First column for elementID, second for driftDistance
+    output_tree.Branch("HitArray", HitArray, "HitArray[62][2]/D")
     
     for i in range(tree.GetEntries()):
         tree.GetEntry(i)
-        HitArray.fill(0)
+        HitArray.fill(0)  # Reset HitArray
         
-        for elem, det in zip(tree.elementID, tree.detectorID):
+        for elem, det, drift in zip(tree.elementID, tree.detectorID, tree.driftDistance):
             if 1 <= det <= 62:
-                HitArray[det - 1] = elem
+                HitArray[det - 1][0] = elem  # Store elementID
+                HitArray[det - 1][1] = drift if elem != 0 else 0  # Store driftDistance, set to 0 if elementID is 0
         
         output_tree.Fill()
     
