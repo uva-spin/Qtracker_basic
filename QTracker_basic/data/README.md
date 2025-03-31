@@ -59,11 +59,19 @@ python3 imass_plot.py qtracker_reco.root
 ```
 This script will plot the mass spectrum of your reconstructed events.
 
+
+After running the tracker and producing the output root file (qtracker_reco.root)
+you can use it to train the Chi-Squared model which is used to evaluate the reconstruction
+of a track based on hit information in the Hit Array and the momentum information.
+Go back into the training_scripts directory and produce the Quality Metric Model.
 ### 2. Training the Quality Metric Model (Chi-Squared Method)
 ```sh
 python3 Qmetric_training.py qtracker_reco.root
 ```
-
+Once training is complete move the chi2_predictor_model.h5 to the QTracker_basic/models.
+Change the flag in Qtracker_basic.py in the process_data function to True.
+def process_data(root_file, output_file="tracker_output.root", use_chi2_model=True)
+If you don't have chi2_predictor_model.h5 or don't need it, then leave use_chi2_model=False.
 ## Notes
 - Ensure that your dataset follows the expected RUS format before processing.
 - The trained models should be stored in the correct directory (`QTracker_basic/models`) for proper operation.
