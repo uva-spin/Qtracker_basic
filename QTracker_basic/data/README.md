@@ -61,7 +61,7 @@ This script will plot the mass spectrum of your reconstructed events.
 
 
 After running the tracker and producing the output root file (qtracker_reco.root)
-you can use it to train the Chi-Squared model which is used to evaluate the reconstruction
+you can use it to train the Chi-Squared model (Qmetric_training.py) which is used to evaluate the reconstruction
 of a track based on hit information in the Hit Array and the momentum information.
 Go back into the training_scripts directory and produce the Quality Metric Model.
 ### 2. Training the Quality Metric Model (Chi-Squared Method)
