@@ -86,7 +86,7 @@ The script uses the following pre-trained models:
 - `track_finder.h5`: For track finding (predicting hit arrays).
 - `mom_mup.h5`: For predicting momentum of mu+ tracks.
 - `mom_mum.h5`: For predicting momentum of mu- tracks.
-- `chi2_predictor_model.h5`: For predicting χ² values.
+- `chi2_predictor_model.h5`: For predicting χ² values which is use as a track quality metric.
 
 Ensure these models are located in the `./models/` directory or update the paths in the script.
 
