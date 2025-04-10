@@ -85,19 +85,14 @@ python messy_gen.py signal.root background.root --output output.root
 The per-hit retention probability is modified by one of the following models:
 
 ### Linear:
-\[
-w = 1 - \frac{detectorID}{100}
-\]
+`w = 1 - detectorID / 100`
 
 ### Gaussian:
-\[
-w = \exp\left(-\frac{(detectorID - 1)^2}{2 \cdot \text{GAUSSIAN\_SIGMA}^2}\right)
-\]
+`w = exp( - (detectorID - 1)^2 / (2 * GAUSSIAN_SIGMA^2) )`
 
 ### Exponential:
-\[
-w = \exp\left(-\frac{detectorID}{\text{EXP\_DECAY\_CONST}}\right)
-\]
+`w = exp( - detectorID / EXP_DECAY_CONST )`
+
 
 These models simulate detector efficiency decreasing with depth.
 
