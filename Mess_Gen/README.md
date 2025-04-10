@@ -71,11 +71,11 @@ The script expects ROOT files with a TTree named `"tree"` and the following bran
 ## Usage
 
 ```bash
-python inject_tracks.py input1.root input2.root --output output.root
+python messy_gen.py signal.root background.root --output output.root
 ```
 
-- `input1.root`: Input file with existing events.
-- `input2.root`: Input file with MC tracks to inject.
+- `signal.root`: The dimuon events you want as your signal.
+- `background.root`: The singal mu+ mu- you are adding in for track fragments (probably from the dump).
 - `--output`: (Optional) Output file name. Default is `mc_events.root`.
 
 ---
@@ -103,7 +103,7 @@ These models simulate detector efficiency decreasing with depth.
 
 ---
 
-## 🧪 Output
+## Output
 
 The script writes a new ROOT file with the updated tree containing:
 - All original hits from `file1`
@@ -112,6 +112,12 @@ The script writes a new ROOT file with the updated tree containing:
 - Maximum compression and efficient flushing using `SetAutoFlush(0)`
 
 ---
+## Check Output
+After you generate some messy events you can use the plot_HitMatrix.py script to look at what you made:
+```bash
+python3 plot_HitMatrix.py -event 1 mc_events.root
+```
+where the number after event is which event you want to look at.
 
 ## Requirements
 
