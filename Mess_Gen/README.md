@@ -1,7 +1,13 @@
 
-# Track Injector for ROOT Files
+# Generating Messy Monte Carlo Events
+Events are a recorded set of hits that we save with a high probability of having the physics process we are interested (Dimuon) embedded in
+some amount of background hits.  The background hits are primarily coming from the dump region and not the target.  The event generator here
+take Geant generated events for signal and adds Geant generated single muon tracks (both mu+ and mu-) hits from the dump to make events of whatever
+level of background one is needing.  The script provided (messy_gen.py) assumes that you have already generated your signal and single muon tracks in the RUS formate and that you want to combined them to generate messy simulated events. See about RUS files here:  [UVA RUS files](https://github.com/uva-spin/UVA_RUS_Basic).
 
-This Python script injects a specified number of Monte Carlo (MC) tracks from one ROOT file into another, simulating detector response through probabilistic hit retention. It provides support for multiple propagation models and compresses the output efficiently using LZMA.
+
+
+The messy_gen.py script injects a specified number of Monte Carlo (MC) tracks from one RUS ROOT file into another, simulating detector response through probabilistic hit retention as well as simulating fall off in hit frequency based on detector depth. It provides support for multiple propagation models and compresses the output efficiently using LZMA and writes back to the RUS file structure.
 
 ## Features
 
