@@ -5,9 +5,9 @@ some amount of background hits.  The background hits are primarily coming from t
 take Geant generated events for signal and adds Geant generated single muon tracks (both mu+ and mu-) hits from the dump to make events of whatever
 level of background one is needing.  The script provided (messy_gen.py) assumes that you have already generated your signal and single muon tracks in the RUS formate and that you want to combined them to generate messy simulated events. See about RUS files here:  [UVA RUS files](https://github.com/uva-spin/UVA_RUS_Basic).
 
-Geant file generation: [https://github.com/uva-spin/DimuAnaRUS/tree/main/mc_gen]
+Geant file generation: [Geant MC](https://github.com/uva-spin/DimuAnaRUS/tree/main/mc_gen)
 
-For basic RUS format information : https://confluence.admin.virginia.edu/display/twist/SpinQuest+Monte+Carlo+Generation+on+Rivanna
+For basic RUS format information : [RUS Structure](https://confluence.admin.virginia.edu/display/twist/SpinQuest+Monte+Carlo+Generation+on+Rivanna)
 
 The messy_gen.py script injects a specified number of Monte Carlo (MC) tracks from one RUS ROOT file into another, simulating detector response through probabilistic hit retention as well as simulating fall off in hit frequency based on detector depth. It provides support for multiple propagation models and compresses the output efficiently using LZMA and writes back to the RUS file structure.
 
