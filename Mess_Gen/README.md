@@ -30,6 +30,8 @@ The messy_gen.py script injects a specified number of Monte Carlo (MC) tracks fr
 4. Hits are kept probabilistically:
    - A random per-track probability is drawn from a Gaussian centered on `PROB_MEAN` with width `PROB_WIDTH`.
    - A weighting is applied per hit using the selected propagation model.
+Starting with a mu+ and mu- RUS file you can use python3 combine.py mup_file.root mum_file.root to generate a
+single_muon.root file which altrenates between mu+ and mu- and will be used to feed in background to each event.
 
 ---
 
