@@ -4,6 +4,8 @@ import tensorflow as tf
 import argparse
 import os
 
+# USE_CHI2 must be False the first time the script is ran to obtain output for training the quality metric
+USE_CHI2 = True
 # Paths to models
 MODEL_PATH_TRACK = "./models/track_finder.h5"
 MODEL_PATH_MOMENTUM_MUP = "./models/mom_mup.h5"
@@ -325,8 +327,7 @@ def add_drift_distance_to_hit_arrays(refined_mup, refined_mum, detectorIDs, elem
 
     return refined_mup_with_drift, refined_mum_with_drift
 
-
-def process_data(root_file, output_file="tracker_output.root", use_chi2_model=False):
+def process_data(root_file, output_file="tracker_output.root", use_chi2_model=USE_CHI2):
     """Loads models, predicts hit arrays and momentum, refines hit arrays, and writes to a new ROOT file."""
     with tf.keras.utils.custom_object_scope({"custom_loss": custom_loss, "Adam": tf.keras.optimizers.legacy.Adam}):
         model_track = tf.keras.models.load_model(MODEL_PATH_TRACK)
@@ -385,4 +386,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     process_data(args.root_file, args.output_file)
+
 
