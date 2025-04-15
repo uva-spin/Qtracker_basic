@@ -46,7 +46,7 @@ Store the resulting models in the `QTracker_basic/models` directory.
 ## Testing the Tracker
 To test the trained models on a dataset:
 ```sh
-python3 QTracker_basic/training_scripts/QTracker_test.py JPsi_Dump.root
+python3 QTracker_basic/training_scripts/QTracker_basic.py JPsi_Dump.root
 ```
 This will generate:
 - `qtracker_reco.root` (Reconstructed output file)
