@@ -78,12 +78,12 @@ Additionally, you need `ROOT` installed to process ROOT files.
 
 ## Scripts Overview
 
-### 1. `train_hit_matrix.py`
+### 1. `track_finder.py`
 This script trains a Convolutional Neural Network (CNN) model to predict hit arrays from detector hit matrices.
 
 #### Usage:
 ```bash
-python QTracker_basic/training_scripts/train_hit_matrix.py <root_file> --output_model models/track_finder.h5 --learning_rate 0.00005
+python QTracker_basic/training_scripts/track_finder.py <root_file> --output_model models/track_finder.h5 --learning_rate 0.00005
 ```
 
 #### Functionality:
