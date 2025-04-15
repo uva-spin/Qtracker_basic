@@ -78,12 +78,12 @@ Additionally, you need `ROOT` installed to process ROOT files.
 
 ## Scripts Overview
 
-### 1. `track_finder.py`
+### 1. `Trackfinder_training.py`
 This script trains a Convolutional Neural Network (CNN) model to predict hit arrays from detector hit matrices.
 
 #### Usage:
 ```bash
-python QTracker_basic/training_scripts/track_finder.py <root_file> --output_model models/track_finder.h5 --learning_rate 0.00005
+python QTracker_basic/training_scripts/TrackFinder_training.py <root_file> --output_model models/track_finder.h5
 ```
 
 #### Functionality:
@@ -94,12 +94,12 @@ python QTracker_basic/training_scripts/track_finder.py <root_file> --output_mode
 
 ---
 
-### 2. `train_momentum_model.py`
+### 2. `Momentum_training.py`
 This script trains a deep neural network (DNN) to predict momentum components (gpx, gpy, gpz) from detector hit arrays.
 
 #### Usage:
 ```bash
-python QTracker_basic/training_scripts/train_momentum_model.py <input_root_files> --output models/mom_model.h5 --epochs 300 --batch_size 32
+python QTracker_basic/training_scripts/Momentum_training.py <input_root_files> --output models/mom_model.h5
 ```
 
 #### Functionality:
@@ -110,12 +110,12 @@ python QTracker_basic/training_scripts/train_momentum_model.py <input_root_files
 
 ---
 
-### 3. `train_chi2_model.py`
+### 3. `Qmetric_training.py`
 This script trains a model to predict chi-squared (χ²) values based on reconstructed and true momentum components.
 
 #### Usage:
 ```bash
-python QTracker_basic/training_scripts/train_chi2_model.py <root_file>
+python QTracker_basic/training_scripts/Qmetric_training.py <root_file>
 ```
 
 #### Functionality:
@@ -130,10 +130,6 @@ Each script saves trained models in the `models/` directory:
 - `mom_model.h5` - DNN model predicting momentum components.
 - `chi2_predictor_model.h5` - Model predicting χ² values for track assessment.
 
-## Contact
-For any questions or issues, feel free to open an issue in this repository.
 
----
 
-**Author:** Dustin Keller (University of Virginia)
 
