@@ -79,7 +79,7 @@ Hit arrays are represented as 2D binary matrices of shape `(62, 201)`.
 
 ---
 
-## 🚀 Usage
+## Usage
 
 ### Train a model
 Use the tools in the data folder to make messy events in the RUS file formate for training and testing.
