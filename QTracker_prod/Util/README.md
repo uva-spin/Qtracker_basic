@@ -1,7 +1,6 @@
 
 
-```markdown
-# ROOT Utility Scripts for Dimuon and Detector Analysis
+## ROOT Utility Scripts for Dimuon and Detector Analysis
 
 This repository provides a suite of Python-based tools to explore, visualize, and process ROOT files commonly used in high-energy and nuclear physics
 analyses. Each script is specialized for a task such as file structure inspection, event skimming, plotting invariant masses, and merging or visualizing
