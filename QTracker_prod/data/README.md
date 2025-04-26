@@ -29,7 +29,7 @@ Merges two single-muon ROOT files (e.g., `mup_rus.root` and `mum_rus.root`) by a
 
 **Usage:**
 ```bash
-python combine.py mup_rus.root mum_rus.root --output single_muons.root
+python combine.py Signal_rus_track1.root Signal_rus_track2.root --output single_muons.root
 ```
 
 **Default Output:**  
@@ -63,12 +63,25 @@ Injects randomly generated background muon tracks from `single_muons.root` into 
 ```bash
 python messy_gen.py finder_training.root single_muons.root
 ```
-
 **Optional Arguments:**
 - `--output mc_events.root` — specify the output filename (default: `mc_events.root`)
 
 **Output:**
 - `mc_events.root` — signal + injected background events
+
+---
+
+### 5. `noisy_gen.py`
+**Purpose:**  
+Injects randomly generated noise hits into the existing ROOT file containing detector hit information. It injects two types of noise (electronic noise and cluster noise) into the hit vectors, and saves the modified events to the standard compressed RUS output file.
+
+**Usage:**
+```bash
+python noisy_gen.py mc_events.root
+```
+
+**Output:**
+- `noisy_output.root` — messy event + electronic and cluster noise
 
 ---
 
