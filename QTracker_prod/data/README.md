@@ -75,6 +75,20 @@ python messy_gen.py finder_training.root single_muons.root
 **Purpose:**  
 Injects randomly generated noise hits into the existing ROOT file containing detector hit information. It injects two types of noise (electronic noise and cluster noise) into the hit vectors, and saves the modified events to the standard compressed RUS output file.
 
+## Noise Model
+
+- **Electronic Noise Probability:** 1% per unused (detectorID, elementID) pair.
+- **Cluster Noise Probability:** 5% per detector.
+- **Cluster Length Range:** Randomly between 2 and 4 adjacent elements.
+- **Injected Noise Properties:** All injected hits have `driftDistance = 0.0` and `tdcTime = 0.0` to clearly mark them as noise.
+
+These settings can be easily modified inside the script by changing the constants:
+```python
+P_ELECTRONIC_NOISE = 0.01
+P_CLUSTER_NOISE = 0.05
+CLUSTER_LENGTH_RANGE = (2, 4)
+```
+
 **Usage:**
 ```bash
 python noisy_gen.py mc_events.root
