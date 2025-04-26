@@ -3,9 +3,14 @@ import numpy as np
 import tensorflow as tf
 import argparse
 import os
+from ROOT import TFile, TTree, TMatrixD
+from numba import njit, prange
 
 # USE_CHI2 must be False the first time the script is ran to obtain output for training the quality metric
 USE_CHI2 = True
+USE_DECLUSTERING = False  # Toggle to enable/disable declustering
+USE_SMAXMATRIX = False  # Toggle to enable/disable write softmax matrix
+
 # Paths to models
 MODEL_PATH_TRACK = "./models/track_finder.h5"
 MODEL_PATH_MOMENTUM_MUP = "./models/mom_mup.h5"
@@ -31,8 +36,9 @@ def custom_loss(y_true, y_pred):
 
 
 def load_detector_element_data(root_file):
-    #Loads detectorID, elementID, and driftDistance for hit arrya refinement, adding drift distance and chi2 predictions.
-    
+    """
+    Loads detectorID, elementID, driftDistance, and tdcTime from ROOT file.
+    """
     if not os.path.exists(root_file):
         raise FileNotFoundError(f"Error: Input ROOT file '{root_file}' not found.")
 
@@ -41,41 +47,131 @@ def load_detector_element_data(root_file):
     if not tree:
         raise ValueError(f"Error: 'tree' not found in {root_file}.")
 
-    detectorIDs, elementIDs, driftDistances = [], [], []
+    detectorIDs, elementIDs, driftDistances, tdcTimes = [], [], [], []
+
     for event in tree:
         detectorIDs.append(np.array(event.detectorID, dtype=np.int32))
         elementIDs.append(np.array(event.elementID, dtype=np.int32))
         driftDistances.append(np.array(event.driftDistance, dtype=np.float32))
+        tdcTimes.append(np.array(event.tdcTime, dtype=np.float32))  # <-- this was missing
+
+    return detectorIDs, elementIDs, driftDistances, tdcTimes, f
+
+
+@njit(parallel=True)
+def declusterize(hits, drift, tdc):
+    """
+    Removes clustered or noisy hits from the hit matrix.
+    Operates in-place on hits, drift, and tdc arrays.
     
-    return detectorIDs, elementIDs, driftDistances, f
+    Args:
+        hits: 3D array of shape (num_events, 62, 201), binary hit matrix.
+        drift: 3D array, same shape, with drift distances.
+        tdc: 3D array, same shape, with TDC values.
+    """
+    num_events, num_detectors, num_elements = hits.shape
+
+    for k in prange(num_events):
+        for i in range(31):  # You may increase this to 62 if desired
+            for j in range(0, 199):  # avoid out-of-bounds at j+2
+                if hits[k, i, j] == 1 and hits[k, i, j+1] == 1:
+                    if hits[k, i, j+2] == 0:  # 2-hit cluster
+                        if drift[k, i, j] > 0.9 and drift[k, i, j+1] > 0.4:
+                            hits[k, i, j] = 0
+                            drift[k, i, j] = 0
+                            tdc[k, i, j] = 0
+                        elif drift[k, i, j+1] > 0.9 and drift[k, i, j] > 0.4:
+                            hits[k, i, j+1] = 0
+                            drift[k, i, j+1] = 0
+                            tdc[k, i, j+1] = 0
+                        if abs(tdc[k, i, j] - tdc[k, i, j+1]) < 8:
+                            hits[k, i, j] = 0
+                            hits[k, i, j+1] = 0
+                            drift[k, i, j] = 0
+                            drift[k, i, j+1] = 0
+                            tdc[k, i, j] = 0
+                            tdc[k, i, j+1] = 0
+                    else:
+                        n = 2
+                        while j + n < num_elements and hits[k, i, j+n] == 1:
+                            n += 1
+                        dt_mean = 0.0
+                        for m in range(n - 1):
+                            dt_mean += abs(tdc[k, i, j+m] - tdc[k, i, j+m+1])
+                        dt_mean /= (n - 1)
+                        if dt_mean < 10:
+                            for m in range(n):
+                                hits[k, i, j+m] = 0
+                                drift[k, i, j+m] = 0
+                                tdc[k, i, j+m] = 0
+
+            # Now do a right-to-left pass
+            for j in range(0, 199):
+                jj = 200 - j
+                if hits[k, i, jj] == 1 and hits[k, i, jj-1] == 1:
+                    if hits[k, i, jj-2] == 0:
+                        if drift[k, i, jj] > 0.9 and drift[k, i, jj-1] > 0.4:
+                            hits[k, i, jj] = 0
+                            drift[k, i, jj] = 0
+                        elif drift[k, i, jj-1] > 0.9 and drift[k, i, jj] > 0.4:
+                            hits[k, i, jj-1] = 0
+                            drift[k, i, jj-1] = 0
+                        if abs(tdc[k, i, jj] - tdc[k, i, jj-1]) < 8:
+                            hits[k, i, jj] = 0
+                            hits[k, i, jj-1] = 0
+                            drift[k, i, jj] = 0
+                            drift[k, i, jj-1] = 0
+                            tdc[k, i, jj] = 0
+                            tdc[k, i, jj-1] = 0
+                    else:
+                        n = 2
+                        while jj - n >= 0 and hits[k, i, jj-n] == 1:
+                            n += 1
+                        dt_mean = 0.0
+                        for m in range(n - 1):
+                            dt_mean += abs(tdc[k, i, jj-m] - tdc[k, i, jj-m-1])
+                        dt_mean /= (n - 1)
+                        if dt_mean < 10:
+                            for m in range(n):
+                                hits[k, i, jj-m] = 0
+                                drift[k, i, jj-m] = 0
+                                tdc[k, i, jj-m] = 0
 
 
-def load_data(root_file):
-    #Loads detector hits from ROOT file to make hit matrix for track finding.
-    if not os.path.exists(root_file):
-        raise FileNotFoundError(f"Error: Input ROOT file '{root_file}' not found.")
 
-    f = ROOT.TFile.Open(root_file, "READ")
-    tree = f.Get("tree")
-    if not tree:
-        raise ValueError(f"Error: 'tree' not found in {root_file}.")
 
-    X, event_entries = [], []
-    for i, event in enumerate(tree):
-        event_hits_matrix = np.zeros((NUM_DETECTORS, NUM_ELEMENT_IDS), dtype=np.float32)
-        for det_id, elem_id in zip(event.detectorID, event.elementID):
-            if 0 <= det_id < NUM_DETECTORS and 0 <= elem_id < NUM_ELEMENT_IDS:
-                event_hits_matrix[det_id, elem_id] = 1
-        X.append(event_hits_matrix)
-        event_entries.append(i)
+def build_hit_drift_tdc_matrices(detectorIDs, elementIDs, driftDistances, tdcTimes):
+    """
+    Constructs 3D hit, drift, and tdc matrices (num_events, 62, 201).
+    Each hit location will be 1 in hit matrix, and corresponding values in drift and tdc.
+    """
+    num_events = len(detectorIDs)
+    hits = np.zeros((num_events, NUM_DETECTORS, NUM_ELEMENT_IDS), dtype=np.int32)
+    drift = np.zeros_like(hits, dtype=np.float32)
+    tdc = np.zeros_like(hits, dtype=np.float32)
+
+    for i in range(num_events):
+        for det, elem, d, t in zip(detectorIDs[i], elementIDs[i], driftDistances[i], tdcTimes[i]):
+            if 0 <= det < NUM_DETECTORS and 0 <= elem < NUM_ELEMENT_IDS:
+                hits[i, det, elem] = 1
+                drift[i, det, elem] = d
+                tdc[i, det, elem] = t
     
-    return np.expand_dims(np.array(X), axis=-1), event_entries, f
+    return hits, drift, tdc
+
+
 
 
 def predict_hit_arrays(model, X):
-    """Runs the TrackFinder model to predict hit arrays."""
+    """Runs the TrackFinder model to predict hit arrays and returns softmax responses."""
     predictions = model.predict(X)
-    return np.argmax(predictions[:, 0, :, :], axis=-1), np.argmax(predictions[:, 1, :, :], axis=-1)
+    softmax_mup = predictions[:, 0, :, :]  # shape: (num_events, 62, 201)
+    softmax_mum = predictions[:, 1, :, :]  # shape: (num_events, 62, 201)
+    rHitArray_mup = np.argmax(softmax_mup, axis=-1)  # (num_events, 62)
+    rHitArray_mum = np.argmax(softmax_mum, axis=-1)  # (num_events, 62)
+    return rHitArray_mup, rHitArray_mum, softmax_mup, softmax_mum
+
+
 
 
 def predict_momentum(hit_arrays, model):
@@ -124,11 +220,17 @@ def predict_chi2(hit_arrays, momentum_vectors, chi2_model_path=MODEL_PATH_METRIC
     return chi2_predictions.flatten()  # Flatten to 1D array
 
 
-def write_predicted_root_file(output_file, input_file, rHitArray_mup, rHitArray_mum, results, event_entries, chi2_mup, chi2_mum):
+def write_predicted_root_file(output_file, input_file, rHitArray_mup, rHitArray_mum, results,
+                              event_entries, chi2_mup, chi2_mum, hits_before=None, hits_after=None,
+                              softmax_mup=None, softmax_mum=None):
+
     """Writes predictions to a new ROOT file, preserving the original data and storing hit arrays."""
     f_input = ROOT.TFile.Open(input_file, "READ")
     tree_input = f_input.Get("tree")
     fout = ROOT.TFile.Open(output_file, "RECREATE", "", ROOT.kLZMA)
+    if hits_before is not None and hits_after is not None:
+        write_hit_matrices_to_root(fout, hits_before, hits_after)
+
     fout.SetCompressionLevel(5)
     output_tree = tree_input.CloneTree(0)
 
@@ -170,6 +272,9 @@ def write_predicted_root_file(output_file, input_file, rHitArray_mup, rHitArray_
         qchi2[1] = chi2_mum[i]  
 
         output_tree.Fill()
+
+    if softmax_mup is not None and softmax_mum is not None:
+        write_softmax_to_root(fout, softmax_mup, softmax_mum)
 
     fout.Write()
     fout.Close()
@@ -232,6 +337,60 @@ def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs):
 
     return refined_mup, refined_mum
 
+
+
+def write_hit_matrices_to_root(fout, hits_before, hits_after):
+    """
+    Writes the hit matrices before and after declustering into an already open ROOT file.
+
+    Args:
+        fout: Open ROOT TFile where the tree should be written.
+        hits_before: 3D numpy array (num_events, 62, 201) before cleaning
+        hits_after: 3D numpy array (num_events, 62, 201) after cleaning
+    """
+    tree = TTree("hitMatrixTree", "Hit matrices before and after declustering")
+
+    mat_before = TMatrixD(NUM_DETECTORS, NUM_ELEMENT_IDS)
+    mat_after = TMatrixD(NUM_DETECTORS, NUM_ELEMENT_IDS)
+
+    tree.Branch("hitMatrix_before", mat_before)
+    tree.Branch("hitMatrix_after", mat_after)
+
+    num_events = hits_before.shape[0]
+    for i in range(num_events):
+        for det in range(NUM_DETECTORS):
+            for elem in range(NUM_ELEMENT_IDS):
+                mat_before[det][elem] = hits_before[i, det, elem]
+                mat_after[det][elem] = hits_after[i, det, elem]
+        tree.Fill()
+
+    tree.Write()  # <<== VERY IMPORTANT! Write the tree into fout
+    print(f"Hit matrices written to {fout.GetName()}")
+
+def write_softmax_to_root(fout, softmax_mup, softmax_mum):
+    """
+    Writes the softmax response matrices for mu+ and mu- into the ROOT file.
+    """
+    tree = TTree("softmaxTree", "Softmax output matrices for mup and mum")
+
+    mat_softmax_mup = TMatrixD(NUM_DETECTORS, NUM_ELEMENT_IDS)
+    mat_softmax_mum = TMatrixD(NUM_DETECTORS, NUM_ELEMENT_IDS)
+
+    tree.Branch("softmax_mup", mat_softmax_mup)
+    tree.Branch("softmax_mum", mat_softmax_mum)
+
+    num_events = softmax_mup.shape[0]
+    for i in range(num_events):
+        for det in range(NUM_DETECTORS):
+            for elem in range(NUM_ELEMENT_IDS):
+                mat_softmax_mup[det][elem] = softmax_mup[i, det, elem]
+                mat_softmax_mum[det][elem] = softmax_mum[i, det, elem]
+        tree.Fill()
+
+    tree.Write()
+    print(f"Softmax matrices written to {fout.GetName()}")
+
+
 def write_hit_arrays_to_file(rHitArray_mup, rHitArray_mum, refined_HitArray_mup, refined_HitArray_mum, output_file):
     """
     Writes the original and refined hit arrays to a text file for debugging.
@@ -291,6 +450,9 @@ def add_drift_distance_to_hit_arrays(refined_mup, refined_mum, detectorIDs, elem
         elementIDs_event = np.array(elementIDs[event], dtype=np.int32)
         driftDistances_event = np.array(driftDistances[event], dtype=np.float32)
 
+        assert len(detectorIDs_event) == len(elementIDs_event) == len(driftDistances_event), \
+            f"[Mismatch] event {event}: detectorIDs={len(detectorIDs_event)} elementIDs={len(elementIDs_event)} driftDistances={len(driftDistances_event)}"
+
         # Iterate over detectors
         for detector in range(num_detectors):
             # Get the real elementID for mu+ and mu-
@@ -335,10 +497,35 @@ def process_data(root_file, output_file="tracker_output.root", use_chi2_model=US
     model_momentum_mup = tf.keras.models.load_model(MODEL_PATH_MOMENTUM_MUP)
     model_momentum_mum = tf.keras.models.load_model(MODEL_PATH_MOMENTUM_MUM)
 
-    X, event_entries, _ = load_data(root_file)
-    detectorIDs, elementIDs, driftDistances, _ = load_detector_element_data(root_file)
+    #X, event_entries, _ = load_data(root_file)
+    #detectorIDs, elementIDs, driftDistances, _ = load_detector_element_data(root_file)
+    detectorIDs, elementIDs, driftDistances, tdcTimes, _ = load_detector_element_data(root_file)
 
-    rHitArray_mup, rHitArray_mum = predict_hit_arrays(model_track, X)
+    # Build raw matrices
+    hits, drift, tdc = build_hit_drift_tdc_matrices(detectorIDs, elementIDs, driftDistances, tdcTimes)
+
+    # Make a copy for comparison
+    hits_before = hits.copy()
+    
+    # Decluster in place
+    if USE_DECLUSTERING:
+        print("Declustering enabled — cleaning hit matrix...")
+        declusterize(hits, drift, tdc)
+    else:
+        print("Declustering disabled — using raw hit matrix.")
+
+
+    # Write both versions to a debug ROOT file
+    #write_hit_matrices_to_root("hit_matrices_debug.root", hits_before, hits)
+
+    # Use declustered hit matrix as CNN input
+    X = np.expand_dims(hits, axis=-1)
+    event_entries = list(range(len(hits)))
+
+
+    #rHitArray_mup, rHitArray_mum = predict_hit_arrays(model_track, X)
+    rHitArray_mup, rHitArray_mum, softmax_mup, softmax_mum = predict_hit_arrays(model_track, X)
+
 
     refined_HitArray_mup, refined_HitArray_mum = refine_hit_arrays(
         rHitArray_mup, rHitArray_mum, detectorIDs, elementIDs
@@ -365,6 +552,8 @@ def process_data(root_file, output_file="tracker_output.root", use_chi2_model=US
         chi2_mup = np.zeros(len(refined_HitArray_mup))
         chi2_mum = np.zeros(len(refined_HitArray_mum))
 
+
+
     write_predicted_root_file(
         output_file,
         root_file,
@@ -373,10 +562,12 @@ def process_data(root_file, output_file="tracker_output.root", use_chi2_model=US
         results,
         event_entries,
         chi2_mup,
-        chi2_mum
+        chi2_mum,
+        hits_before if USE_DECLUSTERING else None,
+        hits if USE_DECLUSTERING else None,
+        softmax_mup if USE_SMAXMATRIX else None,
+        softmax_mum if USE_SMAXMATRIX else None
     )
-
-
 
 
 if __name__ == "__main__":
@@ -386,3 +577,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     process_data(args.root_file, args.output_file)
+
