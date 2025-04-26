@@ -114,6 +114,43 @@ python3 plot_HitMatrix.py yourfile.root -event 42
 
 ---
 
+### `plot_matrix.py`
+
+**Purpose:**  
+Plots the 2D detector hit matrix (`elementID` vs `detectorID`) for the output of QTracker_prod assuming the flag for declustering was used and the TMatrixD were saved to the output. This is for checking the hit matrix before and after declustering.
+
+**Usage:**  
+```bash
+python3 plot_matrix.py yourfile.root -event 42
+```
+
+**Expected branches:**
+- `detectorID` and `elementID` stored as vector branches
+
+**Output:**  
+- A graphical window displaying a heatmap of detector hits
+
+---
+
+### `plot_smax.py`
+
+**Purpose:**  
+Plots the 2D detector softmax matrix (`elementID` vs `detectorID`) for the output of QTracker_prod assuming the flag USE_SMAXMATRIX = True is set so that the softmax probability from the track finding CNN is saved storing the softmax probability for mu+ and mu- in separate TMatrixD matricies.
+
+**Usage:**  
+```bash
+python3 plot_smax.py yourfile.root -event 42
+```
+
+**Expected branches:**
+- `detectorID` and `elementID` stored as vector branches
+
+**Output:**  
+- A graphical window displaying a heatmap of detector hits
+
+---
+
+
 ## File Structure
 
 ```
