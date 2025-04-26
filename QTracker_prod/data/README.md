@@ -89,11 +89,11 @@ python noisy_gen.py mc_events.root
 
 1. **Split the signal:**  
    ```bash
-   python separate.py Signal_rus.root
+   python3 separate.py Signal_rus.root
    ```
 2. **Prepare background hits (from dump simulation):**  
    ```bash
-   python combine.py mup_rus.root mum_rus.root
+   python3 combine.py Signal_rus_track1.root Signal_rus_track2.root
    ```
 3. **Generate training files:**  
    ```bash
@@ -101,9 +101,12 @@ python noisy_gen.py mc_events.root
    ```
 4. **Add background to training hits:**  
    ```bash
-   python messy_gen.py finder_training.root single_muons.root
+   python3 messy_gen.py finder_training.root single_muons.root
    ```
-
+5. **Add noise to training hits:**  
+   ```bash
+   python3 noisy_gen.py mc_events.root
+   ```
 ---
 
 ## Configuration Options
