@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow as tf
 import argparse
 from tensorflow.keras import regularizers
+from tensorflow.keras.layers import Lambda
 from sklearn.model_selection import train_test_split
 
 os.makedirs("models", exist_ok=True)
@@ -50,10 +51,27 @@ def custom_loss(y_true, y_pred):
     return tf.reduce_mean(loss_mup + loss_mum + 0.1 * overlap_penalty)
 
 
+class ChannelAvgPool(tf.keras.layers.Layer):
+    def call(self, x):
+        return tf.reduce_mean(x, axis=[1, 2], keepdims=True)
+    
+class ChannelMaxPool(tf.keras.layers.Layer):
+    def call(self, x):
+        return tf.reduce_max(x, axis=[1, 2], keepdims=True)
+    
+class SpatialAvgPool(tf.keras.layers.Layer):
+    def call(self, x):
+        return tf.reduce_mean(x, axis=-1, keepdims=True)
+    
+class SpatialMaxPool(tf.keras.layers.Layer):
+    def call(self, x):
+        return tf.reduce_max(x, axis=-1, keepdims=True)
+
+
 def cbam_block(x, reduction_ratio=8):
     # Channel Attention
-    avg_pool = tf.reduce_mean(x, axis=[1, 2], keepdims=True)
-    max_pool = tf.reduce_max(x, axis=[1, 2], keepdims=True)
+    avg_pool = ChannelAvgPool()(x)
+    max_pool = ChannelMaxPool()(x)
     shared_dense = tf.keras.Sequential([
         tf.keras.layers.Dense(x.shape[-1] // reduction_ratio, activation='relu', use_bias=False),
         tf.keras.layers.Dense(x.shape[-1], use_bias=False)
@@ -62,8 +80,8 @@ def cbam_block(x, reduction_ratio=8):
     x = tf.keras.layers.Multiply()([x, ca])
 
     # Spatial Attention
-    avg_pool = tf.reduce_mean(x, axis=-1, keepdims=True)
-    max_pool = tf.reduce_max(x, axis=-1, keepdims=True)
+    avg_pool = SpatialAvgPool()(x)
+    max_pool = SpatialMaxPool()(x)
     sa = tf.keras.layers.Concatenate(axis=-1)([avg_pool, max_pool])
     sa = tf.keras.layers.Conv2D(1, kernel_size=7, strides=1, padding='same', activation='sigmoid')(sa)
     x = tf.keras.layers.Multiply()([x, sa])
@@ -130,15 +148,17 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005):
     return model
 
 
-def train_model(root_file, output_model, learning_rate=0.00005):
+def train_model(root_file, output_model, learning_rate, epoch, batch_size, patience):
     X, y_muPlus, y_muMinus = load_data(root_file)
     if X is None:
         return
     y = np.stack([y_muPlus, y_muMinus], axis=1)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+    early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=patience, restore_best_weights=True)
+
     model = build_model(learning_rate=learning_rate)
-    model.fit(X_train, y_train, epochs=40, batch_size=32, validation_data=(X_test, y_test))
+    model.fit(X_train, y_train, epochs=epoch, batch_size=batch_size, validation_data=(X_test, y_test), callbacks=[early_stopping])
     model.save(output_model)
     print(f"Model saved to {output_model}")
 
@@ -148,6 +168,9 @@ if __name__ == "__main__":
     parser.add_argument("root_file", type=str, help="Path to the combined ROOT file.")
     parser.add_argument("--output_model", type=str, default="models/track_finder_cbam.h5", help="Path to save the trained model.")
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
+    parser.add_argument("--epoch", type=int, default=40, help="Training epoch count.")
+    parser.add_argument("--batch_size", type=int, default=32, help="Batch size.")
+    parser.add_argument("--patience", type=int, default=5, help="Patience for early stopping.")
     args = parser.parse_args()
 
-    train_model(args.root_file, args.output_model, args.learning_rate)
+    train_model(args.root_file, args.output_model, args.learning_rate, args.epoch, args.batch_size, args.patience)

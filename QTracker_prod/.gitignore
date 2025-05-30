@@ -1,0 +1,5 @@
+*.root
+models/
+run.sh
+
+__pycache__/

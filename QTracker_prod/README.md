@@ -135,5 +135,13 @@ Optional auxiliary trees:
 python3 QTracker_prod.py input_data.root --output_file reco_output.root
 ```
 
+---
 
+## TrackFinder Training and Evaluation
+To train and evaluate TrackFinder models, run the following script:
 
+```bash
+./train.sh
+```
+
+This script is designed to preprocess input ROOT files, train currently available TrackFinder models, and evaluate each of them using a distribution of residuals. The evaluation logic can be found under `evaluation.py`. Directly modify the shell script to train your custom TrackFinder model or use it as reference. 

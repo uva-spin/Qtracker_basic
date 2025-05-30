@@ -2,17 +2,8 @@ import ROOT
 import numpy as np
 from array import array
 
-# Detector efficiency probability
-NUM_TRACKS = 5
-PROB_MEAN = 0.9
-PROB_WIDTH = 0.1
 
-# Hit fall model: "linear", "gaussian", or "exponential"
-PROPAGATION_MODEL = "gaussian"
-GAUSSIAN_SIGMA = 10.0
-EXP_DECAY_CONST = 15.0
-
-def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
+def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, propagation_model, gaussian_sigma, exp_decay_const):
     if not (1 <= num_tracks <= 100):
         raise ValueError("num_tracks must be between 1 and 100.")
     if not (0 <= prob_mean <= 1):
@@ -164,14 +155,14 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
 
             for procID, elem, det, dist, tdc in zip(tree2.processID, tree2.elementID, tree2.detectorID, tree2.driftDistance, tree2.tdcTime):
 
-                if PROPAGATION_MODEL == "linear":
+                if propagation_model == "linear":
                     weight = 1 - det / 100
-                elif PROPAGATION_MODEL == "gaussian":
-                    weight = np.exp(-0.5 * ((det - 1) / GAUSSIAN_SIGMA) ** 2)
-                elif PROPAGATION_MODEL == "exponential":
-                    weight = np.exp(-det / EXP_DECAY_CONST)
+                elif propagation_model == "gaussian":
+                    weight = np.exp(-0.5 * ((det - 1) / gaussian_sigma) ** 2)
+                elif propagation_model == "exponential":
+                    weight = np.exp(-det / exp_decay_const)
                 else:
-                    raise ValueError(f"Unknown PROPAGATION_MODEL: {PROPAGATION_MODEL}")
+                    raise ValueError(f"Unknown PROPAGATION_MODEL: {propagation_model}")
 
                 if np.random.random() < probability * weight:
                     processID.push_back(procID)
@@ -197,6 +188,26 @@ if __name__ == "__main__":
     parser.add_argument("file1", type=str, help="Path to the finder_training.root file (signal).")
     parser.add_argument("file2", type=str, help="Path to the background file.")
     parser.add_argument("--output", type=str, default="mc_events.root", help="Output ROOT file name.")
+    
+    # Detector efficiency probability
+    parser.add_argument("--num_tracks", type=int, default=5, help="Number of injected background tracks.")
+    parser.add_argument("--prob_mean", type=float, default=0.9, help="Probability Distribution Mean.")
+    parser.add_argument("--prob_width", type=float, default=0.1, help="Width of probability distribution for variance.")
+    
+    # Hit fall model: "linear", "gaussian", or "exponential"
+    parser.add_argument("--propagation_model", type=str, default="gaussian", help="Choose: ['linear', 'gaussian', or 'exponential'].")
+    parser.add_argument("--gaussian_sigma", type=float, default=10.0, help="Hyperparameter for Gaussian Decay.")
+    parser.add_argument("--exp_decay_const", type=float, default=15.0, help="Hyperparameter for Exponential Decay.")
     args = parser.parse_args()
 
-    inject_tracks(args.file1, args.file2, args.output, NUM_TRACKS, PROB_MEAN, PROB_WIDTH)
+    inject_tracks(
+        args.file1, 
+        args.file2, 
+        args.output, 
+        args.num_tracks, 
+        args.prob_mean, 
+        args.prob_width,
+        args.propagation_model,
+        args.gaussian_sigma,
+        args.exp_decay_const,
+    )
