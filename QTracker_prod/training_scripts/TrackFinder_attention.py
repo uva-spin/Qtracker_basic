@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 import argparse
 from tensorflow.keras import regularizers
-from tensorflow.keras.layers import Lambda
+from tensorflow.keras.layers import Layer
 from sklearn.model_selection import train_test_split
 
 os.makedirs("models", exist_ok=True)
@@ -51,19 +51,19 @@ def custom_loss(y_true, y_pred):
     return tf.reduce_mean(loss_mup + loss_mum + 0.1 * overlap_penalty)
 
 
-class ChannelAvgPool(tf.keras.layers.Layer):
+class ChannelAvgPool(Layer):
     def call(self, x):
         return tf.reduce_mean(x, axis=[1, 2], keepdims=True)
-    
-class ChannelMaxPool(tf.keras.layers.Layer):
+
+class ChannelMaxPool(Layer):
     def call(self, x):
         return tf.reduce_max(x, axis=[1, 2], keepdims=True)
-    
-class SpatialAvgPool(tf.keras.layers.Layer):
+
+class SpatialAvgPool(Layer):
     def call(self, x):
         return tf.reduce_mean(x, axis=-1, keepdims=True)
-    
-class SpatialMaxPool(tf.keras.layers.Layer):
+
+class SpatialMaxPool(Layer):
     def call(self, x):
         return tf.reduce_max(x, axis=-1, keepdims=True)
 
@@ -174,3 +174,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     train_model(args.root_file, args.output_model, args.learning_rate, args.epoch, args.batch_size, args.patience)
+    # TODO: try saving with .keras instead of .h5

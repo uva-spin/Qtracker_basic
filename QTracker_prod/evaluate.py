@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 
 from training_scripts import TrackFinder_prod, TrackFinder_attention
+from training_scripts.TrackFinder_attention import ChannelAvgPool, ChannelMaxPool, SpatialMaxPool, SpatialAvgPool
 
 
 def plot_res_histogram(model_path, y_true, y_pred):
@@ -38,7 +39,7 @@ def plot_res_histogram(model_path, y_true, y_pred):
     plt.legend()
     plt.title('Residual Histogram')
 
-    plot_name = model_path.replace('models/', '').replace('.h5', '.png')
+    plot_name = model_path.replace('models/', '').replace('.keras', '.png').replace('.h5', '.png')
     plot_path = os.path.join(os.path.dirname(__file__), "plots", plot_name)
     plt.savefig(plot_path)
     plt.show()
@@ -58,9 +59,18 @@ def evaluate_model(root_file, model_path):
     y = np.stack([y_muPlus, y_muMinus], axis=1)  # Shape: (num_events, 2, 62)
     _, X_test, _, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    model = tf.keras.models.load_model(model_path, custom_objects={
-        'custom_loss': TrackFinder_prod.custom_loss
-    })
+    custom_objects = {
+        "custom_loss": TrackFinder_prod.custom_loss, 
+        "Adam": tf.keras.optimizers.legacy.Adam
+    }
+    if 'track_finder_cbam.keras' in model_path:
+        custom_objects['ChannelAvgPool'] = ChannelAvgPool
+        custom_objects['ChannelMaxPool'] = ChannelMaxPool
+        custom_objects['SpatialAvgPool'] = SpatialAvgPool
+        custom_objects['SpatialMaxPool'] = SpatialMaxPool
+    
+    with tf.keras.utils.custom_object_scope(custom_objects):
+        model = tf.keras.models.load_model(model_path)
 
     y_pred = model.predict(X_test)
     mean_plus, mean_minus, std_plus, std_minus = plot_res_histogram(model_path, y_test, y_pred)
@@ -71,7 +81,7 @@ def evaluate_model(root_file, model_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Evaluate pre-trained TrackFinder models.")
     parser.add_argument("root_file", type=str, help="Path to the combined ROOT file.")
-    parser.add_argument("model_path", type=str, help="Path to the saved model file (h5).")
+    parser.add_argument("model_path", type=str, help="Path to the saved model file (.h5 or .keras).")
     args = parser.parse_args()
 
     print(f'Results for {args.model_path}...')
