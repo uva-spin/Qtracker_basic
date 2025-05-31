@@ -17,6 +17,7 @@ EVENT=42
 # python Util/plot_HitMatrix.py data/finder_training.root -event $EVENT
 
 python data/messy_gen.py data/finder_training.root data/single_muons_large.root \
+ --output data/mc_events.root \
  --num_tracks $NUM_TRACKS \
  --prob_mean $PROB_MEAN \
  --prob_width $PROB_WIDTH \
@@ -27,6 +28,7 @@ python data/messy_gen.py data/finder_training.root data/single_muons_large.root 
 # python Util/plot_HitMatrix.py data/mc_events.root -event $EVENT
 
 python data/noisy_gen.py data/mc_events.root \
+ --output data/noisy_output.root \
  --p_electronic_noise $P_ELECTRONIC_NOISE \
  --p_cluster_noise $P_CLUSTER_NOISE \
  --cluster_length_range $CLUSTER_LENGTH_RANGE

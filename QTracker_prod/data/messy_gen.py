@@ -77,8 +77,8 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
             break
 
         tree1.GetEntry(i)
-        # tree2.GetEntry(tree2_index)
-        # tree2_index += 1
+        tree2.GetEntry(tree2_index)
+        tree2_index += 1
 
         # Reset
         eventID[0] = tree1.eventID
@@ -175,7 +175,6 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
                     local_hitID_counter += 1
 
         output_tree.Fill()
-    print(f'i={i}')
 
     fout.Write()
     fout.Close()

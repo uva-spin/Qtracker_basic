@@ -5,8 +5,6 @@ import argparse
 NUM_DETECTORS = 62
 NUM_ELEMENT_IDS = 201
 
-OUTPUT_FILENAME = "noisy_output.root"  # Hardcoded output name
-
 
 def inject_noise_into_event(detectorID, elementID, driftDistance, tdcTime, p_electronic_noise, p_cluster_noise, cluster_length_range):
     """
@@ -38,11 +36,11 @@ def inject_noise_into_event(detectorID, elementID, driftDistance, tdcTime, p_ele
                     used.add((det, elem))
 
 
-def inject_noise(input_file, p_electronic_noise, p_cluster_noise, cluster_length_range):
+def inject_noise(input_file, p_electronic_noise, p_cluster_noise, cluster_length_range, output):
     fin = ROOT.TFile.Open(input_file, "READ")
     tree_in = fin.Get("tree")
 
-    fout = ROOT.TFile.Open(OUTPUT_FILENAME, "RECREATE", "", ROOT.kLZMA)
+    fout = ROOT.TFile.Open(output, "RECREATE", "", ROOT.kLZMA)
     fout.SetCompressionLevel(5)
     fout.cd()
 
@@ -81,7 +79,7 @@ def inject_noise(input_file, p_electronic_noise, p_cluster_noise, cluster_length
     fout.Close()
     fin.Close()
 
-    print(f"[DONE] Wrote noisy output to '{OUTPUT_FILENAME}'")
+    print(f"[DONE] Wrote noisy output to '{output}'")
 
 
 if __name__ == "__main__":
@@ -89,6 +87,7 @@ if __name__ == "__main__":
     parser.add_argument("input_file", help="Path to input ROOT file")
     
     # Noise settings
+    parser.add_argument("--output", type=str, default="noisy_output.root", help="Output file name.")
     parser.add_argument("--p_electronic_noise", type=float, default=0.01, help="Probability of electronic noise added.")
     parser.add_argument("--p_cluster_noise", type=float, default=0.05, help="Probability of cluster noise added.")
     parser.add_argument("--cluster_length_range", type=str, default="(2,4)", help="Cluster length range.")
@@ -96,4 +95,4 @@ if __name__ == "__main__":
 
     CLUSTER_LENGTH_RANGE = eval(args.cluster_length_range)
 
-    inject_noise(args.input_file, args.p_electronic_noise, args.p_cluster_noise, CLUSTER_LENGTH_RANGE)
+    inject_noise(args.input_file, args.p_electronic_noise, args.p_cluster_noise, CLUSTER_LENGTH_RANGE, args.output)
