@@ -138,6 +138,12 @@ python3 QTracker_prod.py input_data.root --output_file reco_output.root
 ---
 
 ## TrackFinder Training and Evaluation
+First, preprocess the target ROOT file by injecting noise to generate messy hit matrices. To achieve this, run:
+
+```bash
+./preprocess.sh
+```
+
 To train and evaluate TrackFinder models, run the following script:
 
 ```bash

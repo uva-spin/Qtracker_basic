@@ -4,11 +4,6 @@ BATCH_SIZE=32
 PATIENCE=5
 
 
-### Data Preprocessing ###
-# Prerequisite: Create finder_training.root and single_muons.root using dimuon target and single muon dump
-./preprocess.sh
-
-
 ### Model Training ###
 python training_scripts/TrackFinder_prod.py data/noisy_output.root \
  --output_model models/track_finder.keras \
