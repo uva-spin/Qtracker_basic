@@ -1,17 +1,3 @@
-# DO NOT ALTER UNLESS INSTRUCTED
-PROB_MEAN=0.9
-PROB_WIDTH=0.1
-PROPAGATION_MODEL="gaussian"
-GAUSSIAN_SIGMA=10.0
-EXP_DECAY_CONST=15.0
-
-P_ELECTRONIC_NOISE=0.01
-P_CLUSTER_NOISE=0.05
-CLUSTER_LENGTH_RANGE="(2,4)"
-
-# Can modify
-NUM_TRACKS=5
-EVENT=42
 LEARNING_RATE=0.00005
 EPOCH=40
 BATCH_SIZE=32
@@ -31,22 +17,22 @@ python training_scripts/TrackFinder_prod.py data/noisy_output.root \
  --batch_size $BATCH_SIZE \
  --patience $PATIENCE
 
-python training_scripts/TrackFinder_acc.py data/noisy_output.root \
- --output_model models/track_finder_resnet.keras \
- --learning_rate $LEARNING_RATE \
- --epoch $EPOCH \
- --batch_size $BATCH_SIZE \
- --patience $PATIENCE
+# python training_scripts/TrackFinder_acc.py data/noisy_output.root \
+#  --output_model models/track_finder_resnet.keras \
+#  --learning_rate $LEARNING_RATE \
+#  --epoch $EPOCH \
+#  --batch_size $BATCH_SIZE \
+#  --patience $PATIENCE
 
-python training_scripts/TrackFinder_attention.py data/noisy_output.root \
- --output_model models/track_finder_cbam.keras \
- --learning_rate $LEARNING_RATE \
- --epoch $EPOCH \
- --batch_size $BATCH_SIZE \
- --patience $PATIENCE
+# python training_scripts/TrackFinder_attention.py data/noisy_output.root \
+#  --output_model models/track_finder_cbam.keras \
+#  --learning_rate $LEARNING_RATE \
+#  --epoch $EPOCH \
+#  --batch_size $BATCH_SIZE \
+#  --patience $PATIENCE
 
 
 ### MODEL EVALUATION ###
 python evaluate.py data/noisy_output.root models/track_finder.keras
-python evaluate.py data/noisy_output.root models/track_finder_resnet.keras
-python evaluate.py data/noisy_output.root models/track_finder_cbam.keras
+# python evaluate.py data/noisy_output.root models/track_finder_resnet.keras
+# python evaluate.py data/noisy_output.root models/track_finder_cbam.keras
