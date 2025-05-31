@@ -20,7 +20,7 @@ PATIENCE=5
 
 ### Data Preprocessing ###
 # Prerequisite: Create finder_training.root and single_muons.root using dimuon target and single muon dump
-# ./preprocess.sh
+./preprocess.sh
 
 
 ### Model Training ###
