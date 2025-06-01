@@ -31,6 +31,9 @@ def merge_alternating_reader(file1, file2, output_file):
 
     for branch in tree1.GetListOfBranches():
         name = branch.GetName()
+        if name == "rfIntensity":   # rfIntensity in newer data
+            continue
+
         leaf = branch.GetLeaf(name)
         typename = leaf.GetTypeName()
 
