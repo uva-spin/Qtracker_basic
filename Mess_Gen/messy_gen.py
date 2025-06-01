@@ -4,7 +4,7 @@ from array import array
 
 
 # Detector efficiency probability
-NUM_TRACKS = 50            # Number of tracks to inject (1-100)
+NUM_TRACKS = 10            # Number of tracks to inject (1-100)
 PROB_MEAN = 0.9           # Mean probability for keeping hits
 PROB_WIDTH = 0.1          # Width of probability distribution
 
@@ -46,7 +46,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
     driftDistance = ROOT.std.vector("double")()
     tdcTime = ROOT.std.vector("double")()
     hitID = ROOT.std.vector("int")()
-    processID = ROOT.std.vector("int")()
+    gProcessID = ROOT.std.vector("int")()
     trackID = ROOT.std.vector("int")()
     gCharge = ROOT.std.vector("int")()
     gvx = ROOT.std.vector("double")()
@@ -62,7 +62,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
     output_tree.Branch("driftDistance", driftDistance)
     output_tree.Branch("tdcTime", tdcTime)
     output_tree.Branch("hitID", hitID)
-    output_tree.Branch("processID", processID)
+    output_tree.Branch("gProcessID", gProcessID)
     output_tree.Branch("trackID", trackID)
     output_tree.Branch("gCharge", gCharge)
     output_tree.Branch("gvx", gvx)
@@ -85,7 +85,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
         driftDistance.clear()
         tdcTime.clear()
         hitID.clear()
-        processID.clear()
+        gProcessID.clear()
         trackID.clear()
         gCharge.clear()
         gvx.clear()
@@ -104,7 +104,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
             driftDistance.push_back(entry1.driftDistance[j])
             tdcTime.push_back(entry1.tdcTime[j])
             hitID.push_back(entry1.hitID[j])
-            processID.push_back(entry1.processID[j])
+            gProcessID.push_back(entry1.gProcessID[j])
 
         # Track-level info (assumed 2 tracks)
         trackID.push_back(1)
@@ -165,7 +165,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
                 keep_hit = np.random.random() < probability * weight
 
                 if keep_hit:
-                    processID.push_back(procID)
+                    gProcessID.push_back(procID)
                     elementID.push_back(elem)
                     detectorID.push_back(det)
                     driftDistance.push_back(dist)
