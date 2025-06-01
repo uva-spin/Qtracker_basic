@@ -31,11 +31,14 @@ def merge_alternating_reader(file1, file2, output_file):
 
     for branch in tree1.GetListOfBranches():
         name = branch.GetName()
-        if name == "rfIntensity":   # rfIntensity in newer data
+        if name in ("rfIntensity", "fpgaTrigger", "nimTrigger"):
             continue
 
         leaf = branch.GetLeaf(name)
         typename = leaf.GetTypeName()
+        if typename not in ("Int_t", "vector<int>", "vector<double>"):
+            print(f"Skipping branch {name} of type {typename}")
+            continue
 
         if typename == "Int_t":
             arr = array.array("i", [0])
@@ -78,7 +81,8 @@ def merge_alternating_reader(file1, file2, output_file):
                 continue
             val = reader_vals[name].Get()
             if kind == "scalar":
-                container[0] = val
+                container[0] = int(val[0])
+                # for Int_t branches, reader_vals[name].Get() returns a cppyy.LowLevelView instead of a plain Python int
             elif kind == "vector":
                 container.clear()
                 for x in val:
