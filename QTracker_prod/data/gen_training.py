@@ -26,10 +26,10 @@ def combine_files(file1, file2, output_file):
     driftDistance = ROOT.std.vector("double")()
     tdcTime = ROOT.std.vector("double")()
     hitID = ROOT.std.vector("int")()
-    hit_trackID = ROOT.std.vector("int")()
-    processID = ROOT.std.vector("int")()
+    hitTrackID = ROOT.std.vector("int")()
+    gProcessID = ROOT.std.vector("int")()
     gCharge = ROOT.std.vector('int')()   
-    trackID = ROOT.std.vector('int')()   
+    gTrackID = ROOT.std.vector('int')()   
 
     gpx = ROOT.std.vector("double")()
     gpy = ROOT.std.vector("double")()
@@ -48,10 +48,10 @@ def combine_files(file1, file2, output_file):
     output_tree.Branch("driftDistance", driftDistance)
     output_tree.Branch("tdcTime", tdcTime)
     output_tree.Branch("hitID", hitID)
-    output_tree.Branch("hit_trackID", hit_trackID)
-    output_tree.Branch("processID", processID)
+    output_tree.Branch("hitTrackID", hitTrackID)
+    output_tree.Branch("gProcessID", gProcessID)
     output_tree.Branch("gCharge", gCharge)
-    output_tree.Branch("trackID", trackID)
+    output_tree.Branch("gTrackID", gTrackID)
     output_tree.Branch("gpx", gpx)
     output_tree.Branch("gpy", gpy)
     output_tree.Branch("gpz", gpz)
@@ -71,10 +71,10 @@ def combine_files(file1, file2, output_file):
         elementID.clear()
         detectorID.clear()
         driftDistance.clear()
-        processID.clear()       
+        gProcessID.clear()       
         tdcTime.clear()
         hitID.clear()
-        hit_trackID.clear()
+        hitTrackID.clear()
         gpx.clear()
         gpy.clear()
         gpz.clear()
@@ -82,7 +82,7 @@ def combine_files(file1, file2, output_file):
         gvy.clear()
         gvz.clear()
         gCharge.clear()
-        trackID.clear()
+        gTrackID.clear()
         HitArray_mup.fill(0)
         HitArray_mum.fill(0)
 
@@ -95,31 +95,31 @@ def combine_files(file1, file2, output_file):
 
         gCharge.push_back(tree1.gCharge[0] if hasattr(tree1.gCharge, '__getitem__') else tree1.gCharge)
         gCharge.push_back(tree2.gCharge[0] if hasattr(tree2.gCharge, '__getitem__') else tree2.gCharge)
-        trackID.push_back(tree1.trackID[0] if hasattr(tree1.trackID, '__getitem__') else tree1.trackID)
-        trackID.push_back(tree2.trackID[0] if hasattr(tree2.trackID, '__getitem__') else tree2.trackID)
+        gTrackID.push_back(tree1.gTrackID[0] if hasattr(tree1.gTrackID, '__getitem__') else tree1.gTrackID)
+        gTrackID.push_back(tree2.gTrackID[0] if hasattr(tree2.gTrackID, '__getitem__') else tree2.gTrackID)
         
         # Process mu+ hits
-        for elem, det, drift, tdc, hit, track, proc in zip(tree1.elementID, tree1.detectorID, tree1.driftDistance, tree1.tdcTime, tree1.hitID, tree1.hit_trackID, tree1.processID):      
+        for elem, det, drift, tdc, hit, track, proc in zip(tree1.elementID, tree1.detectorID, tree1.driftDistance, tree1.tdcTime, tree1.hitID, tree1.hitTrackID, tree1.gProcessID):      
             elementID.push_back(elem)
             detectorID.push_back(det)
             driftDistance.push_back(drift)
             tdcTime.push_back(tdc)
             hitID.push_back(hit)
-            hit_trackID.push_back(track)
-            processID.push_back(proc)
+            hitTrackID.push_back(track)
+            gProcessID.push_back(proc)
 
             if 1 <= det <= 62:  # Ensure valid indexing
                 HitArray_mup[det - 1] = elem
 
         # Process mu- hits
-        for elem, det, drift, tdc, hit, track, proc in zip(tree2.elementID, tree2.detectorID, tree2.driftDistance, tree2.tdcTime, tree2.hitID, tree2.hit_trackID, tree2.processID):    
+        for elem, det, drift, tdc, hit, track, proc in zip(tree2.elementID, tree2.detectorID, tree2.driftDistance, tree2.tdcTime, tree2.hitID, tree2.hitTrackID, tree2.gProcessID):    
             elementID.push_back(elem)
             detectorID.push_back(det)
             driftDistance.push_back(drift)
             tdcTime.push_back(tdc)
             hitID.push_back(hit)
-            hit_trackID.push_back(track)
-            processID.push_back(proc)
+            hitTrackID.push_back(track)
+            gProcessID.push_back(proc)
 
             if 1 <= det <= 62:  # Ensure valid indexing
                 HitArray_mum[det - 1] = elem
