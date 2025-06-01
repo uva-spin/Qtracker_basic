@@ -28,10 +28,10 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
     driftDistance = ROOT.std.vector("double")()
     tdcTime = ROOT.std.vector("double")()
     hitID = ROOT.std.vector("int")()
-    hit_trackID = ROOT.std.vector("int")()
-    processID = ROOT.std.vector("int")()
+    hitTrackID = ROOT.std.vector("int")()
+    gProcessID = ROOT.std.vector("int")()
     gCharge = ROOT.std.vector("int")()
-    trackID = ROOT.std.vector("int")()
+    gTrackID = ROOT.std.vector("int")()
     gpx = ROOT.std.vector("double")()
     gpy = ROOT.std.vector("double")()
     gpz = ROOT.std.vector("double")()
@@ -50,9 +50,9 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
     output_tree.Branch("driftDistance", driftDistance)
     output_tree.Branch("tdcTime", tdcTime)
     output_tree.Branch("hitID", hitID)
-    output_tree.Branch("hit_trackID", hit_trackID)
-    output_tree.Branch("processID", processID)
-    output_tree.Branch("trackID", trackID)
+    output_tree.Branch("hitTrackID", hitTrackID)
+    output_tree.Branch("gProcessID", gProcessID)
+    output_tree.Branch("gTrackID", gTrackID)
     output_tree.Branch("gCharge", gCharge)
     output_tree.Branch("gpx", gpx)
     output_tree.Branch("gpy", gpy)
@@ -88,10 +88,10 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
         driftDistance.clear()
         tdcTime.clear()
         hitID.clear()
-        hit_trackID.clear()
-        processID.clear()
+        hitTrackID.clear()
+        gProcessID.clear()
         gCharge.clear()
-        trackID.clear()
+        gTrackID.clear()
         gpx.clear()
         gpy.clear()
         gpz.clear()
@@ -101,13 +101,13 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
         HitArray_mup.fill(0)
         HitArray_mum.fill(0)
 
-        # Preserve muID, gCharge, trackID (true signal)
+        # Preserve muID, gCharge, gTrackID (true signal)
         muID.push_back(1)
         muID.push_back(2)
         gCharge.push_back(tree1.gCharge[0])
         gCharge.push_back(tree1.gCharge[1])
-        trackID.push_back(tree1.trackID[0])
-        trackID.push_back(tree1.trackID[1])
+        gTrackID.push_back(tree1.gTrackID[0])
+        gTrackID.push_back(tree1.gTrackID[1])
 
         for v in tree1.gpx: gpx.push_back(v)
         for v in tree1.gpy: gpy.push_back(v)
@@ -122,8 +122,8 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
             driftDistance.push_back(tree1.driftDistance[j])
             tdcTime.push_back(tree1.tdcTime[j])
             hitID.push_back(tree1.hitID[j])
-            hit_trackID.push_back(tree1.hit_trackID[j])
-            processID.push_back(tree1.processID[j])
+            hitTrackID.push_back(tree1.hitTrackID[j])
+            gProcessID.push_back(tree1.gProcessID[j])
 
         for k in range(62):
             HitArray_mup[k] = HitArray_mup_input[k]
@@ -131,7 +131,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
 
         current_max_hitID = max(tree1.hitID) if len(tree1.hitID) > 0 else 0
         local_hitID_counter = current_max_hitID + 1
-        next_trackID = max(tree1.trackID) + 1 if len(tree1.trackID) > 0 else 3
+        next_gTrackID = max(tree1.gTrackID) + 1 if len(tree1.gTrackID) > 0 else 3
 
         for _ in range(num_tracks):
             if tree2_index >= num_events_tree2:
@@ -140,9 +140,9 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
             tree2.GetEntry(tree2_index)
             tree2_index += 1
 
-            this_trackID = next_trackID
-            next_trackID += 1
-            trackID.push_back(this_trackID)
+            this_gTrackID = next_gTrackID
+            next_gTrackID += 1
+            gTrackID.push_back(this_gTrackID)
             gCharge.push_back(tree2.gCharge[0])
             gpx.push_back(tree2.gpx[0])
             gpy.push_back(tree2.gpy[0])
@@ -153,7 +153,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
 
             probability = np.clip(np.random.normal(prob_mean, prob_width), 0, 1)
 
-            for procID, elem, det, dist, tdc in zip(tree2.processID, tree2.elementID, tree2.detectorID, tree2.driftDistance, tree2.tdcTime):
+            for procID, elem, det, dist, tdc in zip(tree2.gProcessID, tree2.elementID, tree2.detectorID, tree2.driftDistance, tree2.tdcTime):
 
                 if propagation_model == "linear":
                     weight = 1 - det / 100
@@ -165,13 +165,13 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
                     raise ValueError(f"Unknown PROPAGATION_MODEL: {propagation_model}")
 
                 if np.random.random() < probability * weight:
-                    processID.push_back(procID)
+                    gProcessID.push_back(procID)
                     elementID.push_back(elem)
                     detectorID.push_back(det)
                     driftDistance.push_back(dist)
                     tdcTime.push_back(tdc)
                     hitID.push_back(local_hitID_counter)
-                    hit_trackID.push_back(this_trackID)
+                    hitTrackID.push_back(this_gTrackID)
                     local_hitID_counter += 1
 
         output_tree.Fill()
