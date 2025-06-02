@@ -72,6 +72,8 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
     num_events_tree2 = tree2.GetEntries()
     tree2_index = 0
 
+    occupancies = []
+
     for i in range(tree1.GetEntries()):
         if tree2_index >= num_events_tree2:
             break
@@ -174,12 +176,22 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
                     hitTrackID.push_back(this_gTrackID)
                     local_hitID_counter += 1
 
+        total_hits_this_event = elementID.size()
+        occupancies.append(total_hits_this_event)
+
         output_tree.Fill()
 
     fout.Write()
     fout.Close()
     f1.Close()
     f2.Close()
+
+    mean_occ = float(np.mean(occupancies))
+    median_occ = float(np.median(occupancies))
+    print(f"\n=== Occupancy summary over {len(occupancies)} events ===")
+    print(f"  • mean hits/event    = {mean_occ:.1f}")
+    print(f"  • median hits/event  = {median_occ:.1f}")
+    print(f"  • min/max hits/event = {min(occupancies)}/{max(occupancies)}")
 
 
 if __name__ == "__main__":
@@ -190,9 +202,9 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default="mc_events.root", help="Output ROOT file name.")
     
     # Detector efficiency probability
-    parser.add_argument("--num_tracks", type=int, default=5, help="Number of injected background tracks.")
-    parser.add_argument("--prob_mean", type=float, default=0.9, help="Probability Distribution Mean.")
-    parser.add_argument("--prob_width", type=float, default=0.1, help="Width of probability distribution for variance.")
+    parser.add_argument("--num_tracks", type=int, default=20, help="Number of injected background tracks.")
+    parser.add_argument("--prob_mean", type=float, default=0.15, help="Probability Distribution Mean.")
+    parser.add_argument("--prob_width", type=float, default=0.01, help="Width of probability distribution for variance.")
     
     # Hit fall model: "linear", "gaussian", or "exponential"
     parser.add_argument("--propagation_model", type=str, default="gaussian", help="Choose: ['linear', 'gaussian', or 'exponential'].")
