@@ -494,8 +494,8 @@ def process_data(root_file, output_file="tracker_output.root", use_chi2_model=US
     with tf.keras.utils.custom_object_scope({"custom_loss": custom_loss, "Adam": tf.keras.optimizers.legacy.Adam}):
         model_track = tf.keras.models.load_model(MODEL_PATH_TRACK)
 
-    model_momentum_mup = tf.keras.models.load_model(MODEL_PATH_MOMENTUM_MUP)
-    model_momentum_mum = tf.keras.models.load_model(MODEL_PATH_MOMENTUM_MUM)
+    model_momentum_mup = tf.keras.models.load_model(MODEL_PATH_MOMENTUM_MUP, compile=False)
+    model_momentum_mum = tf.keras.models.load_model(MODEL_PATH_MOMENTUM_MUM, compile=False)
 
     #X, event_entries, _ = load_data(root_file)
     #detectorIDs, elementIDs, driftDistances, _ = load_detector_element_data(root_file)

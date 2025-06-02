@@ -81,7 +81,7 @@ def merge_alternating_reader(file1, file2, output_file):
                 continue
             val = reader_vals[name].Get()
             if kind == "scalar":
-                container[0] = int(val[0])
+                container = val
                 # for Int_t branches, reader_vals[name].Get() returns a cppyy.LowLevelView instead of a plain Python int
             elif kind == "vector":
                 container.clear()
