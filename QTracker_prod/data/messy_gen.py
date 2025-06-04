@@ -73,6 +73,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
     tree2_index = 0
 
     occupancies = []
+    event_ids = []
 
     for i in range(tree1.GetEntries()):
         if tree2_index >= num_events_tree2:
@@ -178,6 +179,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
 
         total_hits_this_event = elementID.size()
         occupancies.append(total_hits_this_event)
+        event_ids.append(tree1.eventID)
 
         output_tree.Fill()
 
@@ -188,11 +190,43 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
 
     mean_occ = float(np.mean(occupancies))
     median_occ = float(np.median(occupancies))
+    min_occ = min(occupancies)
+    max_occ = max(occupancies)
     print(f"\n=== Occupancy summary over {len(occupancies)} events ===")
     print(f"  • mean hits/event    = {mean_occ:.1f}")
     print(f"  • median hits/event  = {median_occ:.1f}")
-    print(f"  • min/max hits/event = {min(occupancies)}/{max(occupancies)}")
+    print(f"  • min/max hits/event = {min_occ}/{max_occ}")
 
+    idx_max = int(np.argmax(occupancies))
+    event_max = event_ids[idx_max]
+    hits_max = occupancies[idx_max]
+
+    idx_min = int(np.argmin(occupancies))
+    event_min = event_ids[idx_min]
+    hits_min = occupancies[idx_min]
+
+    pairs = sorted(zip(occupancies, event_ids), key=lambda x: x[0])
+    mid = len(pairs) // 2
+    if len(pairs) % 2 == 1:
+        hits_med, event_med = pairs[mid]
+    else:
+        hits_med, event_med = pairs[mid - 1]
+
+    print(f"\nEvent with MOST hits   : eventID = {event_max}, hits = {hits_max}")
+    print(f"Event with LEAST hits  : eventID = {event_min}, hits = {hits_min}")
+    print(f"Event with MEDIAN hits : eventID = {event_med}, hits = {hits_med}")
+
+    try:
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(6,4))
+        plt.hist(occupancies, bins=20, edgecolor='black')
+        plt.xlabel('Hits per event')
+        plt.ylabel('Number of events')
+        plt.title('Occupancy Distribution')
+        plt.tight_layout()
+        plt.show()
+    except ImportError:
+        print("matplotlib not installed")
 
 if __name__ == "__main__":
     import argparse
@@ -202,8 +236,8 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default="mc_events.root", help="Output ROOT file name.")
     
     # Detector efficiency probability
-    parser.add_argument("--num_tracks", type=int, default=60, help="Number of injected background tracks.")
-    parser.add_argument("--prob_mean", type=float, default=0.3, help="Probability Distribution Mean.")
+    parser.add_argument("--num_tracks", type=int, default=40, help="Number of injected background tracks.")
+    parser.add_argument("--prob_mean", type=float, default=0.4, help="Probability Distribution Mean.")
     parser.add_argument("--prob_width", type=float, default=0.05, help="Width of probability distribution for variance.")
     
     # Hit fall model: "linear", "gaussian", or "exponential"

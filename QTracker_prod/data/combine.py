@@ -4,10 +4,8 @@ import signal
 import sys
 import array
 
-# This script combines two single muon files (mu+ and mu-) together to alternate mu+ and mu- events
-
 # Set this to limit total events written. Set to None to go until one file ends.
-MAX_OUTPUT_EVENTS = 100000  # e.g., 200000 for a hard cutoff, or None for full merge
+MAX_OUTPUT_EVENTS = 100000
 
 def merge_alternating_reader(file1, file2, output_file):
     f1 = ROOT.TFile.Open(file1)
@@ -20,7 +18,7 @@ def merge_alternating_reader(file1, file2, output_file):
 
     fout = ROOT.TFile.Open(output_file, "RECREATE")
     out_tree = ROOT.TTree("tree", "Merged alternating events")
-    # Disable auto-save to prevent intermediate writesAdd commentMore actions
+    # Disable auto-save to prevent intermediate writes
     out_tree.SetAutoSave(0)  # Disable auto-save (0 or negative value)
 
     out_branches = {}
@@ -31,15 +29,8 @@ def merge_alternating_reader(file1, file2, output_file):
 
     for branch in tree1.GetListOfBranches():
         name = branch.GetName()
-        if name in ("rfIntensity", "fpgaTrigger", "nimTrigger"):
-            continue
-
         leaf = branch.GetLeaf(name)
         typename = leaf.GetTypeName()
-        if typename not in ("Int_t", "vector<int>", "vector<double>"):
-            print(f"Skipping branch {name} of type {typename}")
-            continue
-
         is_array = leaf.GetLen() > 1 or leaf.GetLeafCount() is not None
 
         if name == "eventID":  # Skip eventID, handle it separately
@@ -101,8 +92,7 @@ def merge_alternating_reader(file1, file2, output_file):
                 continue
             val = reader_vals[name].Get() if kind != "array" else reader_vals[name]
             if kind == "scalar":
-                container = val
-                # for Int_t branches, reader_vals[name].Get() returns a cppyy.LowLevelView instead of a plain Python int
+                container[0] = val
             elif kind == "vector":
                 container.clear()
                 for x in val:
@@ -140,4 +130,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     merge_alternating_reader(args.file1, args.file2, args.output)
-
