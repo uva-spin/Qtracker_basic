@@ -58,11 +58,19 @@ def inject_noise(input_file, p_electronic_noise, p_cluster_noise, cluster_length
     tree_in.SetBranchAddress("driftDistance", driftDistance)
     tree_in.SetBranchAddress("tdcTime", tdcTime)
 
+    occupancies = []
+
     for i in range(tree_in.GetEntries()):
         tree_in.GetEntry(i)
 
+        original_count = len(detectorID)
+
         # Inject noise directly into the loaded vectors
         inject_noise_into_event(detectorID, elementID, driftDistance, tdcTime, p_electronic_noise, p_cluster_noise, cluster_length_range)
+
+        new_count = len(detectorID)
+        injected_hits = new_count - original_count
+        occupancies.append(injected_hits)
 
         # Sanity check to prevent out-of-bounds indexing later
         if not (len(detectorID) == len(elementID) == len(driftDistance) == len(tdcTime)):
@@ -71,6 +79,7 @@ def inject_noise(input_file, p_electronic_noise, p_cluster_noise, cluster_length
                 f"det={len(detectorID)}, elem={len(elementID)}, "
                 f"drift={len(driftDistance)}, tdc={len(tdcTime)}"
             )
+        
 
         # Fill the modified event into output tree
         tree_out.Fill()
@@ -78,6 +87,27 @@ def inject_noise(input_file, p_electronic_noise, p_cluster_noise, cluster_length
     fout.Write()
     fout.Close()
     fin.Close()
+
+    if occupancies:
+        n_events = len(occupancies)
+        mean_noise = sum(occupancies) / n_events
+
+        sorted_noise = sorted(occupancies)
+        mid = n_events // 2
+        if n_events % 2 == 1:
+            median_noise = float(sorted_noise[mid])
+        else:
+            median_noise = 0.5 * (sorted_noise[mid - 1] + sorted_noise[mid])
+
+        min_noise = sorted_noise[0]
+        max_noise = sorted_noise[-1]
+
+        print(f"\n=== Occupancy (noise only) summary over {n_events} events ===")
+        print(f"  • mean hits/event    = {mean_noise:.1f}")
+        print(f"  • median hits/event  = {median_noise:.1f}")
+        print(f"  • min/max hits/event = {min_noise}/{max_noise}")
+    else:
+        print("\n=== Occupancy summary: no events processed ===")
 
     print(f"[DONE] Wrote noisy output to '{output}'")
 
@@ -88,8 +118,8 @@ if __name__ == "__main__":
     
     # Noise settings
     parser.add_argument("--output", type=str, default="noisy_output.root", help="Output file name.")
-    parser.add_argument("--p_electronic_noise", type=float, default=0.01, help="Probability of electronic noise added.")
-    parser.add_argument("--p_cluster_noise", type=float, default=0.05, help="Probability of cluster noise added.")
+    parser.add_argument("--p_electronic_noise", type=float, default=0.002, help="Probability of electronic noise added.")
+    parser.add_argument("--p_cluster_noise", type=float, default=0.01, help="Probability of cluster noise added.")
     parser.add_argument("--cluster_length_range", type=str, default="(2,4)", help="Cluster length range.")
     args = parser.parse_args()
 
