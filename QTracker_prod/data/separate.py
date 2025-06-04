@@ -65,13 +65,13 @@ def split_tracks(input_filename):
 
     r_hitID = ROOT.TTreeReaderArray('int')(reader, "hitID")
     r_hit_trackID = ROOT.TTreeReaderArray('int')(reader, "hitTrackID")
-    r_processID = ROOT.TTreeReaderArray('int')(reader, "gprocessID")
+    r_processID = ROOT.TTreeReaderArray('int')(reader, "gProcessID")
     r_detectorID = ROOT.TTreeReaderArray('int')(reader, "detectorID")
     r_elementID = ROOT.TTreeReaderArray('int')(reader, "elementID")
     r_tdcTime = ROOT.TTreeReaderArray('double')(reader, "tdcTime")
     r_driftDistance = ROOT.TTreeReaderArray('double')(reader, "driftDistance")
     r_gCharge = ROOT.TTreeReaderArray('int')(reader, "gCharge")
-    r_trackID = ROOT.TTreeReaderArray('int')(reader, "gtrackID")
+    r_trackID = ROOT.TTreeReaderArray('int')(reader, "gTrackID")
 
     r_gpx = ROOT.TTreeReaderArray('double')(reader, "gpx")
     r_gpy = ROOT.TTreeReaderArray('double')(reader, "gpy")
@@ -94,8 +94,8 @@ def split_tracks(input_filename):
         # Track-level info
         vecs1['gCharge'].push_back(r_gCharge[0])
         vecs2['gCharge'].push_back(r_gCharge[1])
-        vecs1['gtrackID'].push_back(r_trackID[0])
-        vecs2['gtrackID'].push_back(r_trackID[1])
+        vecs1['gTrackID'].push_back(r_trackID[0])
+        vecs2['gTrackID'].push_back(r_trackID[1])
 
         vecs1['gpx'].push_back(r_gpx[0])
         vecs1['gpy'].push_back(r_gpy[0])
@@ -118,7 +118,7 @@ def split_tracks(input_filename):
             #tid = r_trackID[j]
             tgt = vecs1 if tid == 1 else vecs2 if tid == 2 else None
             if tgt:
-                tgt['gprocessID'].push_back(r_processID[j])
+                tgt['gProcessID'].push_back(r_processID[j])
                 tgt['hitID'].push_back(r_hitID[j])
                 tgt['hitTrackID'].push_back(tid)
                 tgt['detectorID'].push_back(r_detectorID[j])
