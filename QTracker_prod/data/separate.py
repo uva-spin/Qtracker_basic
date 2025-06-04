@@ -33,19 +33,34 @@ def split_tracks(input_filename):
     tree1.Branch("eventID", eventID1, "eventID/I")
     tree2.Branch("eventID", eventID2, "eventID/I")
 
+
     def make_vector_branches(tree):
         vecs = {}
-        def v(name, typ):
-            vec = ROOT.std.vector(typ)()
+
+        vecs['hitID'] = ROOT.std.vector('int')()
+        vecs['hitTrackID'] = ROOT.std.vector('int')()
+        vecs['gProcessID'] = ROOT.std.vector('int')()
+        vecs['detectorID'] = ROOT.std.vector('int')()
+        vecs['elementID'] = ROOT.std.vector('int')()
+        vecs['gCharge'] = ROOT.std.vector('int')()
+        vecs['gTrackID'] = ROOT.std.vector('int')()
+
+        vecs['tdcTime'] = ROOT.std.vector('double')()
+        vecs['driftDistance'] = ROOT.std.vector('double')()
+
+        vecs['gpx'] = ROOT.std.vector('double')()
+        vecs['gpy'] = ROOT.std.vector('double')()
+        vecs['gpz'] = ROOT.std.vector('double')()
+        vecs['gvx'] = ROOT.std.vector('double')()
+        vecs['gvy'] = ROOT.std.vector('double')()
+        vecs['gvz'] = ROOT.std.vector('double')()
+
+        for name, vec in vecs.items():
             tree.Branch(name, vec)
-            vecs[name] = vec
-        for name in ['hitID', 'hit_trackID', 'processID', 'detectorID', 'elementID', 'gCharge', 'trackID']:
-            v(name, 'int')
-        for name in ['tdcTime', 'driftDistance']:
-            v(name, 'double')
-        for name in ['gpx', 'gpy', 'gpz', 'gvx', 'gvy', 'gvz']:
-            v(name, 'double')
+
         return vecs
+
+
 
     vecs1 = make_vector_branches(tree1)
     vecs2 = make_vector_branches(tree2)
@@ -53,14 +68,14 @@ def split_tracks(input_filename):
     reader = ROOT.TTreeReader(tree)
 
     r_hitID = ROOT.TTreeReaderArray('int')(reader, "hitID")
-    r_hit_trackID = ROOT.TTreeReaderArray('int')(reader, "hit_trackID")
-    r_processID = ROOT.TTreeReaderArray('int')(reader, "processID")
+    r_hit_trackID = ROOT.TTreeReaderArray('int')(reader, "hitTrackID")
+    r_processID = ROOT.TTreeReaderArray('int')(reader, "gProcessID")
     r_detectorID = ROOT.TTreeReaderArray('int')(reader, "detectorID")
     r_elementID = ROOT.TTreeReaderArray('int')(reader, "elementID")
     r_tdcTime = ROOT.TTreeReaderArray('double')(reader, "tdcTime")
     r_driftDistance = ROOT.TTreeReaderArray('double')(reader, "driftDistance")
     r_gCharge = ROOT.TTreeReaderArray('int')(reader, "gCharge")
-    r_trackID = ROOT.TTreeReaderArray('int')(reader, "trackID")
+    r_trackID = ROOT.TTreeReaderArray('int')(reader, "gTrackID")
 
     r_gpx = ROOT.TTreeReaderArray('double')(reader, "gpx")
     r_gpy = ROOT.TTreeReaderArray('double')(reader, "gpy")
@@ -83,8 +98,8 @@ def split_tracks(input_filename):
         # Track-level info
         vecs1['gCharge'].push_back(r_gCharge[0])
         vecs2['gCharge'].push_back(r_gCharge[1])
-        vecs1['trackID'].push_back(r_trackID[0])
-        vecs2['trackID'].push_back(r_trackID[1])
+        vecs1['gTrackID'].push_back(r_trackID[0])
+        vecs2['gTrackID'].push_back(r_trackID[1])
 
         vecs1['gpx'].push_back(r_gpx[0])
         vecs1['gpy'].push_back(r_gpy[0])
@@ -101,17 +116,22 @@ def split_tracks(input_filename):
         vecs2['gvz'].push_back(r_gvz[1])
 
         # Assign hit-level info
+        #print(f"[Event {i}] Sizes: hitID={r_hitID.GetSize()}, driftDistance={r_driftDistance.GetSize()}, tdcTime={r_tdcTime.GetSize()}, hit_trackID={r_hit_trackID.GetSize()}")
+
         for j in range(r_hit_trackID.GetSize()):
             tid = r_hit_trackID[j]
+            #tid = r_trackID[j]
             tgt = vecs1 if tid == 1 else vecs2 if tid == 2 else None
             if tgt:
-                tgt['processID'].push_back(r_processID[j])
+                tgt['gProcessID'].push_back(r_processID[j])
                 tgt['hitID'].push_back(r_hitID[j])
-                tgt['hit_trackID'].push_back(tid)
+                tgt['hitTrackID'].push_back(tid)
                 tgt['detectorID'].push_back(r_detectorID[j])
                 tgt['elementID'].push_back(r_elementID[j])
                 tgt['driftDistance'].push_back(r_driftDistance[j])
                 tgt['tdcTime'].push_back(r_tdcTime[j])
+        
+        #print(f"[Event {i}] hits: mu+ = {vecs1['tdcTime'].size()}, mu− = {vecs2['tdcTime'].size()}")
 
         output_file1.cd(); tree1.Fill()
         output_file2.cd(); tree2.Fill()
@@ -125,6 +145,7 @@ if __name__ == "__main__":
         print("Usage: python3 separate.py <input.root>")
         sys.exit(1)
     split_tracks(sys.argv[1])
+
 
 
 
