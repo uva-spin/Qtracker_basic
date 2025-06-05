@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 
+from ROOT import TLorentzVector
+
 def calculate_invariant_mass(tlv1, tlv2):
     """Computes the invariant mass of two particles using TLorentzVectors."""
     return (tlv1 + tlv2).M()
@@ -10,15 +12,34 @@ def calculate_invariant_mass(tlv1, tlv2):
 def extract_momenta_and_calculate_mass(root_file):
     """Extracts momenta from ROOT file and computes invariant mass using TLorentzVectors."""
     f = ROOT.TFile.Open(root_file, "READ")
+
+    if not f or f.IsZombie():
+        print("Error: could not open file", root_file)
+        return np.array([])
+
     tree = f.Get("tree")
 
     if not tree:
         print("Error: Tree not found in file.")
         return np.array([])
+    
+    n_entries = tree.GetEntries()
+    print(f"  → Found {n_entries} entries in 'tree' of {root_file}.\n")
 
     masses = []
+    saw_first = False
     
     for event in tree:
+        print("=== DEBUG: inspecting Event #0 ===")
+        print(" muID       =", list(event.muID))
+        print(" qpx        =", list(event.qpx))
+        print(" qpy        =", list(event.qpy))
+        print(" qpz        =", list(event.qpz))
+        print(" qpx shape? ", np.shape(event.qpx))
+        print(" node: tlv constructors ok? TLV.GetClassName() =", TLorentzVector().ClassName())
+        print("================================\n")
+        saw_first = True
+        
         tlv_mup = ROOT.TLorentzVector()
         tlv_mum = ROOT.TLorentzVector()
 

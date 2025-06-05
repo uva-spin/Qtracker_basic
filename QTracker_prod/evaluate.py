@@ -25,11 +25,14 @@ def plot_res_histogram(model_path, y_true, y_pred):
     y_muPlus_pred = tf.cast(tf.argmax(tf.squeeze(y_muPlus_pred, axis=1), axis=-1), tf.float32)
     y_muMinus_pred = tf.cast(tf.argmax(tf.squeeze(y_muMinus_pred, axis=1), axis=-1), tf.float32)
 
-    res_plus = y_muPlus_pred - y_muPlus_true        # (num_events, num_detectors)
-    res_minus = y_muMinus_pred - y_muMinus_true
+    res_plus = (y_muPlus_pred - y_muPlus_true)       # (num_events, num_detectors)
+    res_minus = (y_muMinus_pred - y_muMinus_true)
 
-    res_plus = res_plus.numpy().flatten()
-    res_minus = res_minus.numpy().flatten()
+    res_plus = res_plus.numpy()
+    res_minus = res_minus.numpy()
+
+    all_res_plus = res_plus.flatten()
+    all_res_minus = res_minus.flatten()
 
     plt.figure(figsize=(8, 6))
     plt.hist(res_plus, bins=100, alpha=0.5, label='mu+')
@@ -44,9 +47,53 @@ def plot_res_histogram(model_path, y_true, y_pred):
     plt.savefig(plot_path)
     plt.show()
 
-    mean_plus, mean_minus = np.mean(res_plus), np.mean(res_minus)
-    std_plus, std_minus = np.std(res_plus), np.std(res_minus)
-    return mean_plus, mean_minus, std_plus, std_minus
+    num_layers = res_plus.shape[1]
+    per_slot_stats = []
+
+    for layer_idx in range(num_layers):
+        plus_residuals  = res_plus[:, layer_idx] 
+        minus_residuals = res_minus[:, layer_idx] 
+
+        mean_plus  = np.mean(plus_residuals)
+        std_plus   = np.std(plus_residuals)
+        mean_minus = np.mean(minus_residuals)
+        std_minus  = np.std(minus_residuals)
+
+        per_slot_stats.append((
+            layer_idx+1,    
+            mean_plus, std_plus,
+            mean_minus, std_minus
+        ))
+
+    print("\nPer-slot residual statistics:")
+    print(" layer |   μ⁺ mean   |  μ⁺ σ   |  μ- mean   |  μ- σ")
+    print("--------------------------------------------------")
+    for (layer, m_p, s_p, m_m, s_m) in per_slot_stats:
+        print(f" {layer:2d}   |   {m_p:+6.3f}  | {s_p:6.3f} |   {m_m:+6.3f}  | {s_m:6.3f}")
+
+    layers      = np.arange(1, num_layers+1)
+    mu_plus_means  = np.array([x[1] for x in per_slot_stats])
+    mu_plus_stds   = np.array([x[2] for x in per_slot_stats])
+    mu_minus_means = np.array([x[3] for x in per_slot_stats])
+    mu_minus_stds  = np.array([x[4] for x in per_slot_stats])
+
+    plt.figure(figsize=(10, 4))
+    plt.errorbar(layers, mu_plus_means,  yerr=mu_plus_stds,  fmt='o-', label='μ⁺ mean±σ',  capsize=2)
+    plt.errorbar(layers, mu_minus_means, yerr=mu_minus_stds, fmt='s-', label='μ- mean±σ', capsize=2)
+    plt.xlabel("Detector Layer (1 … 62)")
+    plt.ylabel("Residual (predicted − true)")
+    plt.title("Per-layer Residual: mean ± σ")
+    plt.axhline(0, color='black', lw=1, linestyle='--')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(os.path.dirname(__file__), "plots", "per_layer_residuals.png"))
+    plt.show()
+
+    global_mean_plus  = np.mean(all_res_plus)  
+    global_std_plus   = np.std(all_res_plus)  
+    global_mean_minus = np.mean(all_res_minus) 
+    global_std_minus  = np.std(all_res_minus)  
+    return (global_mean_plus, global_std_plus, global_mean_minus, global_std_minus)
 
 
 def evaluate_model(root_file, model_path):
@@ -56,6 +103,7 @@ def evaluate_model(root_file, model_path):
         X, y_muPlus, y_muMinus = TrackFinder_attention.load_data(root_file)
     if X is None:
         return
+    
     y = np.stack([y_muPlus, y_muMinus], axis=1)  # Shape: (num_events, 2, 62)
     _, X_test, _, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
@@ -63,6 +111,7 @@ def evaluate_model(root_file, model_path):
         "custom_loss": TrackFinder_prod.custom_loss, 
         "Adam": tf.keras.optimizers.legacy.Adam
     }
+
     if 'track_finder_cbam.keras' in model_path:
         custom_objects['ChannelAvgPool'] = ChannelAvgPool
         custom_objects['ChannelMaxPool'] = ChannelMaxPool
@@ -73,9 +122,9 @@ def evaluate_model(root_file, model_path):
         model = tf.keras.models.load_model(model_path)
 
     y_pred = model.predict(X_test)
-    mean_plus, mean_minus, std_plus, std_minus = plot_res_histogram(model_path, y_test, y_pred)
-    print(f'Mu+ Mean: {mean_plus:.3f}, Std Dev: {std_plus:.3f}')
-    print(f'Mu- Mean: {mean_minus:.3f}, Std Dev: {std_minus:.3f}')
+    gmp, gsp, gmm, gsm = plot_res_histogram(model_path, y_test, y_pred)
+    print(f"\nGlobal μ⁺: mean={gmp:.3f}, σ={gsp:.3f}")
+    print(f"Global μ-: mean={gmm:.3f}, σ={gsm:.3f}\n")
 
 
 if __name__ == '__main__':
