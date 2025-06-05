@@ -3,8 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 
-from ROOT import TLorentzVector
-
 def calculate_invariant_mass(tlv1, tlv2):
     """Computes the invariant mass of two particles using TLorentzVectors."""
     return (tlv1 + tlv2).M()
@@ -12,34 +10,15 @@ def calculate_invariant_mass(tlv1, tlv2):
 def extract_momenta_and_calculate_mass(root_file):
     """Extracts momenta from ROOT file and computes invariant mass using TLorentzVectors."""
     f = ROOT.TFile.Open(root_file, "READ")
-
-    if not f or f.IsZombie():
-        print("Error: could not open file", root_file)
-        return np.array([])
-
     tree = f.Get("tree")
 
     if not tree:
         print("Error: Tree not found in file.")
         return np.array([])
-    
-    n_entries = tree.GetEntries()
-    print(f"  → Found {n_entries} entries in 'tree' of {root_file}.\n")
 
     masses = []
-    saw_first = False
     
     for event in tree:
-        print("=== DEBUG: inspecting Event #0 ===")
-        print(" muID       =", list(event.muID))
-        print(" qpx        =", list(event.qpx))
-        print(" qpy        =", list(event.qpy))
-        print(" qpz        =", list(event.qpz))
-        print(" qpx shape? ", np.shape(event.qpx))
-        print(" node: tlv constructors ok? TLV.GetClassName() =", TLorentzVector().ClassName())
-        print("================================\n")
-        saw_first = True
-        
         tlv_mup = ROOT.TLorentzVector()
         tlv_mum = ROOT.TLorentzVector()
 
@@ -60,12 +39,13 @@ def extract_momenta_and_calculate_mass(root_file):
     return np.array(masses)
 
 def plot_invariant_mass(masses, output_file="invariant_mass.png"):
+    print(masses)
     plt.figure(figsize=(8,6))
-    plt.hist(masses, bins=np.linspace(0, 6, 300), alpha=0.7, color='b', edgecolor='black')
+    plt.hist(masses, bins=np.linspace(0, 150, 300), alpha=0.7, color='b', edgecolor='black')
     plt.xlabel("Invariant Mass (GeV/c^2)")
     plt.ylabel("Count")
     plt.title("Invariant Mass Distribution of Muon Pairs")
-    plt.xlim(0, 6)  # Keep full range
+    # plt.xlim(0, 150)  # Keep full range
     plt.grid()
     plt.savefig(output_file)
     plt.show()

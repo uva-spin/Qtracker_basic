@@ -1,6 +1,7 @@
 import ROOT
 import numpy as np
 from array import array
+from training_scripts.TrackFinder_prod import predict_hit_arrays, refine_hit_arrays
 
 
 def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, propagation_model, gaussian_sigma, exp_decay_const):
