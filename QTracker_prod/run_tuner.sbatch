@@ -14,5 +14,5 @@ module load apptainer tensorflow/2.13.0
 source /project/ptgroup/spinquest/this-e1039.sh
 
 apptainer run --nv $CONTAINERDIR/tensorflow-2.13.0.sif \
-    training_scripts/TrackFinder_prod.py \
-    data/noisy_output.root
+    training_scripts/Momentum_training.py \
+    data/momentum_training-1.root --output=models/mom_mum.h5

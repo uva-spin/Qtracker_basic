@@ -15,13 +15,15 @@ def combine_files(file1, file2, output_file):
     f1 = ROOT.TFile.Open(file1, "READ")
     f2 = ROOT.TFile.Open(file2, "READ")
 
+    tree1 = f1.Get("tree")
+    tree2 = f2.Get("tree")
+
     print(f"Entries in {file1}: {tree1.GetEntries()}")
     print(f"Entries in {file2}: {tree2.GetEntries()}")
     print("Trees in file1:", [key.GetName() for key in f1.GetListOfKeys() if key.GetClassName() == "TTree"])
     print("Trees in file2:", [key.GetName() for key in f2.GetListOfKeys() if key.GetClassName() == "TTree"])
     
-    tree1 = f1.Get("tree")
-    tree2 = f2.Get("tree")
+
     
     fout = ROOT.TFile.Open(output_file, "RECREATE", "", ROOT.kLZMA)
     fout.SetCompressionLevel(5)
