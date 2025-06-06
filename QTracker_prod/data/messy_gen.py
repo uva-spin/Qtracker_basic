@@ -1,7 +1,6 @@
 import ROOT
 import numpy as np
 from array import array
-from training_scripts.TrackFinder_prod import predict_hit_arrays, refine_hit_arrays
 
 
 def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, propagation_model, gaussian_sigma, exp_decay_const):
@@ -237,12 +236,12 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default="mc_events.root", help="Output ROOT file name.")
     
     # Detector efficiency probability
-    parser.add_argument("--num_tracks", type=int, default=40, help="Number of injected background tracks.")
-    parser.add_argument("--prob_mean", type=float, default=0.4, help="Probability Distribution Mean.")
-    parser.add_argument("--prob_width", type=float, default=0.05, help="Width of probability distribution for variance.")
+    parser.add_argument("--num_tracks", type=int, default=5, help="Number of injected background tracks.")
+    parser.add_argument("--prob_mean", type=float, default=0.9, help="Probability Distribution Mean.")
+    parser.add_argument("--prob_width", type=float, default=0.1, help="Width of probability distribution for variance.")
     
     # Hit fall model: "linear", "gaussian", or "exponential"
-    parser.add_argument("--propagation_model", type=str, default="linear", help="Choose: ['linear', 'gaussian', or 'exponential'].")
+    parser.add_argument("--propagation_model", type=str, default="gaussian", help="Choose: ['linear', 'gaussian', or 'exponential'].")
     parser.add_argument("--gaussian_sigma", type=float, default=10.0, help="Hyperparameter for Gaussian Decay.")
     parser.add_argument("--exp_decay_const", type=float, default=15.0, help="Hyperparameter for Exponential Decay.")
     args = parser.parse_args()

@@ -3,7 +3,7 @@ import argparse
 
 
 OUTPUT_FILE = "skimmed_output.root"     # Output ROOT file
-NUM_EVENTS_TO_KEEP = 50                 # Number of events to keep
+NUM_EVENTS_TO_KEEP = 1000                # Number of events to keep
 
 
 def skim_root_file(input_file, output_file, max_events):
