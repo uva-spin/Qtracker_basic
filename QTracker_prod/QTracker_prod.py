@@ -7,7 +7,7 @@ from ROOT import TFile, TTree, TMatrixD
 from numba import njit, prange
 
 # USE_CHI2 must be False the first time the script is ran to obtain output for training the quality metric
-USE_CHI2 = True
+USE_CHI2 = False
 USE_DECLUSTERING = False  # Toggle to enable/disable declustering
 USE_SMAXMATRIX = False  # Toggle to enable/disable write softmax matrix
 
