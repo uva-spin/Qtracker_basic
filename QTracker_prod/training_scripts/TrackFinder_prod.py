@@ -1,5 +1,18 @@
 import os
 import ROOT
+
+import ROOT._pythonization._ttree as _tt
+_orig = _tt._TTree__getattr__
+
+def _patched_getattr(self, key):
+    if key == "HitArray_mup":
+        return _orig(self, "qHitArray_mup")
+    if key == "HitArray_mum":
+        return _orig(self, "qHitArray_mum")
+    return _orig(self, key)
+
+_tt._TTree__getattr__ = _patched_getattr
+
 import numpy as np
 import tensorflow as tf
 import argparse

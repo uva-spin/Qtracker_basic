@@ -5,6 +5,7 @@ import argparse
 import os
 from ROOT import TFile, TTree, TMatrixD
 from numba import njit, prange
+from tensorflow.keras.losses import MeanSquaredError
 
 # USE_CHI2 must be False the first time the script is ran to obtain output for training the quality metric
 USE_CHI2 = False
@@ -494,9 +495,14 @@ def process_data(root_file, output_file="tracker_output.root", use_chi2_model=US
     with tf.keras.utils.custom_object_scope({"custom_loss": custom_loss, "Adam": tf.keras.optimizers.legacy.Adam}):
         model_track = tf.keras.models.load_model(MODEL_PATH_TRACK)
 
-    model_momentum_mup = tf.keras.models.load_model(MODEL_PATH_MOMENTUM_MUP, compile=False)
-    model_momentum_mum = tf.keras.models.load_model(MODEL_PATH_MOMENTUM_MUM, compile=False)
-
+    model_momentum_mup = tf.keras.models.load_model(
+        MODEL_PATH_MOMENTUM_MUP,
+        custom_objects={"mse": MeanSquaredError()}
+    )
+    model_momentum_mum = tf.keras.models.load_model(
+        MODEL_PATH_MOMENTUM_MUM,
+        custom_objects={"mse": MeanSquaredError()}
+    )
     #X, event_entries, _ = load_data(root_file)
     #detectorIDs, elementIDs, driftDistances, _ = load_detector_element_data(root_file)
     detectorIDs, elementIDs, driftDistances, tdcTimes, _ = load_detector_element_data(root_file)
@@ -577,4 +583,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     process_data(args.root_file, args.output_file)
-
