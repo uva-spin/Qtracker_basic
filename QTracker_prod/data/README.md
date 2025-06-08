@@ -14,7 +14,7 @@ Splits a signal ROOT file (`Signal_rus.root`) containing dimuon events into two 
 
 **Usage:**
 ```bash
-python separate.py Signal_rus.root
+python separate.py Jpsi_Target.root
 ```
 
 **Output Files:**
