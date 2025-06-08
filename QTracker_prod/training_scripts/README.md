@@ -38,7 +38,7 @@ To perform a training test with no background you can train with the clean outpu
 python3 QTracker_prob/training_scripts/TrackFinder_train.py finder_training.root
 ```
 
-**"To prepare data and train with background and noise, follow the procedure outlined [here](https://github.com/uva-spin/Qtracker_basic/tree/main/QTracker_prod/data)."**
+**To prepare data and train TrackFinder with background and noise, follow the procedure outlined [here](https://github.com/uva-spin/Qtracker_basic/tree/main/QTracker_prod/data).**
 
 ### 2. Training the Momentum Reconstruction Models
 ```sh
