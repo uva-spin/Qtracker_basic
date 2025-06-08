@@ -10,16 +10,16 @@ output includes RUS ROOT files tailored for different training tasks, including 
 
 ### 1. `separate.py`
 **Purpose:**  
-Splits a signal ROOT file (`Signal_rus.root`) containing dimuon events into two separate files, one for μ⁺ and one for μ⁻ tracks. This simplifies training data handling by isolating each particle's hits and track information.
+Splits a signal ROOT file (`JPsi_Target.root`) containing dimuon events into two separate files, one for μ⁺ and one for μ⁻ tracks. This simplifies training data handling by isolating each particle's hits and track information.
 
 **Usage:**
 ```bash
-python separate.py Jpsi_Target.root
+python separate.py JPsi_Target.root
 ```
 
 **Output Files:**
-- `Signal_rus_track1.root` — contains μ⁺ (muon+) events
-- `Signal_rus_track2.root` — contains μ⁻ (muon−) events
+- `JPsi_Target_track1.root` — contains μ⁺ (muon+) events
+- `JPsi_Target_track2.root` — contains μ⁻ (muon−) events
 
 ---
 
@@ -29,7 +29,7 @@ Merges two single-muon ROOT files (e.g., `mup_rus.root` and `mum_rus.root`) by a
 
 **Usage:**
 ```bash
-python combine.py Signal_rus_track1.root Signal_rus_track2.root --output single_muons.root
+python combine.py JPsi_Target_track1.root JPsi_Target_track2.root --output single_muons.root
 ```
 
 **Default Output:**  
@@ -45,7 +45,7 @@ Generates all necessary training datasets by combining μ⁺ and μ⁻ signal tr
 
 **Usage:**
 ```bash
-python3 gen_training.py Signal_rus_track1.root Signal_rus_track2.root
+python3 gen_training.py JPsi_Target_track1.root JPsi_Target_track2.root
 ```
 
 **Output Files:**
@@ -103,15 +103,15 @@ python noisy_gen.py mc_events.root
 
 1. **Split the signal:**  
    ```bash
-   python3 separate.py Signal_rus.root
+   python3 separate.py JPsi_Target.root
    ```
 2. **Prepare background hits (from dump simulation):**  
    ```bash
-   python3 combine.py Signal_rus_track1.root Signal_rus_track2.root
+   python3 combine.py MUM_Dump.root MUP_Dump_10K.root
    ```
 3. **Generate training files:**  
    ```bash
-   python3 gen_training.py Signal_rus_track1.root Signal_rus_track2.root
+   python3 gen_training.py JPsi_Target_track1.root JPsi_Target_track2.root
    ```
 4. **Add background to training hits:**  
    ```bash
