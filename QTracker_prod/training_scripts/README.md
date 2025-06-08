@@ -1,10 +1,11 @@
 # QTracker: Model Training
 
 ## Overview
-QTracker is a framework for reconstructing and analyzing muon tracks in particle physics experiments. This repository provides scripts for processing raw data, training models for track finding and momentum reconstruction, and evaluating reconstructed tracks using a quality metric.
+QTracker is a framework for reconstructing and analyzing muon tracks in particle physics experiments. This repository provides scripts for preparing the Monte Carlo generated events and training models for track finding and momentum reconstruction, and evaluating reconstructed tracks using a quality metric.
 
 ## Prerequisites
-Ensure that your dataset can be reliably organized into single-track data with identified mu+ and mu- events.
+At this stage of QTracker (beta) production, we train the Track Finder and Momentum models separately so that they can be evaluated independently, with no interdependence. Once the Track Finder is optimized for a particular occupancy, we must train the Momentum model using the output from the Track Finder. For now, however, the procedure is simple: the Track Finder handles all the background, and the Momentum models assume (approximately) correct HitArrays with negligible error.
+ 
 
 ## Data Preparation
 1. **Splitting Data into Mu+ and Mu- Tracks**
