@@ -62,7 +62,9 @@ python3 QTracker_basic/training_scripts/imass_plot.py qtracker_reco.root
 This script will plot the mass spectrum of your reconstructed events.
 
 ![invariant_mass](https://github.com/user-attachments/assets/8654506c-ce7c-4458-933b-6d117029bf60)
+
 When everything is working correctly you should see a J/psi mass peak assuming you training using the J/psi Monte Carlo file.
+This is a good confirmation everything is working and you are ready to add in noise and more complicated backgrounds.
 
 ### 2. Training the Quality Metric Model (Chi-Squared Method)
 ```sh
