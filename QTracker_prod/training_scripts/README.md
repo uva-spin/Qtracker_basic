@@ -5,10 +5,11 @@ QTracker is a framework for reconstructing and analyzing muon tracks in particle
 
 ## Prerequisites
 At this stage of QTracker (beta) production, we train the Track Finder and Momentum models separately so that they can be evaluated independently, with no interdependence. Once the Track Finder is optimized for a particular occupancy, we must train the Momentum model using the output from the Track Finder. For now, however, the procedure is simple: the Track Finder handles all the background, and the Momentum models assume (approximately) correct HitArrays with negligible error.
- 
+
+For Track Finder the goal is to evaluate the hits in every event and assign a probability for each element per detector of being associated with a reconstructable dimuon track from the target.
 
 ## Data Preparation
-1. **Splitting Data into Mu+ and Mu- Tracks**
+1. **Splitting Signal Data into Mu+ and Mu- Tracks**
    
    Use `separate.py` to split J/psi, Drell-Yan (DY), or two-muon tracks (mu+/mu-) into separate files:
    ```sh
