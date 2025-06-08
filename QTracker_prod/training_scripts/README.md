@@ -49,7 +49,7 @@ Store the resulting models in the `QTracker_basic/models` directory.
 ## Testing the Tracker
 To test the trained models on a dataset:
 ```sh
-python3 QTracker_basic/training_scripts/QTracker_basic.py JPsi_Dump.root
+python3 QTracker_prod/training_scripts/QTracker_basic.py JPsi_Dump.root
 ```
 This will generate:
 - `qtracker_reco.root` (Reconstructed output file)
@@ -57,7 +57,7 @@ This will generate:
 ## Evaluating Reconstruction Quality
 ### 1. Checking the Invariant Mass Spectrum
 ```sh
-python3 QTracker_basic/training_scripts/imass_plot.py qtracker_reco.root
+python3 QTracker_prod/training_scripts/imass_plot.py qtracker_reco.root
 ```
 This script will plot the mass spectrum of your reconstructed events.
 
@@ -68,12 +68,12 @@ This is a good confirmation everything is working and you are ready to add in no
 
 ### 2. Training the Quality Metric Model (Chi-Squared Method)
 ```sh
-python3 QTracker_basic/training_scripts/Qmetric_training.py qtracker_reco.root
+python3 QTracker_prod/training_scripts/Qmetric_training.py qtracker_reco.root
 ```
 
 ## Notes
 - Ensure that your dataset follows the expected RUS format before processing.
-- The trained models should be stored in the correct directory (`QTracker_basic/models`) for proper operation.
+- The trained models should be stored in the correct directory (`QTracker_prod/models`) for proper operation.
 - The scripts assume that dependencies such as ROOT, Python, and required ML libraries are properly installed.
 
 ## Requirements
