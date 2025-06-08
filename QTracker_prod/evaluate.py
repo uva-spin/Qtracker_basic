@@ -1,7 +1,10 @@
-# Suppress warnings and logs
+# evaluate.py
+
+# -----------------------------------------------------------------------------
+# Suppress TensorFlow/absl logging
 import os
 import absl.logging
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all logs, 1 = INFO, 2 = WARNING, 3 = ERROR
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'   # only show ERROR
 absl.logging.set_verbosity('error')
 
 import argparse
@@ -11,127 +14,46 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 
+# core TrackFinder loaders / custom loss
 from training_scripts import TrackFinder_prod, TrackFinder_attention
-from training_scripts.TrackFinder_attention import ChannelAvgPool, ChannelMaxPool, SpatialMaxPool, SpatialAvgPool
+from training_scripts.TrackFinder_attention import (
+    ChannelAvgPool, ChannelMaxPool, SpatialAvgPool, SpatialMaxPool
+)
 
+# import QTracker_prod so we can load true detector/element data and refinement
+import QTracker_prod
+# -----------------------------------------------------------------------------
 
-def plot_res_histogram(model_path, y_true, y_pred):
-    y_muPlus_true, y_muMinus_true = tf.split(y_true, num_or_size_splits=2, axis=1)
-    y_muPlus_pred, y_muMinus_pred = tf.split(y_pred, num_or_size_splits=2, axis=1)
+def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
+    """
+    Error‐bar plot of residuals (mean ± std) for μ⁺ and μ⁻ vs. detector ID.
+    Only uses the provided det_ids / sliced res arrays.
+    """
+    mean_p  = res_plus.mean(axis=0)
+    std_p   = res_plus.std(axis=0)
+    mean_m  = res_minus.mean(axis=0)
+    std_m   = res_minus.std(axis=0)
 
-    y_muPlus_true = tf.cast(tf.squeeze(y_muPlus_true, axis=1), tf.float32)
-    y_muMinus_true = tf.cast(tf.squeeze(y_muMinus_true, axis=1), tf.float32)
-
-    y_muPlus_pred = tf.cast(tf.argmax(tf.squeeze(y_muPlus_pred, axis=1), axis=-1), tf.float32)
-    y_muMinus_pred = tf.cast(tf.argmax(tf.squeeze(y_muMinus_pred, axis=1), axis=-1), tf.float32)
-
-    res_plus = (y_muPlus_pred - y_muPlus_true)       # (num_events, num_detectors)
-    res_minus = (y_muMinus_pred - y_muMinus_true)
-
-    res_plus = res_plus.numpy()
-    res_minus = res_minus.numpy()
-
-    true_plus = y_muPlus_true.numpy()   
-    true_minus = y_muMinus_true.numpy() 
-
-    all_res_plus = res_plus.flatten()
-    all_res_minus = res_minus.flatten()
-
-    num_layers = res_plus.shape[1]
-    per_slot_stats = []
-    for layer_idx in range(num_layers):
-        plus_residuals  = res_plus[:, layer_idx]
-        minus_residuals = res_minus[:, layer_idx]
-
-        mean_plus  = np.mean(plus_residuals)
-        std_plus   = np.std(plus_residuals)
-        mean_minus = np.mean(minus_residuals)
-        std_minus  = np.std(minus_residuals)
-
-        per_slot_stats.append((
-            layer_idx+1,
-            mean_plus, std_plus,
-            mean_minus, std_minus
-        ))
-
-    per_slot_stats_matched = []  
-    for layer_idx in range(num_layers):
-        mask_plus  = true_plus[:, layer_idx] > 0   
-        mask_minus = true_minus[:, layer_idx] > 0  
-
-        if np.any(mask_plus):  
-            plus_residuals_matched = res_plus[mask_plus, layer_idx]  
-            mean_plus_m  = np.mean(plus_residuals_matched)           
-            std_plus_m   = np.std(plus_residuals_matched)            
-        else:
-            mean_plus_m, std_plus_m = 0.0, 0.0                        
-
-        if np.any(mask_minus): 
-            minus_residuals_matched = res_minus[mask_minus, layer_idx]  
-            mean_minus_m = np.mean(minus_residuals_matched)             
-            std_minus_m  = np.std(minus_residuals_matched)              
-        else:
-            mean_minus_m, std_minus_m = 0.0, 0.0                         
-
-        per_slot_stats_matched.append((  
-            layer_idx+1,                                           
-            mean_plus_m, std_plus_m, mean_minus_m, std_minus_m     
-        ))                                                         
-
-    print("\nPer-slot residual statistics (all detectors):")
-    print(" layer |   μ⁺ mean   |  μ⁺ σ   |  μ- mean   |  μ- σ")
-    print("--------------------------------------------------")
-    for (layer, m_p, s_p, m_m, s_m) in per_slot_stats:
-        print(f" {layer:2d}   |   {m_p:+6.3f}  | {s_p:6.3f} |   {m_m:+6.3f}  | {s_m:6.3f}")
-
-    print("\nPer-slot residual statistics (matched only):")  
-    print(" layer |   μ⁺ mean   |  μ⁺ σ   |  μ- mean   |  μ- σ")  
-    print("--------------------------------------------------")  
-    for (layer, m_p_m, s_p_m, m_m_m, s_m_m) in per_slot_stats_matched:  
-        print(f" {layer:2d}   |   {m_p_m:+6.3f}  | {s_p_m:6.3f} |   {m_m_m:+6.3f}  | {s_m_m:6.3f}")  
-
-    layers = np.arange(1, num_layers+1)
-
-    mu_plus_means  = np.array([x[1] for x in per_slot_stats])
-    mu_minus_means = np.array([x[3] for x in per_slot_stats])
-
-
-    mu_plus_means_m  = np.array([x[1] for x in per_slot_stats_matched])  
-    mu_minus_means_m = np.array([x[3] for x in per_slot_stats_matched])  
-
-    width = 0.4
-    plt.figure(figsize=(12, 5))
-    plt.bar(layers - width/2, mu_plus_means, width, label='μ⁺ mean (all)') 
-    plt.bar(layers + width/2, mu_minus_means, width, label='μ- mean (all)') 
-    plt.xlabel("Detector Layer (1 … 62)")
-    plt.ylabel("Residual (predicted − true)")
-    plt.title("Per-layer Residual Means (All Detectors)")
-    plt.axhline(0, color='black', lw=1, linestyle='--')
+    plt.figure(figsize=(10, 5))
+    plt.errorbar(det_ids, mean_p, yerr=std_p, marker='o', label='μ+ mean±σ')
+    plt.errorbar(det_ids, mean_m, yerr=std_m, marker='s', label='μ- mean±σ')
+    plt.axhline(0, linestyle='--', linewidth=1)
+    plt.xlabel(f'Detector Layer (skipping masked slots)')
+    plt.ylabel('Residual (predicted − true)')
+    plt.title(f'Per-layer Residual ({stage_label.capitalize()})')
     plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(os.path.dirname(__file__), "plots", "per_layer_means_all.png"))
-    plt.show()
- 
-    plt.figure(figsize=(12, 5))  
-    plt.bar(layers - width/2, mu_plus_means_m, width, label='μ⁺ mean (matched)')   
-    plt.bar(layers + width/2, mu_minus_means_m, width, label='μ- mean (matched)') 
-    plt.xlabel("Detector Layer (1 … 62)")  
-    plt.ylabel("Residual (predicted − true)")  
-    plt.title("Per-layer Residual Means (Matched Only)")  
-    plt.axhline(0, color='black', lw=1, linestyle='--')  
-    plt.legend()  
-    plt.tight_layout()  
-    plt.savefig(os.path.join(os.path.dirname(__file__), "plots", "per_layer_means_matched.png"))  
-    plt.show()  
 
-    global_mean_plus  = np.mean(all_res_plus)
-    global_std_plus   = np.std(all_res_plus)
-    global_mean_minus = np.mean(all_res_minus)
-    global_std_minus  = np.std(all_res_minus)
-    return (global_mean_plus, global_std_plus, global_mean_minus, global_std_minus)
+    base     = os.path.splitext(os.path.basename(model_path))[0]
+    fname    = f"{base}_{stage_label}_residuals.png"
+    plot_dir = os.path.join(os.path.dirname(__file__), "plots")
+    os.makedirs(plot_dir, exist_ok=True)
+    plt.savefig(os.path.join(plot_dir, fname))
+    plt.show()
 
 
 def evaluate_model(root_file, model_path):
+    # 1) load X, y
     if 'track_finder.h5' in model_path:
         X, y_muPlus, y_muMinus = TrackFinder_prod.load_data(root_file)
     else:
@@ -139,34 +61,98 @@ def evaluate_model(root_file, model_path):
     if X is None:
         return
 
-    y = np.stack([y_muPlus, y_muMinus], axis=1)  
-    _, X_test, _, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    # 2) stack ground truth, grab detector/element arrays
+    y = np.stack([y_muPlus, y_muMinus], axis=1)  # (n_events, 2, num_detectors)
+    detectorIDs, elementIDs, _, _, _ = QTracker_prod.load_detector_element_data(root_file)
+    N = QTracker_prod.NUM_DETECTORS
 
+    # build a boolean mask of “used” detectors
+    mask = np.ones(N, dtype=bool)
+    mask[7:12]  = False  # unused station-1
+    mask[55:58] = False  # DP-1
+    mask[59:62] = False  # DP-2
+
+    # 3) split everything with the same seed
+    (X_train, X_test,
+     y_train, y_test,
+     det_train, det_test,
+     elem_train, elem_test) = train_test_split(
+        X, y, detectorIDs, elementIDs,
+        test_size=0.2, random_state=42
+    )
+
+    # 4) load model with custom objects
     custom_objects = {
         "custom_loss": TrackFinder_prod.custom_loss,
-        "Adam": tf.keras.optimizers.legacy.Adam
+        "Adam":        tf.keras.optimizers.legacy.Adam
     }
-
     if 'track_finder_cbam.keras' in model_path:
-        custom_objects['ChannelAvgPool'] = ChannelAvgPool
-        custom_objects['ChannelMaxPool'] = ChannelMaxPool
-        custom_objects['SpatialAvgPool'] = SpatialAvgPool
-        custom_objects['SpatialMaxPool'] = SpatialMaxPool
-
+        custom_objects.update({
+            'ChannelAvgPool': ChannelAvgPool,
+            'ChannelMaxPool': ChannelMaxPool,
+            'SpatialAvgPool': SpatialAvgPool,
+            'SpatialMaxPool': SpatialMaxPool
+        })
     with tf.keras.utils.custom_object_scope(custom_objects):
         model = tf.keras.models.load_model(model_path)
 
+    # 5) predict on test set
     y_pred = model.predict(X_test)
-    gmp, gsp, gmm, gsm = plot_res_histogram(model_path, y_test, y_pred)
-    print(f"\nGlobal μ⁺: mean={gmp:.3f}, σ={gsp:.3f}")
-    print(f"Global μ-: mean={gmm:.3f}, σ={gsm:.3f}\n")
+
+    # 6) compute raw residuals
+    y_p_raw = tf.cast(
+        tf.argmax(tf.squeeze(tf.split(y_pred,2,axis=1)[0],axis=1), axis=-1),
+        tf.int32
+    ).numpy()
+    y_m_raw = tf.cast(
+        tf.argmax(tf.squeeze(tf.split(y_pred,2,axis=1)[1],axis=1), axis=-1),
+        tf.int32
+    ).numpy()
+
+    y_p_true = y_test[:,0,:].astype(np.int32)
+    y_m_true = y_test[:,1,:].astype(np.int32)
+
+    raw_p_res = y_p_raw  - y_p_true
+    raw_m_res = y_m_raw  - y_m_true
+
+    # 7) print per-layer stats BEFORE refinement (only unmasked)
+    print("\n--- Raw Residuals (Before Refinement) ---")
+    print("Det |  μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
+    for det in np.where(mask)[0]:
+        m_p, s_p = raw_p_res[:,det].mean(),  raw_p_res[:,det].std()
+        m_m, s_m = raw_m_res[:,det].mean(),  raw_m_res[:,det].std()
+        print(f"{det+1:3d} | {m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
+
+    # 8) plot raw residuals
+    dets_used = (np.where(mask)[0] + 1)  # 1-based IDs for display
+    plot_residuals(dets_used, raw_p_res[:,mask], raw_m_res[:,mask], model_path, 'raw')
+
+    # 9) refinement
+    ref_p, ref_m = QTracker_prod.refine_hit_arrays(
+        y_p_raw, y_m_raw, det_test, elem_test
+    )
+    ref_p_res = ref_p - y_p_true
+    ref_m_res = ref_m - y_m_true
+
+    # 10) print per-layer stats AFTER refinement (only unmasked)
+    print("\n--- Refined Residuals (After Refinement) ---")
+    print("Det |  μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
+    for det in np.where(mask)[0]:
+        m_p, s_p = ref_p_res[:,det].mean(),  ref_p_res[:,det].std()
+        m_m, s_m = ref_m_res[:,det].mean(),  ref_m_res[:,det].std()
+        print(f"{det+1:3d} | {m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
+
+    # 11) plot refined residuals
+    plot_residuals(dets_used, ref_p_res[:,mask], ref_m_res[:,mask], model_path, 'refined')
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Evaluate pre-trained TrackFinder models.")
-    parser.add_argument("root_file", type=str, help="Path to the combined ROOT file.")
+    parser = argparse.ArgumentParser(
+        description="Evaluate pre-trained TrackFinder models."
+    )
+    parser.add_argument("root_file",  type=str, help="Path to the combined ROOT file.")
     parser.add_argument("model_path", type=str, help="Path to the saved model file (.h5 or .keras).")
     args = parser.parse_args()
 
-    print(f'Results for {args.model_path}...')
+    print(f"\nResults for {args.model_path}...")
     evaluate_model(args.root_file, args.model_path)
