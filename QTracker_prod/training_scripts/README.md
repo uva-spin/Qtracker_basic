@@ -13,17 +13,17 @@ The goal of the Track Finder is to evaluate the hits in each event and assign a 
    
    Use `separate.py` to split J/psi, Drell-Yan (DY), or two-muon tracks (mu+/mu-) into separate files:
    ```sh
-   python3 QTracker_basic/data/separate.py JPsi_Dump.root
+   python3 QTracker_prod/data/separate.py JPsi_Target.root
    ```
    This will generate:
-   - `JPsi_Dump_track1.root` (mu+ tracks)
-   - `JPsi_Dump_track2.root` (mu- tracks)
+   - `JPsi_Target_track1.root` (mu+ tracks)
+   - `JPsi_Target_track2.root` (mu- tracks)
 
 2. **Generating Hit Arrays for Training**
    
    The `gen_training.py` script processes the separated muon tracks and prepares the necessary hit arrays for model training:
    ```sh
-   python3 QTracker_basic/data/gen_training.py JPsi_Dump_track1.root JPsi_Dump_track2.root
+   python3 QTracker_prob/data/gen_training.py JPsi_Target_track1.root JPsi_Target_track2.root
    ```
    This will produce the following training data files:
    - `finder_training.root` (for track finding training)
@@ -33,8 +33,9 @@ The goal of the Track Finder is to evaluate the hits in each event and assign a 
 ## Model Training
 
 ### 1. Training the Track Finder
+To perform a training test with no background you can train with the clean output of the pure dimuons from the target with no injected background or noise.
 ```sh
-python3 QTracker_basic/training_scripts/TrackFinder_train.py finder_training.root
+python3 QTracker_prob/training_scripts/TrackFinder_train.py finder_training.root
 ```
 
 ### 2. Training the Momentum Reconstruction Models
@@ -59,6 +60,9 @@ This will generate:
 python3 QTracker_basic/training_scripts/imass_plot.py qtracker_reco.root
 ```
 This script will plot the mass spectrum of your reconstructed events.
+
+![invariant_mass](https://github.com/user-attachments/assets/8654506c-ce7c-4458-933b-6d117029bf60)
+When everything is working correctly you should see a J/psi mass peak assuming you training using the J/psi Monte Carlo file.
 
 ### 2. Training the Quality Metric Model (Chi-Squared Method)
 ```sh
