@@ -1,4 +1,4 @@
-# QTracker: Muon Track Reconstruction and Momentum Training
+# QTracker: Model Training
 
 ## Overview
 QTracker is a framework for reconstructing and analyzing muon tracks in particle physics experiments. This repository provides scripts for processing raw data, training models for track finding and momentum reconstruction, and evaluating reconstructed tracks using a quality metric.
