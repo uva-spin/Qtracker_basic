@@ -25,11 +25,11 @@ python separate.py JPsi_Target.root
 
 ### 2. `combine.py`
 **Purpose:**  
-Merges two single-muon ROOT files (e.g., `mup_rus.root` and `mum_rus.root`) by alternating events from each. The result simulates a realistic background file (`single_muons.root`) that mimics random single muon tracks from the dump.
+Merges two single-muon ROOT files (e.g., `MUP_Dump.root` and `MUM_Dump.root`) by alternating events from each. The result simulates a realistic background file (`single_muons.root`) that mimics random single muon tracks from the dump.
 
 **Usage:**
 ```bash
-python combine.py JPsi_Target_track1.root JPsi_Target_track2.root --output single_muons.root
+python combine.py MUP_Dump.root MUM_Dump.root --output single_muons.root
 ```
 
 **Default Output:**  
