@@ -23,7 +23,7 @@ The goal of the Track Finder is to evaluate the hits in each event and assign a 
    
    The `gen_training.py` script processes the separated muon tracks and prepares the necessary hit arrays for model training:
    ```sh
-   python3 QTracker_prob/data/gen_training.py JPsi_Target_track1.root JPsi_Target_track2.root
+   python3 QTracker_prod/data/gen_training.py JPsi_Target_track1.root JPsi_Target_track2.root
    ```
    This will produce the following training data files:
    - `finder_training.root` (for track finding training)
@@ -40,16 +40,16 @@ python3 QTracker_prob/training_scripts/TrackFinder_train.py finder_training.root
 
 ### 2. Training the Momentum Reconstruction Models
 ```sh
-python3 QTracker_basic/training_scripts/Momentum_training.py --output mom_mup.h5 momentum_training-1.root
-python3 QTracker_basic/training_scripts/Momentum_training.py --output mom_mum.h5 momentum_training-2.root
+python3 QTracker_prod/training_scripts/Momentum_training.py --output mom_mup.h5 momentum_training-1.root
+python3 QTracker_prod/training_scripts/Momentum_training.py --output mom_mum.h5 momentum_training-2.root
 ```
 
-Store the resulting models in the `QTracker_basic/models` directory.
+Store the resulting models in the `QTracker_prod/models` directory.
 
 ## Testing the Tracker
 To test the trained models on a dataset:
 ```sh
-python3 QTracker_prod/training_scripts/QTracker_basic.py JPsi_Dump.root
+python3 QTracker_prod/training_scripts/QTracker_prod.py JPsi_Dump.root
 ```
 This will generate:
 - `qtracker_reco.root` (Reconstructed output file)
@@ -91,7 +91,7 @@ This script trains a Convolutional Neural Network (CNN) model to predict hit arr
 
 #### Usage:
 ```bash
-python QTracker_basic/training_scripts/TrackFinder_training.py <root_file> --output_model models/track_finder.h5
+python QTracker_prod/training_scripts/TrackFinder_training.py <root_file> --output_model models/track_finder.h5
 ```
 
 #### Functionality:
@@ -107,7 +107,7 @@ This script trains a deep neural network (DNN) to predict momentum components (g
 
 #### Usage:
 ```bash
-python QTracker_basic/training_scripts/Momentum_training.py <input_root_files> --output models/mom_model.h5
+python QTracker_prod/training_scripts/Momentum_training.py <input_root_files> --output models/mom_model.h5
 ```
 
 #### Functionality:
@@ -123,7 +123,7 @@ This script trains a model to predict chi-squared (χ²) values based on reconst
 
 #### Usage:
 ```bash
-python QTracker_basic/training_scripts/Qmetric_training.py <root_file>
+python QTracker_prod/training_scripts/Qmetric_training.py <root_file>
 ```
 
 #### Functionality:
