@@ -7,9 +7,9 @@ from ROOT import TFile, TTree, TMatrixD
 from numba import njit, prange
 
 # USE_CHI2 must be False the first time the script is ran to obtain output for training the quality metric
-USE_CHI2 = True
-USE_DECLUSTERING = False  # Toggle to enable/disable declustering
-USE_SMAXMATRIX = False  # Toggle to enable/disable write softmax matrix
+USE_CHI2 = False
+USE_DECLUSTERING = True  # Toggle to enable/disable declustering
+USE_SMAXMATRIX = True  # Toggle to enable/disable write softmax matrix
 
 # Paths to models
 MODEL_PATH_TRACK = "./models/track_finder.h5"
@@ -577,4 +577,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     process_data(args.root_file, args.output_file)
-
