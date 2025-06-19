@@ -33,8 +33,10 @@ def split_tracks(input_filename):
     tree1.Branch("eventID", eventID1, "eventID/I")
     tree2.Branch("eventID", eventID2, "eventID/I")
 
+
     def make_vector_branches(tree):
         vecs = {}
+
         vecs['hitID'] = ROOT.std.vector('int')()
         vecs['hitTrackID'] = ROOT.std.vector('int')()
         vecs['gProcessID'] = ROOT.std.vector('int')()
@@ -55,8 +57,10 @@ def split_tracks(input_filename):
 
         for name, vec in vecs.items():
             tree.Branch(name, vec)
-            
+
         return vecs
+
+
 
     vecs1 = make_vector_branches(tree1)
     vecs2 = make_vector_branches(tree2)
@@ -113,6 +117,7 @@ def split_tracks(input_filename):
 
         # Assign hit-level info
         #print(f"[Event {i}] Sizes: hitID={r_hitID.GetSize()}, driftDistance={r_driftDistance.GetSize()}, tdcTime={r_tdcTime.GetSize()}, hit_trackID={r_hit_trackID.GetSize()}")
+
         for j in range(r_hit_trackID.GetSize()):
             tid = r_hit_trackID[j]
             #tid = r_trackID[j]
@@ -125,6 +130,7 @@ def split_tracks(input_filename):
                 tgt['elementID'].push_back(r_elementID[j])
                 tgt['driftDistance'].push_back(r_driftDistance[j])
                 tgt['tdcTime'].push_back(r_tdcTime[j])
+        
         #print(f"[Event {i}] hits: mu+ = {vecs1['tdcTime'].size()}, mu− = {vecs2['tdcTime'].size()}")
 
         output_file1.cd(); tree1.Fill()
