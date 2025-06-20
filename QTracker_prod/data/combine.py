@@ -4,10 +4,8 @@ import signal
 import sys
 import array
 
-# Set this to limit total events written. Set to None to go until one file ends.
-MAX_OUTPUT_EVENTS = 100000
 
-def merge_alternating_reader(file1, file2, output_file):
+def merge_alternating_reader(file1, file2, output_file, max_output_events=100000):
     f1 = ROOT.TFile.Open(file1)
     f2 = ROOT.TFile.Open(file2)
     tree1 = f1.Get("tree")
@@ -104,13 +102,13 @@ def merge_alternating_reader(file1, file2, output_file):
 
     eid = 0
     for i in range(max_input_events):
-        if MAX_OUTPUT_EVENTS is not None and eid >= MAX_OUTPUT_EVENTS:
+        if max_output_events is not None and eid >= max_output_events:
             break
-        if i < n1 and (MAX_OUTPUT_EVENTS is None or eid < MAX_OUTPUT_EVENTS):
+        if i < n1 and (max_output_events is None or eid < max_output_events):
             reader1.SetEntry(i)
             copy_entry(reader1, reader_vals1, eid)
             eid += 1
-        if i < n2 and (MAX_OUTPUT_EVENTS is None or eid < MAX_OUTPUT_EVENTS):
+        if i < n2 and (max_output_events is None or eid < max_output_events):
             reader2.SetEntry(i)
             copy_entry(reader2, reader_vals2, eid)
             eid += 1
@@ -127,6 +125,7 @@ if __name__ == "__main__":
     parser.add_argument("file1", type=str)
     parser.add_argument("file2", type=str)
     parser.add_argument("--output", type=str, default="single_muons.root")
+    parser.add_argument("--max_output_events", type=int, default=100000, help="Set this to limit total events written. Set to None to go until one file ends.")
     args = parser.parse_args()
 
-    merge_alternating_reader(args.file1, args.file2, args.output)
+    merge_alternating_reader(args.file1, args.file2, args.output, args.max_output_events)

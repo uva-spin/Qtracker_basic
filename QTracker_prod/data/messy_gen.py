@@ -1,11 +1,25 @@
 import ROOT
 import numpy as np
 from array import array
+import math
 
 
-def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, propagation_model, gaussian_sigma, exp_decay_const):
+def inject_tracks(
+    file1: str, 
+    file2: str, 
+    output_file: str, 
+    num_tracks: int, 
+    prob_mean: float, 
+    prob_width: float, 
+    propagation_model: str, 
+    gaussian_sigma: float, 
+    exp_decay_const: float,
+    clean_ratio: float, 
+) -> None:
     if not (1 <= num_tracks <= 100):
         raise ValueError("num_tracks must be between 1 and 100.")
+    if not (0 <= clean_ratio <= 1):
+        raise ValueError("clean_ratio must be between 0 and 1.")
     if not (0 <= prob_mean <= 1):
         raise ValueError("prob_mean must be between 0 and 1.")
     if prob_width < 0:
@@ -69,19 +83,52 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
     tree1.SetBranchAddress("HitArray_mup", HitArray_mup_input)
     tree1.SetBranchAddress("HitArray_mum", HitArray_mum_input)
 
+    num_events_tree1 = tree1.GetEntries()
     num_events_tree2 = tree2.GetEntries()
     tree2_index = 0
 
     occupancies = []
     event_ids = []
 
-    for i in range(tree1.GetEntries()):
-        if tree2_index >= num_events_tree2:
-            break
+    # Find number of total, messy, and clean events in output tree
+    num_messy_events = math.ceil(num_events_tree2 / num_tracks)
+    num_total_events = (
+        min(num_events_tree1, num_messy_events / (1 - clean_ratio)) 
+        if clean_ratio < 1 else num_events_tree1
+    )
+    num_clean_events = num_total_events * clean_ratio
 
+    clean_count = 0
+    messy_count = 0
+
+    for i in range(num_events_tree1):
+        # --- Handle whether event should be clean ---
+        num_tracks_event = num_tracks
+        remaining_clean_needed = num_clean_events - clean_count
+
+        if tree2_index >= num_events_tree2:
+            # Messy injection complete: check whether more clean events needed
+            if remaining_clean_needed <= 0:
+                break
+            clean_count += 1
+            num_tracks_event = 0
+
+        elif remaining_clean_needed > 0 and np.random.random() < clean_ratio:
+            # Event is clean
+            clean_count += 1
+            num_tracks_event = 0   # no injected tracks for this event
+        
+        else:
+            # Event is messy
+            messy_count += 1
+
+
+        # --- Original messy_gen implementation ---
         tree1.GetEntry(i)
-        tree2.GetEntry(tree2_index)
-        tree2_index += 1
+
+        # NOTE: Seems redundant
+        # tree2.GetEntry(tree2_index)
+        # tree2_index += 1
 
         # Reset
         eventID[0] = tree1.eventID
@@ -136,7 +183,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
         local_hitID_counter = current_max_hitID + 1
         next_gTrackID = max(tree1.gTrackID) + 1 if len(tree1.gTrackID) > 0 else 3
 
-        for _ in range(num_tracks):
+        for _ in range(num_tracks_event):
             if tree2_index >= num_events_tree2:
                 break
 
@@ -176,7 +223,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
                     hitID.push_back(local_hitID_counter)
                     hitTrackID.push_back(this_gTrackID)
                     local_hitID_counter += 1
-
+            
         total_hits_this_event = elementID.size()
         occupancies.append(total_hits_this_event)
         event_ids.append(tree1.eventID)
@@ -187,6 +234,8 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
     fout.Close()
     f1.Close()
     f2.Close()
+
+    print(f'{clean_count} clean events, {messy_count} messy events generated.')
 
     mean_occ = float(np.mean(occupancies))
     median_occ = float(np.median(occupancies))
@@ -228,6 +277,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, 
     except ImportError:
         print("matplotlib not installed")
 
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Inject background tracks into ROOT data while preserving hit arrays.")
@@ -237,6 +287,7 @@ if __name__ == "__main__":
     
     # Detector efficiency probability
     parser.add_argument("--num_tracks", type=int, default=5, help="Number of injected background tracks.")
+    parser.add_argument("--clean_ratio", type=float, default=0.0, help="Ratio of output events that have no injected tracks.")
     parser.add_argument("--prob_mean", type=float, default=0.9, help="Probability Distribution Mean.")
     parser.add_argument("--prob_width", type=float, default=0.1, help="Width of probability distribution for variance.")
     
@@ -256,4 +307,5 @@ if __name__ == "__main__":
         args.propagation_model,
         args.gaussian_sigma,
         args.exp_decay_const,
+        args.clean_ratio,
     )
