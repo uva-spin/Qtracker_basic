@@ -1,18 +1,5 @@
 import os
 import ROOT
-
-# import ROOT._pythonization._ttree as _tt
-# _orig = _tt._TTree__getattr__
-
-# def _patched_getattr(self, key):
-#     if key == "HitArray_mup":
-#         return _orig(self, "qHitArray_mup")
-#     if key == "HitArray_mum":
-#         return _orig(self, "qHitArray_mum")
-#     return _orig(self, key)
-
-# _tt._TTree__getattr__ = _patched_getattr
-
 import numpy as np
 import tensorflow as tf
 import argparse
@@ -127,7 +114,7 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005):
     return model
 
 
-def train_model(root_file, output_model, learning_rate, epoch, batch_size, patience):
+def train_model(root_file, output_model, learning_rate=0.00005):
     X, y_muPlus, y_muMinus = load_data(root_file)
 
     if X is None:
@@ -136,10 +123,8 @@ def train_model(root_file, output_model, learning_rate, epoch, batch_size, patie
     y = np.stack([y_muPlus, y_muMinus], axis=1)  # Shape: (num_events, 2, 62)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=patience, restore_best_weights=True)
-
     model = build_model(learning_rate=learning_rate)
-    model.fit(X_train, y_train, epochs=epoch, batch_size=batch_size, validation_data=(X_test, y_test), callbacks=[early_stopping])
+    model.fit(X_train, y_train, epochs=40, batch_size=32, validation_data=(X_test, y_test))
 
     model.save(output_model)
     print(f"Model saved to {output_model}")
@@ -150,9 +135,6 @@ if __name__ == "__main__":
     parser.add_argument("root_file", type=str, help="Path to the combined ROOT file.")
     parser.add_argument("--output_model", type=str, default="models/track_finder.h5", help="Path to save the trained model.")
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
-    parser.add_argument("--epoch", type=int, default=40, help="Training epoch count.")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size.")
-    parser.add_argument("--patience", type=int, default=5, help="Patience for early stopping.")
     args = parser.parse_args()
 
-    train_model(args.root_file, args.output_model, args.learning_rate, args.epoch, args.batch_size, args.patience)
+    train_model(args.root_file, args.output_model, args.learning_rate)

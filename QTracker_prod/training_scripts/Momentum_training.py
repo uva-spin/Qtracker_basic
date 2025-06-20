@@ -1,9 +1,10 @@
+
 import uproot
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, BatchNormalization, Dropout, Concatenate, Flatten
-from tensorflow.keras.optimizers.legacy import Adam  # Use legacy Adam optimizer for M1/M2 Mac compatibility
+from tensorflow.keras.optimizers import Adam  # Use legacy Adam optimizer for M1/M2 Mac compatibility
 import argparse
 
 # Function to load data from multiple ROOT files
