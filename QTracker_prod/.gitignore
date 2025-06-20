@@ -1,5 +1,8 @@
 *.root
 models/
-run.sh
+models/
+Slurm_Files/
+
+run_tuner.slurm
 
 __pycache__/

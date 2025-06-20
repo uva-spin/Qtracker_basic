@@ -42,8 +42,10 @@ def plot_event(file_name, event_number):
         plt.xticks(np.arange(0, 61, 10))
         plt.yticks(np.arange(0, 201, 20))
 
-        plot_name = file_name.replace('data/', '').replace('.root', '.png')
-        plot_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "plots", plot_name)
+        plot_name = os.path.basename(file_name).replace('.root', '.png')
+        plot_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "plots")
+        os.makedirs(plot_dir, exist_ok=True)
+        plot_path = os.path.join(plot_dir, plot_name)
         plt.savefig(plot_path)
         
         # Show the plot
