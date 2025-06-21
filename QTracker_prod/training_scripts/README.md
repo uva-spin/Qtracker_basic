@@ -51,7 +51,7 @@ Store the resulting models in the `QTracker_prod/models` directory.
 ## Testing the Tracker
 To test the trained models on a dataset:
 ```sh
-python3 QTracker_prod/training_scripts/QTracker_prod.py JPsi_Dump.root
+python3 QTracker_prod/training_scripts/QTracker_prod.py JPsi_Target.root
 ```
 This will generate:
 - `qtracker_reco.root` (Reconstructed output file)
@@ -139,9 +139,6 @@ Each script saves trained models in the `models/` directory:
 - `track_finder.h5` - CNN model predicting detector hit arrays.
 - `mom_model.h5` - DNN model predicting momentum components.
 - `chi2_predictor_model.h5` - Model predicting χ² values for track assessment.
-
-
-
 
 
 # Updating The Dimuon Track Finder Suite
