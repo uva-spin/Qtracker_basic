@@ -53,9 +53,12 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     --batch_size 32
 
 # --- Training Q-tracker ---
+# Uncomment if running run_tuner.slurm directly
+# QTRACKER_INPUT="JPsi_Dump_100K"
+
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/QTracker_prod.py \
-     /mnt/code/data/raw_files/JPsi_Dump_100K.root \
+     /mnt/code/data/raw_files/${QTRACKER_INPUT}.root \
     --output_file /mnt/code/data/processed_files/qtracker_reco.root
 
 # --- Plot Invariant Mass ---
