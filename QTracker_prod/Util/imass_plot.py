@@ -1,4 +1,5 @@
 import ROOT
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
@@ -53,8 +54,17 @@ def plot_invariant_mass(masses, output_file="invariant_mass.png"):
     plt.savefig(output_file)
     plt.show()
 
-    print(f"Average invariant mass: {mean_mass:.4f} GeV/c^2")
-    print(f"Mass distribution width (std dev): {std_mass:.4f} GeV/c^2")
+    # Added for quick sanity tests
+    track_size = os.getenv("TRACK_SIZE")
+    mom_size = os.getenv("MOM_SIZE")
+    qtrack_size = os.getenv("QTRACK_SIZE")
+
+    with open("mass_stats.txt", "a") as file:
+        file.write(f"TrackFinder: {track_size}K, Momentum: {mom_size}K, QTracker: {qtrack_size}K\n")
+        file.write(f"Average invariant mass: {mean_mass:.4f} GeV/c^2\n")
+        file.write(f"Mass distribution width (std dev): {std_mass:.4f} GeV/c^2\n\n")
+    # print(f"Average invariant mass: {mean_mass:.4f} GeV/c^2")
+    # print(f"Mass distribution width (std dev): {std_mass:.4f} GeV/c^2")
 
 def main():
     parser = argparse.ArgumentParser(description="Calculate and plot the invariant mass of muon pairs from a ROOT file.")

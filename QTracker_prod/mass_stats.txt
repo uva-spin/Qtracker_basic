@@ -1,0 +1,4 @@
+TrackFinder: 100K, Momentum: 100K, QTracker: 100K
+Average invariant mass: 51.5215 GeV/c^2
+Mass distribution width (std dev): 0.0000 GeV/c^2
+

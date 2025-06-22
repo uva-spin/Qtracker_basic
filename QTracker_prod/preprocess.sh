@@ -1,6 +1,25 @@
-# Uncomment if running preprocess.sh directly
-# TRACKFINDER_INPUT="JPsi_Dump_10K"
-# MOMENTUM_INPUT="JPsi_Dump_100K"
+# Variables: Uncomment if running preprocess.sh directly
+# TRACK_SIZE=20
+# MOM_SIZE=10
+
+# TRACK_SKIM_INPUT="JPsi_Dump_100K"
+# MOM_SKIM_INPUT="JPsi_Dump_100K"
+# TRACK_SKIM_SIZE=$(( TRACK_SIZE * 1000 ))
+# MOM_SKIM_SIZE=$(( MOM_SIZE * 1000 ))
+
+# TRACKFINDER_INPUT="JPsi_Dump_${TRACK_SIZE}K"
+# MOMENTUM_INPUT="JPsi_Dump_${MOM_SIZE}K"
+
+
+# --- 0. Skim input ROOT files if necessary ---
+python Util/skim.py data/raw_files/${TRACK_SKIM_INPUT}.root \
+ --output ${TRACKFINDER_INPUT}.root \
+ --max_events ${TRACK_SKIM_SIZE}
+
+python Util/skim.py data/raw_files/${MOM_SKIM_INPUT}.root \
+ --output ${MOMENTUM_INPUT}.root \
+ --max_events ${MOM_SKIM_SIZE}
+
 
 # --- 1. Split signal ROOT file into μ⁺ and μ⁻ tracks ---
 python data/separate.py data/raw_files/${TRACKFINDER_INPUT}.root

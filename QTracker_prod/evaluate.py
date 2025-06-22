@@ -44,8 +44,14 @@ def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
     plt.legend()
     plt.tight_layout()
 
+    # Added for quick sanity tests
+    track_size = os.getenv("TRACK_SIZE")
+    mom_size = os.getenv("MOM_SIZE")
+    qtrack_size = os.getenv("QTRACK_SIZE")
+
     base     = os.path.splitext(os.path.basename(model_path))[0]
-    fname    = f"{base}_{stage_label}_residuals.png"
+    # fname    = f"{base}_{stage_label}_residuals.png"
+    fname    = f"{stage_label}_residuals_{track_size}_{mom_size}_{qtrack_size}.png"
     plot_dir = os.path.join(os.path.dirname(__file__), "plots")
     os.makedirs(plot_dir, exist_ok=True)
     plt.savefig(os.path.join(plot_dir, fname))
