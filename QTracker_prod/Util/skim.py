@@ -19,6 +19,7 @@ def skim_root_file(input_file, output_file, max_events):
 
     # Clone tree structure (empty)
     skimmed_tree = tree.CloneTree(0)
+    skimmed_tree.SetAutoSave(0)
 
     # Copy entries
     n_entries = min(tree.GetEntries(), max_events)

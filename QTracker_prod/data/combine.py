@@ -18,6 +18,8 @@ def merge_alternating_reader(file1, file2, output_file, max_output_events=100000
     out_tree = ROOT.TTree("tree", "Merged alternating events")
     # Disable auto-save to prevent intermediate writes
     out_tree.SetAutoSave(0)  # Disable auto-save (0 or negative value)
+    # Disable auto-save to prevent intermediate writes
+    out_tree.SetAutoSave(0)  # Disable auto-save (0 or negative value)
 
     out_branches = {}
     reader1 = ROOT.TTreeReader(tree1)

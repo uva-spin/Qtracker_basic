@@ -235,6 +235,8 @@ def write_predicted_root_file(output_file, input_file, rHitArray_mup, rHitArray_
     fout.SetCompressionLevel(5)
     output_tree = tree_input.CloneTree(0)
 
+    output_tree.SetAutoSave(0)
+
     muID = ROOT.std.vector("int")()
     HitArray_mup = np.zeros(62, dtype=np.int32)
     HitArray_mum = np.zeros(62, dtype=np.int32)

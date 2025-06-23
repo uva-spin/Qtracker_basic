@@ -1,5 +1,147 @@
+# QTracker: Model Training
 
-# Dimuon Track Finder Suite
+## Overview
+QTracker is a framework for reconstructing and analyzing muon tracks in particle physics experiments. This repository provides scripts for preparing the Monte Carlo generated events and training models for track finding and momentum reconstruction, and evaluating reconstructed tracks using a quality metric.
+
+## Prerequisites
+At this stage of QTracker (beta) production, we train the Track Finder and Momentum models separately so that they can be evaluated independently, with no interdependence. Once the Track Finder is optimized for a particular occupancy, we must train the Momentum model using the output from the Track Finder. For now, however, the procedure is simple: the Track Finder handles all the background, and the Momentum models assume (approximately) correct HitArrays with negligible error.
+
+The goal of the Track Finder is to evaluate the hits in each event and assign a probability to each detector element indicating the likelihood that it is associated with a reconstructable dimuon track originating from the target.
+
+## Data Preparation
+1. **Splitting Signal Data into Mu+ and Mu- Tracks**
+   
+   Use `separate.py` to split J/psi, Drell-Yan (DY), or two-muon tracks (mu+/mu-) into separate files:
+   ```sh
+   python3 QTracker_prod/data/separate.py JPsi_Target.root
+   ```
+   This will generate:
+   - `JPsi_Target_track1.root` (mu+ tracks)
+   - `JPsi_Target_track2.root` (mu- tracks)
+
+2. **Generating Hit Arrays for Training**
+   
+   The `gen_training.py` script processes the separated muon tracks and prepares the necessary hit arrays for model training:
+   ```sh
+   python3 QTracker_prod/data/gen_training.py JPsi_Target_track1.root JPsi_Target_track2.root
+   ```
+   This will produce the following training data files:
+   - `finder_training.root` (for track finding training)
+   - `momentum_training-1.root` (for mu+ momentum training)
+   - `momentum_training-2.root` (for mu- momentum training)
+
+## Model Training
+
+### 1. Training the Track Finder
+To perform a training test with no background you can train with the clean output of the pure dimuons from the target with no injected background or noise.
+```sh
+python3 QTracker_prob/training_scripts/TrackFinder_train.py finder_training.root
+```
+
+**To prepare data and train TrackFinder with background and noise, follow the procedure outlined [here](https://github.com/uva-spin/Qtracker_basic/tree/main/QTracker_prod/data).**
+
+### 2. Training the Momentum Reconstruction Models
+```sh
+python3 QTracker_prod/training_scripts/Momentum_training.py --output mom_mup.h5 momentum_training-1.root
+python3 QTracker_prod/training_scripts/Momentum_training.py --output mom_mum.h5 momentum_training-2.root
+```
+
+Store the resulting models in the `QTracker_prod/models` directory.
+
+## Testing the Tracker
+To test the trained models on a dataset:
+```sh
+python3 QTracker_prod/training_scripts/QTracker_prod.py JPsi_Target.root
+```
+This will generate:
+- `qtracker_reco.root` (Reconstructed output file)
+
+## Evaluating Reconstruction Quality
+### 1. Checking the Invariant Mass Spectrum
+```sh
+python3 QTracker_prod/training_scripts/imass_plot.py qtracker_reco.root
+```
+This script will plot the mass spectrum of your reconstructed events.
+
+![invariant_mass](https://github.com/user-attachments/assets/8654506c-ce7c-4458-933b-6d117029bf60)
+
+When everything is working correctly you should see a J/psi mass peak assuming you training using the J/psi Monte Carlo file.
+This is a good confirmation everything is working and you are ready to add in noise and more complicated backgrounds.
+
+### 2. Training the Quality Metric Model (Chi-Squared Method)
+```sh
+python3 QTracker_prod/training_scripts/Qmetric_training.py qtracker_reco.root
+```
+
+## Notes
+- Ensure that your dataset follows the expected RUS format before processing.
+- The trained models should be stored in the correct directory (`QTracker_prod/models`) for proper operation.
+- The scripts assume that dependencies such as ROOT, Python, and required ML libraries are properly installed.
+
+## Requirements
+Ensure you have the following dependencies installed:
+
+```bash
+pip install numpy tensorflow uproot sklearn
+```
+Additionally, you need `ROOT` installed to process ROOT files.
+
+## Scripts Overview
+
+### 1. `Trackfinder_training.py`
+This script trains a Convolutional Neural Network (CNN) model to predict hit arrays from detector hit matrices.
+
+#### Usage:
+```bash
+python QTracker_prod/training_scripts/TrackFinder_training.py <root_file> --output_model models/track_finder.h5
+```
+
+#### Functionality:
+- Loads hit data from a ROOT file, converting it into a binary hit matrix.
+- Uses a CNN model with dropout and batch normalization to reduce overfitting.
+- Predicts the hit arrays for mu+ and mu- particles.
+- Saves the trained model.
+
+---
+
+### 2. `Momentum_training.py`
+This script trains a deep neural network (DNN) to predict momentum components (gpx, gpy, gpz) from detector hit arrays.
+
+#### Usage:
+```bash
+python QTracker_prod/training_scripts/Momentum_training.py <input_root_files> --output models/mom_model.h5
+```
+
+#### Functionality:
+- Loads hit arrays and corresponding momentum components from multiple ROOT files.
+- Applies preprocessing and normalization to input data.
+- Uses a fully connected neural network with batch normalization and dropout.
+- Saves the trained model for later use.
+
+---
+
+### 3. `Qmetric_training.py`
+This script trains a model to predict chi-squared (χ²) values based on reconstructed and true momentum components.
+
+#### Usage:
+```bash
+python QTracker_prod/training_scripts/Qmetric_training.py <root_file>
+```
+
+#### Functionality:
+- Extracts reconstructed and true momentum values from a ROOT file.
+- Computes the χ² value for each event based on momentum differences.
+- Uses a fully connected neural network with dropout and L2 regularization.
+- Trains the model and saves it for later use.
+
+## Model Outputs
+Each script saves trained models in the `models/` directory:
+- `track_finder.h5` - CNN model predicting detector hit arrays.
+- `mom_model.h5` - DNN model predicting momentum components.
+- `chi2_predictor_model.h5` - Model predicting χ² values for track assessment.
+
+
+# Updating The Dimuon Track Finder Suite
 
 This repository contains three progressively advanced deep learning models for identifying true dimuon tracks from noisy hit arrays in a high-energy
 and nuclear physics detector at SpinQuest. Each script shares a common goal—distinguishing the complete muon+ and muon− trajectories—but uses increasingly
