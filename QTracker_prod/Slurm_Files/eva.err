@@ -1,0 +1,13 @@
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+E0000 00:00:1750392360.632213 3826381 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+E0000 00:00:1750392360.683561 3826381 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+W0000 00:00:1750392361.484699 3826381 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750392361.484737 3826381 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750392361.484739 3826381 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750392361.484743 3826381 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+I0000 00:00:1750392370.536559 3826381 gpu_device.cc:2019] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 79079 MB memory:  -> device: 0, name: NVIDIA A100-SXM4-80GB, pci bus id: 0000:bd:00.0, compute capability: 8.0
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1750392372.950675 3826476 service.cc:152] XLA service 0x14c50c003be0 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1750392372.950728 3826476 service.cc:160]   StreamExecutor device (0): NVIDIA A100-SXM4-80GB, Compute Capability 8.0
+I0000 00:00:1750392373.137664 3826476 cuda_dnn.cc:529] Loaded cuDNN version 90700
+I0000 00:00:1750392383.308540 3826476 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
