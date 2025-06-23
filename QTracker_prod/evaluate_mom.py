@@ -8,7 +8,7 @@ from typing import Tuple
 def plot_residuals(residuals: np.ndarray, res_type: str) -> None:
     plt.figure(figsize=(8, 6))
     plt.hist(residuals, bins=300, alpha=0.7, color='b', edgecolor='black')
-    plt.title('Histogram of Momentum Residuals')
+    plt.title(f'Histogram of Momentum Residuals for {res_type}')
     plt.xlabel('Residuals')
     plt.ylabel('Frequency')
     
