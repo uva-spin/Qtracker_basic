@@ -1,24 +1,24 @@
 --- Summary of px_muPlus ---
-Mean: -0.172
-Standard Deviation: 0.313
+Mean: 0.008
+Standard Deviation: 0.286
 
 --- Summary of py_muPlus ---
-Mean: -3.208
-Standard Deviation: 0.664
+Mean: -0.089
+Standard Deviation: 0.285
 
 --- Summary of pz_muPlus ---
-Mean: 11.615
-Standard Deviation: 4.473
+Mean: 2.063
+Standard Deviation: 2.432
 
 --- Summary of px_muMinus ---
-Mean: 0.732
-Standard Deviation: 0.322
+Mean: -0.026
+Standard Deviation: 0.163
 
 --- Summary of py_muMinus ---
-Mean: 0.337
-Standard Deviation: 0.658
+Mean: -0.070
+Standard Deviation: 0.297
 
 --- Summary of pz_muMinus ---
-Mean: -64.894
-Standard Deviation: 4.503
+Mean: -0.152
+Standard Deviation: 2.187
 
