@@ -2,6 +2,8 @@ import ROOT
 import numpy as np
 import random
 from array import array
+import matplotlib.pyplot as plt
+import os
 
 def compute_weight_sum(propagation_model, gaussian_sigma, exp_decay_const, max_det=62):
     weight_sum = 0.0
@@ -21,7 +23,7 @@ def calculate_prob_cap(propagation_model,
                        gaussian_sigma,
                        exp_decay_const,
                        num_tracks,
-                       desired_max_hits=80,
+                       desired_max_hits=100,
                        max_det=62):
     weight_sum = compute_weight_sum(propagation_model,
                                     gaussian_sigma,
@@ -32,17 +34,32 @@ def calculate_prob_cap(propagation_model,
     cap = desired_max_hits / (num_tracks * weight_sum)
     return min(cap, 1.0)
 
+
+
+
 def inject_tracks_randomized(
     file1,
     file2,
     output_file,
     output_log_txt,
-    desired_max_hits=80
+    desired_max_hits=100,
 ):
     f1 = ROOT.TFile.Open(file1, "READ")
     f2 = ROOT.TFile.Open(file2, "READ")
     tree1 = f1.Get("tree")
     tree2 = f2.Get("tree")
+
+    def assign_occupancy():
+        p=random.random()
+        if p< 0.5:
+            return 0
+        elif p < 0.75:
+            return random.randint(50,75)
+        else:
+            return random.randint(76,100) # Shuffle to randomize event order
+
+   
+    occupancy = assign_occupancy()
 
     fout = ROOT.TFile.Open(output_file, "RECREATE", "", ROOT.kLZMA)
     fout.SetCompressionLevel(9)
@@ -150,7 +167,7 @@ def inject_tracks_randomized(
                 gaussian_sigma  = None
                 exp_decay_const = None
 
-            num_tracks = random.randint(10, 40)  # Num_tracks currently selected as between 10, 40, can be changed
+            num_tracks = random.randint(10, 200)  # Num_tracks currently selected as between 10, 40, can be changed
 
             # Compute an upper‐bound on prob_mean so expected background ≤ desired_max_hits
             sigma_val = gaussian_sigma if gaussian_sigma is not None else 0.0
@@ -160,7 +177,7 @@ def inject_tracks_randomized(
                 sigma_val,
                 decay_val,
                 num_tracks,
-                desired_max_hits=desired_max_hits,
+                desired_max_hits=occupancy,
                 max_det=62
             )
 
@@ -262,7 +279,7 @@ def inject_tracks_randomized(
                         local_hitID_counter += 1
 
             total_hits_trial = elementID_trial.size()
-
+            
             # If total_hits_trial ≤ desired_max_hits, commit; otherwise, retry.
             if total_hits_trial <= desired_max_hits:
                 muID.clear()
@@ -320,7 +337,7 @@ def inject_tracks_randomized(
                 eventID[0] = sig_eventID
                 output_tree.Fill()
                 successful = True
-
+        
             # else: occupancy > desired_max_hits → loop back and retry
 
     fout.Write()
@@ -328,7 +345,6 @@ def inject_tracks_randomized(
     f1.Close()
     f2.Close()
     log_file.close()
-
     if occupancies:
         mean_occ   = float(np.mean(occupancies))
         median_occ = float(np.median(occupancies))
@@ -336,19 +352,34 @@ def inject_tracks_randomized(
         print(f"  • mean hits/event    = {mean_occ:.1f}")
         print(f"  • median hits/event  = {median_occ:.1f}")
         print(f"  • min/max hits/event = {min(occupancies)}/{max(occupancies)}")
+
+        plt.figure(figsize=(10, 6))
+        plt.hist(occupancies, bins=70,
+                 edgecolor='black', align='left')
+        plt.xlabel("Number of Hits per Event")
+        plt.ylabel("Event Count")
+        plt.title("Histogram of Hits per Event")
+        
+        plt.grid(True, linestyle='--', alpha=0.7)
+        plt.tight_layout()
+        plt.savefig("occupancy_histogram.png")
+    
     else:
         print("No events were processed.")
+    
+    return occupancies
 
 if __name__ == "__main__":
     import argparse
 
+    
     parser = argparse.ArgumentParser(
         description="Inject randomized background tracks, capping occupancy under 80."
     )
     parser.add_argument("file1", type=str, help="Path to the finder_training.root (signal).")
     parser.add_argument("file2", type=str, help="Path to the background file (tree2).")
     parser.add_argument(
-        "--output", type=str, default="mc_events_randomized.root",
+        "--output", type=str, default="mc_events_randomized_{round(len(occupancies)),2}.root",
         help="Output ROOT file name."
     )
     parser.add_argument(
@@ -356,15 +387,23 @@ if __name__ == "__main__":
         help="TXT file recording hyperparameters per event."
     )
     parser.add_argument(
-        "--max_hits", type=int, default=80,
+        "--max_hits", type=int, default=100,
         help="Strict upper bound on total occupancy per event."
     )
     args = parser.parse_args()
 
-    inject_tracks_randomized(
+    occupancies = inject_tracks_randomized(
         args.file1,
         args.file2,
-        args.output,
+        "temp_output.root",
         args.log_txt,
         desired_max_hits=args.max_hits
+    )
+
+    if occupancies:
+        output_name = f"mc_events_randomized_{round(len(occupancies), 3)}.root"
+        os.rename("temp_output.root", output_name)
+        print(f"\nRenamed output file to: {output_name}")
+    else:
+        print("No events were processed, output file not created."
     )
