@@ -19,3 +19,6 @@ export QTRACKER_INPUT="JPsi_Target_${QTRACK_SIZE}K"
 
 # --- Model Training and Evaluation ---
 sbatch run_tuner.slurm
+
+# Model Evaluation
+./evaluate.sh

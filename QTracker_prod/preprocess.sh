@@ -13,11 +13,11 @@
 
 # --- 0. Skim input ROOT files if necessary ---
 python Util/skim.py data/raw_files/${TRACK_SKIM_INPUT}.root \
- --output ${TRACKFINDER_INPUT}.root \
+ --output data/raw_files/${TRACKFINDER_INPUT}.root \
  --max_events ${TRACK_SKIM_SIZE}
 
 python Util/skim.py data/raw_files/${MOM_SKIM_INPUT}.root \
- --output ${MOMENTUM_INPUT}.root \
+ --output data/raw_files/${MOMENTUM_INPUT}.root \
  --max_events ${MOM_SKIM_SIZE}
 
 
