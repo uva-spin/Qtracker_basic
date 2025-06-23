@@ -18,9 +18,9 @@ CODEDIR=path/to/Qtracker_basic/QTracker_prod
 
 
 ### Main Body ###
-# --- Install Dependencies ---
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    pip install --user tensorflow==2.15.0 uproot numba
+# # --- Install Dependencies ---
+# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+#     pip install --user tensorflow==2.15.0 uproot numba
 
 # --- Training Track Finder ---
 LEARNING_RATE=0.00005
@@ -30,12 +30,6 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
      /mnt/code/data/processed_files/finder_training.root \
     --output_model models/track_finder.h5 \
     --learning_rate $LEARNING_RATE
-
-# --- Evaluate Track Finder ---
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/evaluate.py \
-     /mnt/code/data/processed_files/finder_training.root \
-     /mnt/code/models/track_finder.h5
 
 # --- Training Momentum Model ---
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
@@ -51,18 +45,3 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     --output models/mom_mum.h5 \
     --epochs 300 \
     --batch_size 32
-
-# --- Training Q-tracker ---
-# Uncomment if running run_tuner.slurm directly
-# QTRACKER_INPUT="JPsi_Dump_100K"
-
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/QTracker_prod.py \
-     /mnt/code/data/raw_files/${QTRACKER_INPUT}.root \
-    --output_file /mnt/code/data/processed_files/qtracker_reco.root
-
-# --- Plot Invariant Mass ---
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/Util/imass_plot.py \
-     /mnt/code/data/processed_files/qtracker_reco.root \
-     --output_plot /mnt/code/plots/mass_plot.png
