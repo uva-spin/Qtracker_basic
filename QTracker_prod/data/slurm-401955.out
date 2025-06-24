@@ -1,0 +1,25 @@
+ROOT version: 6.32.08
+Entries in /mnt/code/JPsi_Dump_50K_track1.root: 50000
+Entries in /mnt/code/JPsi_Dump_50K_track2.root: 50000
+Trees in file1: ['tree']
+Trees in file2: ['tree']
+Fill() called 50000 times
+Events in output tree before writing: 50000
+Events in output tree after writing: 50000
+Trees in output file: ['tree']
+Tree cycles in output file: [1]
+Entries in input file /mnt/code/JPsi_Dump_50K_track1.root: 50000
+Trees in input file: ['tree']
+Fill() called 50000 times for momentum_training-1.root
+Events in output tree before writing: 50000
+Events in output tree after writing: 50000
+Trees in output file: ['tree']
+Tree cycles in output file: [1]
+Entries in input file /mnt/code/JPsi_Dump_50K_track2.root: 50000
+Trees in input file: ['tree']
+Fill() called 50000 times for momentum_training-2.root
+Events in output tree before writing: 50000
+Events in output tree after writing: 50000
+Trees in output file: ['tree']
+Tree cycles in output file: [1]
+Generated: finder_training.root, momentum_training-1.root, momentum_training-2.root
