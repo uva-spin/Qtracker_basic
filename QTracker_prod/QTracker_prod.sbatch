@@ -16,7 +16,7 @@ IMAGE=/project/ptgroup/spinquest/David/TfRootBuild_v3.sif
 CODEDIR=/scratch/bab6cw/Qtracker_basic/QTracker_prod
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-  python3 /mnt/code/QTracker_prod.py data/JPsi_Dump_100K.root
+  python3 /mnt/code/QTracker_prod.py data/JPsi_Dump_80K.root
   
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
   python3 /mnt/code/Util/imass_plot.py qtracker_reco.root

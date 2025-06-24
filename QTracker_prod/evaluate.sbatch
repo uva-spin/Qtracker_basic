@@ -17,3 +17,7 @@ CODEDIR=/scratch/bab6cw/Qtracker_basic/QTracker_prod
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
   python3 /mnt/code/evaluate.py data/finder_training_100K.root models/track_finder.h5
+  
+  
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+  python3 /mnt/code/Util/imass_plot.py qtracker_reco.root

@@ -16,10 +16,16 @@ IMAGE=/project/ptgroup/spinquest/David/TfRootBuild_v3.sif
 CODEDIR=/scratch/bab6cw/Qtracker_basic/QTracker_prod
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-  python3 /mnt/code/training_scripts/TrackFinder_prod.py /mnt/code/data/finder_training.root
+  python3 /mnt/code/training_scripts/TrackFinder_prod.py /mnt/code/data/finder_training_Dump_100K.root --output=/mnt/code/models/track_finder_Dump_100K.h5
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-  python3 /mnt/code/training_scripts/Momentum_training.py /mnt/code/data/momentum_training-1.root --output=/mnt/code/models/mom_mup.h5
+  python3 /mnt/code/training_scripts/Momentum_training.py /mnt/code/data/momentum_training-1_Dump_100K.root --output=/mnt/code/models/mom_mup_Dump_100K.h5
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-  python3 /mnt/code/training_scripts/Momentum_training.py /mnt/code/data/momentum_training-2.root --output=/mnt/code/models/mom_mum.h5
+  python3 /mnt/code/training_scripts/Momentum_training.py /mnt/code/data/momentum_training-2_Dump_100K.root --output=/mnt/code/models/mom_mum_Dump_100K.h5
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+  python3 /mnt/code/QTracker_prod.py data/JPsi_Dump_100K.root
+  
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+  python3 /mnt/code/Util/imass_plot.py qtracker_reco.root

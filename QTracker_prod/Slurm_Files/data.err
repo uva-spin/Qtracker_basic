@@ -1,94 +1,154 @@
-2025-06-20 21:54:51.344327: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:467] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2025-06-23 22:01:58.849018: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:467] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
 WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
-E0000 00:00:1750470891.363398  294385 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
-E0000 00:00:1750470891.369619  294385 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
-W0000 00:00:1750470891.384445  294385 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
-W0000 00:00:1750470891.384468  294385 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
-W0000 00:00:1750470891.384471  294385 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
-W0000 00:00:1750470891.384474  294385 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
-2025-06-20 21:54:51.388822: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+E0000 00:00:1750730519.233021 2145432 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+E0000 00:00:1750730519.281497 2145432 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+W0000 00:00:1750730520.236917 2145432 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750730520.237232 2145432 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750730520.237824 2145432 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750730520.237989 2145432 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+2025-06-23 22:02:00.244346: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
 To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
-I0000 00:00:1750470911.531807  294385 gpu_device.cc:2019] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 78956 MB memory:  -> device: 0, name: NVIDIA A100-SXM4-80GB, pci bus id: 0000:07:00.0, compute capability: 8.0
+I0000 00:00:1750730541.400811 2145432 gpu_device.cc:2019] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 79079 MB memory:  -> device: 0, name: NVIDIA A100-SXM4-80GB, pci bus id: 0000:47:00.0, compute capability: 8.0
 WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
-I0000 00:00:1750470917.699746  294755 service.cc:152] XLA service 0x1456ac002390 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
-I0000 00:00:1750470917.699794  294755 service.cc:160]   StreamExecutor device (0): NVIDIA A100-SXM4-80GB, Compute Capability 8.0
-2025-06-20 21:55:18.010761: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:269] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
-I0000 00:00:1750470918.885384  294755 cuda_dnn.cc:529] Loaded cuDNN version 90700
-2025-06-20 21:55:20.115581: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749', 3468 bytes spill stores, 3444 bytes spill loads
+I0000 00:00:1750730548.580675 2145841 service.cc:152] XLA service 0x14b2040020e0 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1750730548.581152 2145841 service.cc:160]   StreamExecutor device (0): NVIDIA A100-SXM4-80GB, Compute Capability 8.0
+2025-06-23 22:02:28.687994: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:269] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
+I0000 00:00:1750730549.320147 2145841 cuda_dnn.cc:529] Loaded cuDNN version 90700
+2025-06-23 22:02:30.443551: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749_0', 48 bytes spill stores, 48 bytes spill loads
 
-2025-06-20 21:55:20.303059: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749', 3900 bytes spill stores, 3896 bytes spill loads
+2025-06-23 22:02:30.582159: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749', 3468 bytes spill stores, 3444 bytes spill loads
 
-2025-06-20 21:55:20.575654: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749', 3136 bytes spill stores, 3128 bytes spill loads
+2025-06-23 22:02:30.741883: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749', 200 bytes spill stores, 200 bytes spill loads
 
-2025-06-20 21:55:20.622653: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749_0', 48 bytes spill stores, 48 bytes spill loads
+2025-06-23 22:02:31.272057: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749', 3136 bytes spill stores, 3128 bytes spill loads
 
-2025-06-20 21:55:21.061165: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749', 60 bytes spill stores, 60 bytes spill loads
+2025-06-23 22:02:31.689721: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749', 3900 bytes spill stores, 3896 bytes spill loads
 
-2025-06-20 21:55:21.712726: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749', 3308 bytes spill stores, 3280 bytes spill loads
+2025-06-23 22:02:31.722076: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749', 60 bytes spill stores, 60 bytes spill loads
 
-2025-06-20 21:55:22.266167: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749', 200 bytes spill stores, 200 bytes spill loads
+2025-06-23 22:02:32.857494: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_1749', 3308 bytes spill stores, 3280 bytes spill loads
 
-I0000 00:00:1750470932.756903  294755 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
-2025-06-20 21:56:21.933253: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199', 3504 bytes spill stores, 3480 bytes spill loads
+I0000 00:00:1750730562.995960 2145841 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
+2025-06-23 22:03:31.616420: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199', 3504 bytes spill stores, 3480 bytes spill loads
 
-2025-06-20 21:56:21.933301: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199', 200 bytes spill stores, 200 bytes spill loads
+2025-06-23 22:03:32.007268: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199_0', 56 bytes spill stores, 56 bytes spill loads
 
-2025-06-20 21:56:22.413510: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199', 60 bytes spill stores, 60 bytes spill loads
+2025-06-23 22:03:32.012955: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199', 200 bytes spill stores, 200 bytes spill loads
 
-2025-06-20 21:56:22.732713: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199_0', 56 bytes spill stores, 56 bytes spill loads
+2025-06-23 22:03:32.185672: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_206', 3100 bytes spill stores, 3100 bytes spill loads
 
-2025-06-20 21:56:23.020263: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_206', 3504 bytes spill stores, 3480 bytes spill loads
+2025-06-23 22:03:32.185909: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199', 3100 bytes spill stores, 3100 bytes spill loads
 
-2025-06-20 21:56:23.110870: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199_0', 3708 bytes spill stores, 3696 bytes spill loads
+2025-06-23 22:03:32.902554: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199', 3808 bytes spill stores, 3808 bytes spill loads
 
-2025-06-20 21:56:23.669634: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_206_0', 56 bytes spill stores, 56 bytes spill loads
+2025-06-23 22:03:33.349640: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_206_0', 56 bytes spill stores, 56 bytes spill loads
 
-2025-06-20 21:56:23.954214: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199', 3100 bytes spill stores, 3100 bytes spill loads
+2025-06-23 22:03:33.778366: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199', 60 bytes spill stores, 60 bytes spill loads
 
-2025-06-20 21:56:24.640207: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_206', 60 bytes spill stores, 60 bytes spill loads
+2025-06-23 22:03:34.700150: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_206', 3504 bytes spill stores, 3480 bytes spill loads
 
-2025-06-20 21:56:24.647691: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_206', 200 bytes spill stores, 200 bytes spill loads
+2025-06-23 22:03:34.724673: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_206', 200 bytes spill stores, 200 bytes spill loads
 
-2025-06-20 21:56:24.721203: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199', 3808 bytes spill stores, 3808 bytes spill loads
+2025-06-23 22:03:34.772019: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_199_0', 3708 bytes spill stores, 3696 bytes spill loads
 
-2025-06-20 21:56:24.905499: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_206', 3100 bytes spill stores, 3100 bytes spill loads
+2025-06-23 22:03:35.033360: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_206', 60 bytes spill stores, 60 bytes spill loads
 
-2025-06-20 21:56:25.861587: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_206', 3808 bytes spill stores, 3808 bytes spill loads
+2025-06-23 22:03:35.396527: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_206', 3808 bytes spill stores, 3808 bytes spill loads
 
 WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
-2025-06-20 22:29:19.357779: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:467] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2025-06-23 22:36:17.695911: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:467] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
 WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
-E0000 00:00:1750472959.376360  302232 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
-E0000 00:00:1750472959.382516  302232 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
-W0000 00:00:1750472959.397271  302232 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
-W0000 00:00:1750472959.397295  302232 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
-W0000 00:00:1750472959.397299  302232 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
-W0000 00:00:1750472959.397301  302232 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
-2025-06-20 22:29:19.401638: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+E0000 00:00:1750732577.714151 2153203 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+E0000 00:00:1750732577.720121 2153203 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+W0000 00:00:1750732577.735663 2153203 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750732577.735682 2153203 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750732577.735685 2153203 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750732577.735688 2153203 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+2025-06-23 22:36:17.740204: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
 To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
-I0000 00:00:1750472976.729896  302232 gpu_device.cc:2019] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 78956 MB memory:  -> device: 0, name: NVIDIA A100-SXM4-80GB, pci bus id: 0000:07:00.0, compute capability: 8.0
+I0000 00:00:1750732593.942974 2153203 gpu_device.cc:2019] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 79079 MB memory:  -> device: 0, name: NVIDIA A100-SXM4-80GB, pci bus id: 0000:47:00.0, compute capability: 8.0
 WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
-I0000 00:00:1750472979.404543  302311 service.cc:152] XLA service 0x14c26400fe00 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
-I0000 00:00:1750472979.404585  302311 service.cc:160]   StreamExecutor device (0): NVIDIA A100-SXM4-80GB, Compute Capability 8.0
-2025-06-20 22:29:39.726471: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:269] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
-I0000 00:00:1750472980.306052  302311 cuda_dnn.cc:529] Loaded cuDNN version 90700
-I0000 00:00:1750472982.712937  302311 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
+I0000 00:00:1750732596.593264 2153272 service.cc:152] XLA service 0x1472e0011e20 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1750732596.593302 2153272 service.cc:160]   StreamExecutor device (0): NVIDIA A100-SXM4-80GB, Compute Capability 8.0
+2025-06-23 22:36:36.897122: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:269] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
+I0000 00:00:1750732597.522989 2153272 cuda_dnn.cc:529] Loaded cuDNN version 90700
+I0000 00:00:1750732600.363210 2153272 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
 WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
-2025-06-20 22:51:02.552933: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:467] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2025-06-23 22:56:00.990449: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:467] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
 WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
-E0000 00:00:1750474262.571489  313621 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
-E0000 00:00:1750474262.577571  313621 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
-W0000 00:00:1750474262.592328  313621 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
-W0000 00:00:1750474262.592352  313621 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
-W0000 00:00:1750474262.592356  313621 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
-W0000 00:00:1750474262.592358  313621 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
-2025-06-20 22:51:02.596660: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+E0000 00:00:1750733761.008768 2164194 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+E0000 00:00:1750733761.014771 2164194 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+W0000 00:00:1750733761.029211 2164194 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750733761.029233 2164194 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750733761.029236 2164194 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750733761.029239 2164194 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+2025-06-23 22:56:01.033474: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
 To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
-I0000 00:00:1750474272.361661  313621 gpu_device.cc:2019] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 78956 MB memory:  -> device: 0, name: NVIDIA A100-SXM4-80GB, pci bus id: 0000:07:00.0, compute capability: 8.0
+I0000 00:00:1750733774.880285 2164194 gpu_device.cc:2019] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 79079 MB memory:  -> device: 0, name: NVIDIA A100-SXM4-80GB, pci bus id: 0000:47:00.0, compute capability: 8.0
 WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
-I0000 00:00:1750474274.836896  313698 service.cc:152] XLA service 0x147dbc005b30 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
-I0000 00:00:1750474274.836936  313698 service.cc:160]   StreamExecutor device (0): NVIDIA A100-SXM4-80GB, Compute Capability 8.0
-2025-06-20 22:51:14.878974: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:269] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
-I0000 00:00:1750474275.115980  313698 cuda_dnn.cc:529] Loaded cuDNN version 90700
-I0000 00:00:1750474277.139119  313698 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
+I0000 00:00:1750733777.404047 2164296 service.cc:152] XLA service 0x1536c0011d00 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1750733777.404086 2164296 service.cc:160]   StreamExecutor device (0): NVIDIA A100-SXM4-80GB, Compute Capability 8.0
+2025-06-23 22:56:17.445746: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:269] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
+I0000 00:00:1750733777.688565 2164296 cuda_dnn.cc:529] Loaded cuDNN version 90700
+I0000 00:00:1750733779.803521 2164296 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
 WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
+2025-06-23 23:15:48.703505: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:467] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+E0000 00:00:1750734948.724111 2175243 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+E0000 00:00:1750734948.730139 2175243 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+W0000 00:00:1750734948.744415 2175243 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750734948.744435 2175243 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750734948.744437 2175243 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1750734948.744439 2175243 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+2025-06-23 23:15:48.748800: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+I0000 00:00:1750734962.611952 2175243 gpu_device.cc:2019] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 79079 MB memory:  -> device: 0, name: NVIDIA A100-SXM4-80GB, pci bus id: 0000:47:00.0, compute capability: 8.0
+WARNING:absl:Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+WARNING:absl:Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+WARNING:absl:Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1750735027.914118 2175338 service.cc:152] XLA service 0x1509cc00bc30 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1750735027.914165 2175338 service.cc:160]   StreamExecutor device (0): NVIDIA A100-SXM4-80GB, Compute Capability 8.0
+2025-06-23 23:17:07.925097: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:269] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
+I0000 00:00:1750735028.038875 2175338 cuda_dnn.cc:529] Loaded cuDNN version 90700
+2025-06-23 23:17:08.831405: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_180', 3100 bytes spill stores, 3100 bytes spill loads
+
+2025-06-23 23:17:08.995403: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_180', 3504 bytes spill stores, 3480 bytes spill loads
+
+2025-06-23 23:17:09.743060: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_180', 3808 bytes spill stores, 3808 bytes spill loads
+
+2025-06-23 23:17:09.810102: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_180_0', 56 bytes spill stores, 56 bytes spill loads
+
+2025-06-23 23:17:10.052481: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_180', 200 bytes spill stores, 200 bytes spill loads
+
+2025-06-23 23:17:10.096303: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_180', 60 bytes spill stores, 60 bytes spill loads
+
+2025-06-23 23:17:10.829297: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_187', 3504 bytes spill stores, 3480 bytes spill loads
+
+2025-06-23 23:17:11.237444: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_180_0', 3708 bytes spill stores, 3696 bytes spill loads
+
+2025-06-23 23:17:11.713848: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_187', 3100 bytes spill stores, 3100 bytes spill loads
+
+2025-06-23 23:17:11.735203: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_187_0', 56 bytes spill stores, 56 bytes spill loads
+
+2025-06-23 23:17:12.330003: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_194', 3468 bytes spill stores, 3444 bytes spill loads
+
+2025-06-23 23:17:12.384362: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_187', 200 bytes spill stores, 200 bytes spill loads
+
+2025-06-23 23:17:12.423087: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_187', 60 bytes spill stores, 60 bytes spill loads
+
+2025-06-23 23:17:12.699847: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_194_0', 48 bytes spill stores, 48 bytes spill loads
+
+2025-06-23 23:17:12.842821: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_187', 3808 bytes spill stores, 3808 bytes spill loads
+
+2025-06-23 23:17:13.282822: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_194', 3136 bytes spill stores, 3128 bytes spill loads
+
+2025-06-23 23:17:13.344855: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_194', 200 bytes spill stores, 200 bytes spill loads
+
+2025-06-23 23:17:14.468812: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_194', 3308 bytes spill stores, 3280 bytes spill loads
+
+2025-06-23 23:17:14.676771: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_194', 3900 bytes spill stores, 3896 bytes spill loads
+
+2025-06-23 23:17:15.038181: I external/local_xla/xla/stream_executor/cuda/subprocess_compilation.cc:346] ptxas warning : Registers are spilled to local memory in function 'gemm_fusion_dot_194', 60 bytes spill stores, 60 bytes spill loads
+
+I0000 00:00:1750735038.659965 2175338 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
