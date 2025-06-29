@@ -1,0 +1,12 @@
+COMBINATORIAL DATA ANALYSIS RESULTS
+==================================================
+Input file: ../../../Big_Data/QTracker_Data/MC_Combinatoric_Dump_March28.root
+Total events processed: 1468765
+Events with muons: 1468765
+Total muons found: 2937530
+  - Mu+ (charge +1): 1468765
+  - Mu- (charge -1): 1468765
+
+Mu+ fraction: 0.5000 (50.00%)
+Mu- fraction: 0.5000 (50.00%)
+Mu+/Mu- ratio: 1.0000
