@@ -41,7 +41,8 @@ def inject_tracks_randomized(
     output_file,
     output_log_txt,
     combinatorial_prob=0.3,  # Probability of injecting from file3
-    mu_plus_minus_ratio=1.0,  # Ratio of mu+ to mu- tracks to inject (default 1:1)
+    mu_plus_minus_ratio=1.5,  # Ratio of mu+ to mu- tracks to inject (default 1.5 for 3:2 ratio)
+    debug=False,  # Flag to control debug output
 ):
     f1 = ROOT.TFile.Open(file1, "READ")
     f2 = ROOT.TFile.Open(file2, "READ")
@@ -85,21 +86,25 @@ def inject_tracks_randomized(
     tree3_mu_plus_indices = []
     tree3_mu_minus_indices = []
     
-    # Scan tree2
+    # Scan tree2 - look at all tracks in each event
     for i in range(tree2.GetEntries()):
         tree2.GetEntry(i)
-        if tree2.gCharge[0] == 1:
-            tree2_mu_plus_indices.append(i)
-        elif tree2.gCharge[0] == -1:
-            tree2_mu_minus_indices.append(i)
+        # Check all tracks in this event
+        for track_idx in range(len(tree2.gCharge)):
+            if tree2.gCharge[track_idx] == 1:
+                tree2_mu_plus_indices.append((i, track_idx))  # (event_index, track_index)
+            elif tree2.gCharge[track_idx] == -1:
+                tree2_mu_minus_indices.append((i, track_idx))  # (event_index, track_index)
     
-    # Scan tree3
+    # Scan tree3 - look at all tracks in each event
     for i in range(tree3.GetEntries()):
         tree3.GetEntry(i)
-        if tree3.gCharge[0] == 1:
-            tree3_mu_plus_indices.append(i)
-        elif tree3.gCharge[0] == -1:
-            tree3_mu_minus_indices.append(i)
+        # Check all tracks in this event
+        for track_idx in range(len(tree3.gCharge)):
+            if tree3.gCharge[track_idx] == 1:
+                tree3_mu_plus_indices.append((i, track_idx))  # (event_index, track_index)
+            elif tree3.gCharge[track_idx] == -1:
+                tree3_mu_minus_indices.append((i, track_idx))  # (event_index, track_index)
     
     print(f"Tree2: {len(tree2_mu_plus_indices)} mu+ tracks, {len(tree2_mu_minus_indices)} mu- tracks")
     print(f"Tree3: {len(tree3_mu_plus_indices)} mu+ tracks, {len(tree3_mu_minus_indices)} mu- tracks")
@@ -218,6 +223,9 @@ def inject_tracks_randomized(
 
         # Randomly decide whether to inject from file3
         inject_from_file3 = random.random() < combinatorial_prob
+        
+        if debug:
+            print(f"DEBUG: Event {sig_eventID}: inject_from_file3 = {inject_from_file3} (combinatorial_prob = {combinatorial_prob})")
 
         # Assign occupancy for this specific event
         event_occupancy = assign_occupancy()
@@ -408,33 +416,61 @@ def inject_tracks_randomized(
                 mu_plus_track_indices = []
                 mu_minus_track_indices = []
                 
-                # Collect mu+ tracks
-                for _ in range(mu_plus_tracks):
-                    use_file3 = inject_from_file3 and tree3_mu_plus_counter < len(tree3_mu_plus_indices)
+                # Collect mu+ tracks - MODIFIED LOGIC: file3 alongside file2
+                for track_idx in range(mu_plus_tracks):
+                    # When inject_from_file3 is True, distribute tracks between file2 and file3
+                    # Use file3 for some tracks and file2 for others
+                    # Simple distribution: use file3 for even indices, file2 for odd indices (when available)
+                    use_file3_for_this_track = (inject_from_file3 and 
+                                               (tree3_mu_plus_counter < len(tree3_mu_plus_indices)) and
+                                               (track_idx % 2 == 0))  # Even indices use file3
                     
-                    if use_file3:
+                    if use_file3_for_this_track:
+                        # Use file3 for this mu+ track
                         mu_plus_track_indices.append(('tree3', tree3_mu_plus_indices[tree3_mu_plus_counter]))
                         tree3_mu_plus_counter += 1
                         file3_tracks_injected += 1
                         file3_mu_plus_count += 1
+                        if debug:
+                            print(f"  DEBUG: Selected mu+ track from tree3 (event {tree3_mu_plus_indices[tree3_mu_plus_counter-1][0]}, track {tree3_mu_plus_indices[tree3_mu_plus_counter-1][1]})")
                     else:
+                        # Use file2 for this mu+ track (always available as fallback)
                         if tree2_mu_plus_counter < len(tree2_mu_plus_indices):
                             mu_plus_track_indices.append(('tree2', tree2_mu_plus_indices[tree2_mu_plus_counter]))
                             tree2_mu_plus_counter += 1
+                            if debug:
+                                print(f"  DEBUG: Selected mu+ track from tree2 (event {tree2_mu_plus_indices[tree2_mu_plus_counter-1][0]}, track {tree2_mu_plus_indices[tree2_mu_plus_counter-1][1]})")
+                        else:
+                            if debug:
+                                print(f"  DEBUG: WARNING: No mu+ tracks available in tree2!")
                 
-                # Collect mu- tracks
-                for _ in range(mu_minus_tracks):
-                    use_file3 = inject_from_file3 and tree3_mu_minus_counter < len(tree3_mu_minus_indices)
+                # Collect mu- tracks - MODIFIED LOGIC: file3 alongside file2
+                for track_idx in range(mu_minus_tracks):
+                    # When inject_from_file3 is True, distribute tracks between file2 and file3
+                    # Use file3 for some tracks and file2 for others
+                    # Simple distribution: use file3 for even indices, file2 for odd indices (when available)
+                    use_file3_for_this_track = (inject_from_file3 and 
+                                               (tree3_mu_minus_counter < len(tree3_mu_minus_indices)) and
+                                               (track_idx % 2 == 0))  # Even indices use file3
                     
-                    if use_file3:
+                    if use_file3_for_this_track:
+                        # Use file3 for this mu- track
                         mu_minus_track_indices.append(('tree3', tree3_mu_minus_indices[tree3_mu_minus_counter]))
                         tree3_mu_minus_counter += 1
                         file3_tracks_injected += 1
                         file3_mu_minus_count += 1
+                        if debug:
+                            print(f"  DEBUG: Selected mu- track from tree3 (event {tree3_mu_minus_indices[tree3_mu_minus_counter-1][0]}, track {tree3_mu_minus_indices[tree3_mu_minus_counter-1][1]})")
                     else:
+                        # Use file2 for this mu- track (always available as fallback)
                         if tree2_mu_minus_counter < len(tree2_mu_minus_indices):
                             mu_minus_track_indices.append(('tree2', tree2_mu_minus_indices[tree2_mu_minus_counter]))
                             tree2_mu_minus_counter += 1
+                            if debug:
+                                print(f"  DEBUG: Selected mu- track from tree2 (event {tree2_mu_minus_indices[tree2_mu_minus_counter-1][0]}, track {tree2_mu_minus_indices[tree2_mu_minus_counter-1][1]})")
+                        else:
+                            if debug:
+                                print(f"  DEBUG: WARNING: No mu- tracks available in tree2!")
 
                 # Combine and shuffle the track indices to randomize the order
                 all_track_indices = mu_plus_track_indices + mu_minus_track_indices
@@ -443,24 +479,24 @@ def inject_tracks_randomized(
                 # Process all tracks in the shuffled order
                 for source_tree_name, track_index in all_track_indices:
                     if source_tree_name == 'tree2':
-                        tree2.GetEntry(track_index)
+                        tree2.GetEntry(track_index[0])
                         source_tree = tree2
                         source_processID_name = tree2_processID_name
                     else:  # tree3
-                        tree3.GetEntry(track_index)
+                        tree3.GetEntry(track_index[0])
                         source_tree = tree3
                         source_processID_name = tree3_processID_name
 
                     this_gTrackID = next_gTrackID
                     next_gTrackID += 1
                     gTrackID_trial.push_back(this_gTrackID)
-                    gCharge_trial.push_back(source_tree.gCharge[0])
-                    gpx_trial.push_back(source_tree.gpx[0])
-                    gpy_trial.push_back(source_tree.gpy[0])
-                    gpz_trial.push_back(source_tree.gpz[0])
-                    gvx_trial.push_back(source_tree.gvx[0])
-                    gvy_trial.push_back(source_tree.gvy[0])
-                    gvz_trial.push_back(source_tree.gvz[0])
+                    gCharge_trial.push_back(source_tree.gCharge[track_index[1]])
+                    gpx_trial.push_back(source_tree.gpx[track_index[1]])
+                    gpy_trial.push_back(source_tree.gpy[track_index[1]])
+                    gpz_trial.push_back(source_tree.gpz[track_index[1]])
+                    gvx_trial.push_back(source_tree.gvx[track_index[1]])
+                    gvy_trial.push_back(source_tree.gvy[track_index[1]])
+                    gvz_trial.push_back(source_tree.gvz[track_index[1]])
 
                     probability = np.clip(
                         np.random.normal(prob_mean, prob_width_this),
@@ -625,12 +661,16 @@ if __name__ == "__main__":
         help="TXT file recording hyperparameters per event."
     )
     parser.add_argument(
-        "--combinatorial_prob", type=float, default=0.3,
+        "--combinatorial_prob", type=float, default=0.1,
         help="Probability of injecting tracks from file3 (combinatorial data)."
     )
     parser.add_argument(
-        "--mu_plus_minus_ratio", type=float, default=1.0,
-        help="Ratio of mu+ to mu- tracks to inject (default 1.0 for 1:1 ratio)."
+        "--mu_plus_minus_ratio", type=float, default=1.5,
+        help="Ratio of mu+ to mu- tracks to inject (default 1.5 for 3:2 ratio)."
+    )
+    parser.add_argument(
+        "--debug", action="store_true",
+        help="Enable debug output to track track selection."
     )
     args = parser.parse_args()
 
@@ -641,7 +681,8 @@ if __name__ == "__main__":
         "temp_output.root",
         args.log_txt,
         combinatorial_prob=args.combinatorial_prob,
-        mu_plus_minus_ratio=args.mu_plus_minus_ratio
+        mu_plus_minus_ratio=args.mu_plus_minus_ratio,
+        debug=args.debug
     )
 
     if occupancies:
@@ -649,4 +690,4 @@ if __name__ == "__main__":
         os.rename("temp_output.root", output_name)
         print(f"\nRenamed output file to: {output_name}")
     else:
-        print("No events were processed, output file not created.")
+        print("No events were processed, output file not created.") 
