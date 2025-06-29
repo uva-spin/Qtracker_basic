@@ -114,8 +114,8 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005):
     mu_minus_output = tf.keras.layers.Dense(num_detectors * num_elementIDs, activation='softmax', name="mu_minus_output")(x)
     
     # Reshape outputs to (num_detectors, num_elementIDs)
-    mu_plus_output = tf.keras.layers.Reshape((num_detectors, num_elementIDs), name="mu_plus_reshaped")(mu_plus_output)
-    mu_minus_output = tf.keras.layers.Reshape((num_detectors, num_elementIDs), name="mu_minus_reshaped")(mu_minus_output)
+    mu_plus_output = tf.keras.layers.Reshape((1,1,num_detectors, num_elementIDs), name="mu_plus_reshaped")(mu_plus_output)
+    mu_minus_output = tf.keras.layers.Reshape((1,1,num_detectors, num_elementIDs), name="mu_minus_reshaped")(mu_minus_output)
 
     # Create model with two outputs
     model = tf.keras.Model(inputs=inputs, outputs=[mu_plus_output, mu_minus_output])
