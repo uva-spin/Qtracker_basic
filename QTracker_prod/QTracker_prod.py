@@ -235,8 +235,6 @@ def write_predicted_root_file(output_file, input_file, rHitArray_mup, rHitArray_
     fout.SetCompressionLevel(5)
     output_tree = tree_input.CloneTree(0)
 
-    output_tree.SetAutoSave(0)
-
     muID = ROOT.std.vector("int")()
     HitArray_mup = np.zeros(62, dtype=np.int32)
     HitArray_mum = np.zeros(62, dtype=np.int32)
@@ -505,6 +503,7 @@ def process_data(root_file, output_file="tracker_output.root", use_chi2_model=US
         MODEL_PATH_MOMENTUM_MUM,
         custom_objects={"mse": MeanSquaredError()}
     )
+
     #X, event_entries, _ = load_data(root_file)
     #detectorIDs, elementIDs, driftDistances, _ = load_detector_element_data(root_file)
     detectorIDs, elementIDs, driftDistances, tdcTimes, _ = load_detector_element_data(root_file)
