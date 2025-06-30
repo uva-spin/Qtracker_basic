@@ -282,7 +282,7 @@ def write_predicted_root_file(output_file, input_file, rHitArray_mup, rHitArray_
     f_input.Close()
     print(f"Predicted data written to {output_file}, retaining all original data.")
 
-def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs):
+def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs, single_hit_dets=[]):
     """
     Refines the HitArrays by replacing inferred elementIDs with the closest actual elementID
     using the detectorID and elementID vectors. Returns 0 if no actual hits exist.
@@ -303,9 +303,10 @@ def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs):
             return 0  # Return 0 if no hits exist.
 
         # Find the closest actual hit elementID using NumPy's vectorized operations
-        closest_elementID = actual_elementIDs[np.argmin(np.abs(actual_elementIDs - inferred_element))]
+        distance = np.abs(actual_elementIDs - inferred_element)
+        closest_elementID = actual_elementIDs[np.argmin(distance)]
 
-        return closest_elementID
+        return closest_elementID, distance
 
     # Initialize refined arrays
     refined_mup = np.zeros_like(hit_array_mup)
@@ -329,12 +330,18 @@ def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs):
             inferred_mum = hit_array_mum[event, detector]
 
             # Find the closest actual hits
-            refined_mup[event, detector] = find_closest_actual_hit(
+            refined_mup[event, detector], dist_mup = find_closest_actual_hit(
                 detector_ids[detector], inferred_mup, detectorIDs_event, elementIDs_event
             )
-            refined_mum[event, detector] = find_closest_actual_hit(
+            refined_mum[event, detector], dist_mum = find_closest_actual_hit(
                 detector_ids[detector], inferred_mum, detectorIDs_event, elementIDs_event
             )
+
+            if detector in single_hit_dets:
+                if dist_mup > dist_mum:
+                    refined_mup[event, detector] = 0
+                else:
+                    refined_mum[event, detector] = 0
 
     return refined_mup, refined_mum
 
