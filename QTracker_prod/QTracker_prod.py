@@ -294,13 +294,13 @@ def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs, sin
         Returns 0 if no hits exist.
         """
         if inferred_element == 0:
-            return 0  # Preserve 0 values (no hit).
+            return 0, 0  # Preserve 0 values (no hit).
 
         # Filter elementIDs for the given detector_id
         actual_elementIDs = elementIDs_event[detectorIDs_event == detector_id]
 
         if len(actual_elementIDs) == 0:
-            return 0  # Return 0 if no hits exist.
+            return 0, 0  # Return 0 if no hits exist.
 
         # Find the closest actual hit elementID using NumPy's vectorized operations
         distance = np.abs(actual_elementIDs - inferred_element)
