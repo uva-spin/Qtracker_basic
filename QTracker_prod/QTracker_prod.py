@@ -315,9 +315,9 @@ def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs):
             distances_mum = np.abs(actual_elementIDs - inferred_mum)
             closest_elementID_mum = actual_elementIDs[np.argmin(distances_mum)]
 
-        # If duplicate element-id is assigned for mup and mum (except 0 as no hits)
+        # If μ⁺ and μ⁻ both selected the same nonzero element ID, break the tie:
+        # Remove that ID from the list of candidates and reassign the track with the larger error to its next-closest hit
         if closest_elementID_mup == closest_elementID_mum != 0:
-            # Remove duplicate element-id and replace further track (mup or mum) with second closest element-id
             actual_elementIDs = np.delete(actual_elementIDs, np.argmin(distances_mup))
             if np.min(distances_mup) > np.min(distances_mum):
                 closest_elementID_mup = (
