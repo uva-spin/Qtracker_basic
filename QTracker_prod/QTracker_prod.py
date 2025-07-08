@@ -5,6 +5,7 @@ import argparse
 import os
 from ROOT import TFile, TTree, TMatrixD
 from numba import njit, prange
+from typing import Tuple
 from tensorflow.keras.losses import MeanSquaredError
 
 # USE_CHI2 must be False the first time the script is ran to obtain output for training the quality metric
@@ -288,25 +289,49 @@ def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs):
     using the detectorID and elementID vectors. Returns 0 if no actual hits exist.
     Optimized for speed.
     """
-    def find_closest_actual_hit(detector_id, inferred_element, detectorIDs_event, elementIDs_event):
+    def find_closest_actual_hits(
+        inferred_mup: int, 
+        inferred_mum: int, 
+        actual_elementIDs: np.ndarray
+    ) -> Tuple[int, int]:
         """
-        Finds the closest actual hit to the inferred_element for a specific detector_id.
+        Finds the closest actual hits to the inferred_mup and inferred_mum for a specific detector_id.
         Returns 0 if no hits exist.
         """
-        if inferred_element == 0:
-            return 0, []  # Preserve 0 values (no hit).
 
-        # Filter elementIDs for the given detector_id
-        actual_elementIDs = elementIDs_event[detectorIDs_event == detector_id]
-
+        # Return 0 if no hits exist.
         if len(actual_elementIDs) == 0:
-            return 0, []  # Return 0 if no hits exist.
-        
-        # Find the closest actual hit elementID using NumPy's vectorized operations
-        distance = np.abs(actual_elementIDs - inferred_element)
-        closest_elementID = actual_elementIDs[np.argmin(distance)]
+            return 0, 0
 
-        return closest_elementID, actual_elementIDs
+        # Default to 0 if inferred element is 0 (no hits)
+        closest_elementID_mup = 0
+        closest_elementID_mum = 0
+
+        # Find the closest actual hit elementID using NumPy's vectorized operations
+        if inferred_mup > 0:
+            distances_mup = np.abs(actual_elementIDs - inferred_mup)
+            closest_elementID_mup = actual_elementIDs[np.argmin(distances_mup)]
+        if inferred_mum > 0:
+            distances_mum = np.abs(actual_elementIDs - inferred_mum)
+            closest_elementID_mum = actual_elementIDs[np.argmin(distances_mum)]
+
+        # If duplicate element-id is assigned for mup and mum (except 0 as no hits)
+        if closest_elementID_mup == closest_elementID_mum != 0:
+            # Remove duplicate element-id and replace further track (mup or mum) with second closest element-id
+            actual_elementIDs = np.delete(actual_elementIDs, np.argmin(distances_mup))
+            if np.min(distances_mup) > np.min(distances_mum):
+                closest_elementID_mup = (
+                    0 if actual_elementIDs.size == 0
+                    else actual_elementIDs[np.argmin(np.abs(actual_elementIDs - inferred_mup))]
+                )
+            else:
+                closest_elementID_mum = (
+                    0 if actual_elementIDs.size == 0
+                    else actual_elementIDs[np.argmin(np.abs(actual_elementIDs - inferred_mum))]
+                )
+
+        return closest_elementID_mup, closest_elementID_mum
+
 
     # Initialize refined arrays
     refined_mup = np.zeros_like(hit_array_mup)
@@ -329,21 +354,12 @@ def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs):
             inferred_mup = hit_array_mup[event, detector]
             inferred_mum = hit_array_mum[event, detector]
 
-            # Find the closest actual hits
-            refined_mup[event, detector], actual_elementIDs = find_closest_actual_hit(
-                detector_ids[detector], inferred_mup, detectorIDs_event, elementIDs_event
-            )
-            refined_mum[event, detector], _ = find_closest_actual_hit(
-                detector_ids[detector], inferred_mum, detectorIDs_event, elementIDs_event
-            )
+            actual_elementIDs = elementIDs_event[detectorIDs_event == detector_ids[detector]]
 
-            if len(actual_elementIDs) == 1:
-                dist_mup = np.abs(actual_elementIDs[0] - inferred_mup)
-                dist_mum = np.abs(actual_elementIDs[0] - inferred_mum)
-                if dist_mup > dist_mum:
-                    refined_mup[event, detector] = 0
-                else:
-                    refined_mum[event, detector] = 0
+            # Find the closest actual hits
+            refined_mup[event, detector], refined_mum[event, detector] = find_closest_actual_hits(
+                inferred_mup, inferred_mum, actual_elementIDs
+            )
 
     return refined_mup, refined_mum
 

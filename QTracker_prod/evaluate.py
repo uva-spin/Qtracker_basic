@@ -134,8 +134,9 @@ def evaluate_model(root_file, model_path):
     plot_residuals(dets_used, raw_p_res[:,mask], raw_m_res[:,mask], model_path, 'raw')
 
     # 9) refinement
+    single_hit_dets = []
     ref_p, ref_m = QTracker_prod.refine_hit_arrays(
-        y_p_raw, y_m_raw, det_test, elem_test
+        y_p_raw, y_m_raw, det_test, elem_test, single_hit_dets
     )
     ref_p_res = ref_p - y_p_true
     ref_m_res = ref_m - y_m_true
