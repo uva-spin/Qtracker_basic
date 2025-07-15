@@ -11,19 +11,19 @@
 # MOMENTUM_INPUT="JPsi_Dump_${MOM_SIZE}K"
 
 
-# --- 0. Skim input ROOT files if necessary ---
-python Util/skim.py data/original_files/${TRACK_SKIM_INPUT}.root \
- --output data/raw_files/${TRACKFINDER_INPUT}.root \
- --max_events ${TRACK_SKIM_SIZE}
+# # --- 0. Skim input ROOT files if necessary ---
+# python Util/skim.py data/original_files/${TRACK_SKIM_INPUT}.root \
+#  --output data/raw_files/${TRACKFINDER_INPUT}.root \
+#  --max_events ${TRACK_SKIM_SIZE}
 
-python Util/skim.py data/original_files/${MOM_SKIM_INPUT}.root \
- --output data/raw_files/${MOMENTUM_INPUT}.root \
- --max_events ${MOM_SKIM_SIZE}
+# python Util/skim.py data/original_files/${MOM_SKIM_INPUT}.root \
+#  --output data/raw_files/${MOMENTUM_INPUT}.root \
+#  --max_events ${MOM_SKIM_SIZE}
 
 
-# --- 1. Split signal ROOT file into μ⁺ and μ⁻ tracks ---
-python data/separate.py data/raw_files/${TRACKFINDER_INPUT}.root
-python data/separate.py data/raw_files/${MOMENTUM_INPUT}.root
+# # --- 1. Split signal ROOT file into μ⁺ and μ⁻ tracks ---
+# python data/separate.py data/raw_files/${TRACKFINDER_INPUT}.root
+# python data/separate.py data/raw_files/${MOMENTUM_INPUT}.root
 
 
 # # --- 2. Merge two single-muon ROOT files ---
@@ -34,25 +34,25 @@ python data/separate.py data/raw_files/${MOMENTUM_INPUT}.root
 #  --max_output_events $MAX_OUTPUT_EVENTS
 
 
-# --- 3. Generate training data by combining μ⁺ and μ⁻ signal tracks ---
-python data/gen_training.py \
- data/raw_files/${TRACKFINDER_INPUT}_track1.root \
- data/raw_files/${TRACKFINDER_INPUT}_track2.root \
- --output data/processed_files/finder_training.root
+# # --- 3. Generate training data by combining μ⁺ and μ⁻ signal tracks ---
+# python data/gen_training.py \
+#  data/raw_files/${TRACKFINDER_INPUT}_track1.root \
+#  data/raw_files/${TRACKFINDER_INPUT}_track2.root \
+#  --output data/processed_files/finder_training.root
 
-rm momentum_training-1.root
-rm momentum_training-2.root
+# rm momentum_training-1.root
+# rm momentum_training-2.root
 
-python data/gen_training.py \
- data/raw_files/${MOMENTUM_INPUT}_track1.root \
- data/raw_files/${MOMENTUM_INPUT}_track2.root \
- --output data/processed_files/finder_training_unused.root
+# python data/gen_training.py \
+#  data/raw_files/${MOMENTUM_INPUT}_track1.root \
+#  data/raw_files/${MOMENTUM_INPUT}_track2.root \
+#  --output data/processed_files/finder_training_unused.root
 
-rm data/processed_files/finder_training_unused.root
-rm data/processed_files/momentum_training-1.root
-rm data/processed_files/momentum_training-2.root
-mv momentum_training-1.root data/processed_files/
-mv momentum_training-2.root data/processed_files/
+# rm data/processed_files/finder_training_unused.root
+# rm data/processed_files/momentum_training-1.root
+# rm data/processed_files/momentum_training-2.root
+# mv momentum_training-1.root data/processed_files/
+# mv momentum_training-2.root data/processed_files/
 
 
 # # --- 4. Inject background muon tracks to signal file from 3 ---
@@ -64,18 +64,12 @@ mv momentum_training-2.root data/processed_files/
 # GAUSSIAN_SIGMA=10.0
 # EXP_DECAY_CONST=15.0
 
-# python data/messy_gen.py \
-#  data/processed_files/finder_training.root \
-#  data/processed_files/single_muons_small.root \
-#  --output data/processed_files/mc_events.root \
-#  --num_tracks $NUM_TRACKS \
-#  --clean_ratio $CLEAN_RATIO \
-#  --prob_mean $PROB_MEAN \
-#  --prob_width $PROB_WIDTH \
-#  --propagation_model $PROPAGATION_MODEL \
-#  --gaussian_sigma $GAUSSIAN_SIGMA \
-#  --exp_decay_const $EXP_DECAY_CONST
+python data/messy_gen.py \
+ data/processed_files/finder_training.root \
+ data/processed_files/single_muons_small.root \
+ --output data/processed_files/mc_events.root \
 
+python Util/plot_HitMatrix.py data/processed_files/mc_events.root -event 42
 
 # # --- 5. Inject randomly generated noise hits into file from 4 ---
 # P_ELECTRONIC_NOISE=0.01

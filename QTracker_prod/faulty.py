@@ -22,7 +22,7 @@ from training_scripts.TrackFinder_attention import (
 import QTracker_prod
 # -----------------------------------------------------------------------------
 
-def evaluate_model(root_file, model_path, single_hit_dets=[]):
+def evaluate_model(root_file, model_path):
     # 1) load X, y
     if 'track_finder.h5' in model_path:
         X, y_muPlus, y_muMinus = TrackFinder_prod.load_data(root_file)
@@ -82,8 +82,8 @@ def evaluate_model(root_file, model_path, single_hit_dets=[]):
     y_p_true = y_test[:,0,:].astype(np.int32)
     y_m_true = y_test[:,1,:].astype(np.int32)
 
-    # raw_p_res = y_p_raw  - y_p_true
-    # raw_m_res = y_m_raw  - y_m_true
+    raw_p_res = y_p_raw  - y_p_true
+    raw_m_res = y_m_raw  - y_m_true
 
     # # 7) print per-layer stats BEFORE refinement (only unmasked)
     # print("\n--- Raw Residuals (Before Refinement) ---")
@@ -95,38 +95,53 @@ def evaluate_model(root_file, model_path, single_hit_dets=[]):
 
     # 9) refinement
     y_p_ref, y_m_ref = QTracker_prod.refine_hit_arrays(
-        y_p_raw, y_m_raw, det_test, elem_test, single_hit_dets
+        y_p_raw, y_m_raw, det_test, elem_test
     )
-    # ref_p_res = y_p_ref - y_p_true
-    # ref_m_res = y_m_ref - y_m_true
+    ref_p_res = y_p_ref - y_p_true
+    ref_m_res = y_m_ref - y_m_true
+
+    print("\n--- Unique Values ---")
+    print("--- True Hit Array ---")
+    print(np.unique(y_p_true))
+
+    print("\n--- Raw Hit Array ---")
+    print(np.unique(y_p_raw))
 
     print("\n--- POSITIVE ---")
+    print("--- Raw Hit (Before Refinement) ---")
+    print(y_p_raw[40:50, 0:2])
+
     print("\n--- True Hit (Before Refinement) ---")
-    print(y_p_true[:100])
+    print(y_p_true[40:50, 0:2])
 
-    print("\n--- Raw Hit (Before Refinement) ---")
-    print(y_p_raw[:100])
-
-    print("\n--- Refined Hit (Before Refinement) ---")
-    print(y_p_ref[:100])
+    print("\n--- Refined Hit (After Refinement) ---")
+    print(y_p_ref[40:50, 0:2])
 
     print("\n\n--- NEGATIVE ---")
+    print("--- Raw Hit (Before Refinement) ---")
+    print(y_m_raw[40:50, 0:2])
+
     print("\n--- True Hit (Before Refinement) ---")
-    print(y_m_true[:100])
+    print(y_m_true[40:50, 0:2])
 
-    print("\n--- Raw Hit (Before Refinement) ---")
-    print(y_m_raw[:100])
+    print("\n--- Refined Hit (After Refinement) ---")
+    print(y_m_ref[40:50, 0:2])
 
-    print("\n--- Refined Hit (Before Refinement) ---")
-    print(y_m_ref[:100])
+    print("\n--- Element IDs ---")
+    print([elem_test[16][i] for i, _ in enumerate(elem_test[16]) if det_test[16][i] == 3])
 
     # 10) print per-layer stats AFTER refinement (only unmasked)
-    # print("\n--- Refined Residuals (After Refinement) ---")
-    # print("Det |  μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
-    # for det in np.where(mask)[0]:
-    #     m_p, s_p = ref_p_res[:,det].mean(),  ref_p_res[:,det].std()
-    #     m_m, s_m = ref_m_res[:,det].mean(),  ref_m_res[:,det].std()
-    #     print(f"{det+1:3d} | {m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
+    print("\n--- Refined Residuals (After Refinement) ---")
+    print("Det |  μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
+    for det in np.where(mask)[0]:
+        m_p, s_p = ref_p_res[20:30,det].mean(),  ref_p_res[20:30,det].std()
+        m_m, s_m = ref_m_res[20:30,det].mean(),  ref_m_res[20:30,det].std()
+        print(f"{det+1:3d} | {m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
+    
+    print("\nμ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
+    m_p, s_p = ref_p_res.mean(),  ref_p_res.std()
+    m_m, s_m = ref_m_res.mean(),  ref_m_res.std()
+    print(f"{m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
 
 
 if __name__ == '__main__':
@@ -137,5 +152,4 @@ if __name__ == '__main__':
     parser.add_argument("model_path", type=str, help="Path to the saved model file (.h5 or .keras).")
     args = parser.parse_args()
 
-    single_hit_dets = []
-    evaluate_model(args.root_file, args.model_path, single_hit_dets)
+    evaluate_model(args.root_file, args.model_path)

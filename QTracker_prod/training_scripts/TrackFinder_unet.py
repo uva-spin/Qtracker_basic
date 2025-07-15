@@ -10,6 +10,7 @@ from tensorflow.keras.layers import (
     Conv2D, 
     MaxPooling2D,
     Conv2DTranspose,
+    Cropping2D,
     concatenate,
     Permute,
     Activation,
@@ -76,6 +77,14 @@ def custom_loss(y_true, y_pred):
     return tf.reduce_mean(loss_mup + loss_mum + 0.1 * overlap_penalty)
 
 
+def crop_to_match(enc, dec):
+    h_diff = enc.shape[1] - dec.shape[1]
+    w_diff = enc.shape[2] - dec.shape[2]
+    return Cropping2D(
+        cropping=((h_diff//2, h_diff - h_diff//2), (w_diff//2. w_dff - w_diff//2))
+    )(enc)
+
+
 def unet_block(x, filters, use_bn=False, dropout_rate=0.0):
     x = Conv2D(filters, kernel_size=3, padding='same')(x)
     if use_bn:
@@ -112,19 +121,23 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use
     enc5 = unet_block(pool4, 1024, use_bn=use_bn, dropout_rate=dropout_rate)
 
     # Decoder
-    dec1 = Conv2DTranspose(512, kernel_size=2, strides=2, padding='same')(enc5) # padding same avoids cropping
+    dec1 = Conv2DTranspose(512, kernel_size=3, strides=2, padding='same')(enc5) # padding same avoids cropping
+    enc4 = crop_to_match(enc4, dec1)
     dec1 = concatenate([dec1, enc4])    # skip connections
     dec1 = unet_block(dec1, 512, use_bn=use_bn)
 
-    dec2 = Conv2DTranspose(256, kernel_size=2, strides=2, padding='same')(dec1) # padding same avoids cropping
+    dec2 = Conv2DTranspose(256, kernel_size=3, strides=2, padding='same')(dec1) # padding same avoids cropping
+    enc3 = crop_to_match(enc3, dec2)
     dec2 = concatenate([dec2, enc3])    # skip connections
     dec2 = unet_block(dec2, 256, use_bn=use_bn)
 
-    dec3 = Conv2DTranspose(128, kernel_size=2, strides=2, padding='same')(dec2) # padding same avoids cropping
+    dec3 = Conv2DTranspose(128, kernel_size=3, strides=2, padding='same')(dec2) # padding same avoids cropping
+    enc2 = crop_to_match(enc2, dec3)
     dec3 = concatenate([dec3, enc2])    # skip connections
     dec3 = unet_block(dec3, 128, use_bn=use_bn)
 
-    dec4 = Conv2DTranspose(64, kernel_size=2, strides=2, padding='same')(dec3) # padding same avoids cropping
+    dec4 = Conv2DTranspose(64, kernel_size=3, strides=2, padding='same')(dec3) # padding same avoids cropping
+    enc1 = crop_to_match(enc1, dec4)
     dec4 = concatenate([dec4, enc1])    # skip connections
     dec4 = unet_block(dec4, 64, use_bn=use_bn)
 
