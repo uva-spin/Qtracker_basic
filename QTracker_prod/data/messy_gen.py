@@ -1,20 +1,17 @@
 import ROOT
 import numpy as np
 from array import array
+import random
 
 # Detector efficiency probability
-NUM_TRACKS = 50
-PROB_MEAN = 0.3
-PROB_WIDTH = 0.05
-PROPAGATION_MODEL = "gaussian"
-GAUSSIAN_MEAN = 1.0
-GAUSSIAN_SIGMA = 30.0
-EXP_DECAY_CONST = 45.0
+NUM_TRACKS = 20
+PROB_MEAN = 0.9
+PROB_WIDTH = 0.1
 
 # Hit fall model: "linear", "gaussian", or "exponential"
-# PROPAGATION_MODEL = "linear"
-# GAUSSIAN_SIGMA = 10.0
-# EXP_DECAY_CONST = 45.0
+PROPAGATION_MODEL = "gaussian"
+GAUSSIAN_SIGMA = 45.0
+EXP_DECAY_CONST = 15.0
 
 def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
     if not (1 <= num_tracks <= 100):
@@ -146,6 +143,8 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
         local_hitID_counter = current_max_hitID + 1
         next_trackID = max(tree1.gTrackID) + 1 if len(tree1.gTrackID) > 0 else 3
 
+        random_num_tracks = random.randint(0, num_tracks)
+
         for _ in range(num_tracks):
             if tree2_index >= num_events_tree2:
                 break
@@ -171,7 +170,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
                 if PROPAGATION_MODEL == "linear":
                     weight = 1 - det / 100
                 elif PROPAGATION_MODEL == "gaussian":
-                    weight = np.exp(-0.5 * ((det - GAUSSIAN_MEAN) / GAUSSIAN_SIGMA) ** 2)
+                    weight = np.exp(-0.5 * ((det - 1) / GAUSSIAN_SIGMA) ** 2)
                 elif PROPAGATION_MODEL == "exponential":
                     weight = np.exp(-det / EXP_DECAY_CONST)
                 else:
