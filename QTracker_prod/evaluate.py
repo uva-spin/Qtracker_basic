@@ -29,29 +29,24 @@ def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
     Error‐bar plot of residuals (mean ± std) for μ⁺ and μ⁻ vs. detector ID.
     Only uses the provided det_ids / sliced res arrays.
     """
-    mean_p  = res_plus.mean(axis=0)
-    std_p   = res_plus.std(axis=0)
-    mean_m  = res_minus.mean(axis=0)
-    std_m   = res_minus.std(axis=0)
+    mean_p  = np.mean(np.abs(res_plus), axis=0)
+    std_p   = np.std(np.abs(res_plus), axis=0)
+    mean_m  = np.mean(np.abs(res_minus), axis=0)
+    std_m   = np.std(np.abs(res_minus), axis=0)
 
     plt.figure(figsize=(10, 5))
     plt.errorbar(det_ids, mean_p, yerr=std_p, marker='o', label='μ+ mean±σ')
     plt.errorbar(det_ids, mean_m, yerr=std_m, marker='s', label='μ- mean±σ')
     plt.axhline(0, linestyle='--', linewidth=1)
     plt.xlabel(f'Detector Layer (skipping masked slots)')
-    plt.ylabel('Residual (predicted − true)')
-    plt.title(f'Per-layer Residual ({stage_label.capitalize()})')
+    plt.ylabel('Absolute Residual (predicted − true)')
+    plt.title(f'Per-layer Absolute Residual ({stage_label.capitalize()})')
     plt.legend()
     plt.tight_layout()
 
-    # Added for quick sanity tests
-    track_size = os.getenv("TRACK_SIZE")
-    mom_size = os.getenv("MOM_SIZE")
-    qtrack_size = os.getenv("QTRACK_SIZE")
-
     base     = os.path.splitext(os.path.basename(model_path))[0]
-    # fname    = f"{base}_{stage_label}_residuals.png"
-    fname    = f"{stage_label}_residuals_{track_size}_{mom_size}_{qtrack_size}.png"
+    fname    = f"{base}_{stage_label}_residuals.png"
+    # fname    = f"{stage_label}_residuals.png"
     plot_dir = os.path.join(os.path.dirname(__file__), "plots")
     os.makedirs(plot_dir, exist_ok=True)
     plt.savefig(os.path.join(plot_dir, fname))
@@ -122,11 +117,11 @@ def evaluate_model(root_file, model_path):
     raw_m_res = y_m_raw  - y_m_true
 
     # 7) print per-layer stats BEFORE refinement (only unmasked)
-    print("\n--- Raw Residuals (Before Refinement) ---")
+    print("\n--- Raw Absolute Residuals (Before Refinement) ---")
     print("Det |  μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
     for det in np.where(mask)[0]:
-        m_p, s_p = raw_p_res[:,det].mean(),  raw_p_res[:,det].std()
-        m_m, s_m = raw_m_res[:,det].mean(),  raw_m_res[:,det].std()
+        m_p, s_p = np.mean(np.abs(raw_p_res[:,det])),  np.std(np.abs(raw_p_res[:,det]))
+        m_m, s_m = np.mean(np.abs(raw_m_res[:,det])),  np.std(np.abs(raw_m_res[:,det]))
         print(f"{det+1:3d} | {m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
 
     # 8) plot raw residuals
@@ -141,15 +136,28 @@ def evaluate_model(root_file, model_path):
     ref_m_res = ref_m - y_m_true
 
     # 10) print per-layer stats AFTER refinement (only unmasked)
-    print("\n--- Refined Residuals (After Refinement) ---")
+    print("\n--- Refined Absolute Residuals (After Refinement) ---")
     print("Det |  μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
     for det in np.where(mask)[0]:
-        m_p, s_p = ref_p_res[:,det].mean(),  ref_p_res[:,det].std()
-        m_m, s_m = ref_m_res[:,det].mean(),  ref_m_res[:,det].std()
+        m_p, s_p = np.mean(np.abs(ref_p_res[:,det])),  np.std(np.abs(ref_p_res[:,det]))
+        m_m, s_m = np.mean(np.abs(ref_m_res[:,det])),  np.std(np.abs(ref_m_res[:,det]))
         print(f"{det+1:3d} | {m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
 
     # 11) plot refined residuals
     plot_residuals(dets_used, ref_p_res[:,mask], ref_m_res[:,mask], model_path, 'refined')
+
+    # 12) Print summary of results
+    print("\n--- Raw Absolute Residuals (Before Refinement) ---")
+    print("μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
+    m_p, s_p = np.mean(np.abs(raw_p_res)),  np.std(np.abs(raw_p_res))
+    m_m, s_m = np.mean(np.abs(raw_m_res)),  np.std(np.abs(raw_m_res))
+    print(f"{m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
+
+    print("\n--- Refined Absolute Residuals (Before Refinement) ---")
+    print("μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
+    m_p, s_p = np.mean(np.abs(ref_p_res)),  np.std(np.abs(ref_p_res))
+    m_m, s_m = np.mean(np.abs(ref_m_res)),  np.std(np.abs(ref_m_res))
+    print(f"{m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
 
 
 if __name__ == '__main__':
