@@ -3,8 +3,11 @@ import ROOT
 import numpy as np
 import tensorflow as tf
 import argparse
+import math
+import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from tensorflow.keras import regularizers
+from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from tensorflow.keras.layers import (
     Input, 
     Conv2D, 
@@ -15,7 +18,10 @@ from tensorflow.keras.layers import (
     Permute,
     Activation,
     BatchNormalization,
-    Dropout
+    Dropout,
+    ZeroPadding2D,
+    Softmax,
+    Add
 )
 
 
@@ -77,72 +83,88 @@ def custom_loss(y_true, y_pred):
     return tf.reduce_mean(loss_mup + loss_mum + 0.1 * overlap_penalty)
 
 
-def crop_to_match(enc, dec):
-    h_diff = enc.shape[1] - dec.shape[1]
-    w_diff = enc.shape[2] - dec.shape[2]
-    return Cropping2D(
-        cropping=((h_diff//2, h_diff - h_diff//2), (w_diff//2. w_dff - w_diff//2))
-    )(enc)
-
-
-def unet_block(x, filters, use_bn=False, dropout_rate=0.0):
-    x = Conv2D(filters, kernel_size=3, padding='same')(x)
+def unet_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
+    # First Conv Layer + Activation
+    x = Conv2D(
+        filters, kernel_size=3, padding='same',
+        kernel_regularizer=regularizers.l2(l2)
+    )(x)
     if use_bn:
         x = BatchNormalization()(x)
     x = Activation('relu')(x)
 
-    if dropout_rate > 0:
-        x = Dropout(dropout_rate)(x)
+    # Dropout for bottleneck layers
+    if dropout_bn > 0:
+        x = Dropout(dropout_bn)(x)
 
-    x = Conv2D(filters, kernel_size=3, padding='same')(x)
+    # Second Conv Layer
+    x = Conv2D(
+        filters, kernel_size=3, padding='same',
+        kernel_regularizer=regularizers.l2(l2)
+    )(x)
     if use_bn:
         x = BatchNormalization()(x)
     x = Activation('relu')(x)
+
+    # Dropout for encoder blocks
+    if dropout_enc > 0:
+        x = Dropout(dropout_enc)(x)
     return x
 
 
-def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use_bn=False, dropout_rate=0.0):
+def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
     input_layer = Input(shape=(num_detectors, num_elementIDs, 1))
 
+    # Zero padding (aligns to closest 2^n -> preserves input shape)
+    num_pool = 2 ** 4   # 2 ^ n, n = number of max pooling
+    closest_even_det = num_pool * math.ceil(num_detectors / num_pool)
+    closest_even_elem = num_pool * math.ceil(num_elementIDs / num_pool)
+    det_diff = closest_even_det - num_detectors
+    elem_diff = closest_even_elem - num_elementIDs
+    padding = (
+        (det_diff // 2, det_diff - det_diff // 2),
+        (elem_diff // 2, elem_diff - elem_diff // 2)
+    )
+
+    x = ZeroPadding2D(padding=padding)(input_layer)
+
     # Encoder
-    enc1 = unet_block(input_layer, 64, use_bn=use_bn)
+    enc1 = unet_block(x, 64, use_bn=use_bn)
     pool1 = MaxPooling2D(pool_size=(2, 2))(enc1)
 
-    enc2 = unet_block(pool1, 128, use_bn=use_bn)
+    enc2 = unet_block(pool1, 128, use_bn=use_bn, dropout_enc=dropout_enc)
     pool2 = MaxPooling2D(pool_size=(2, 2))(enc2)
 
     enc3 = unet_block(pool2, 256, use_bn=use_bn)
     pool3 = MaxPooling2D(pool_size=(2, 2))(enc3)
 
-    enc4 = unet_block(pool3, 512, use_bn=use_bn)
+    enc4 = unet_block(pool3, 512, use_bn=use_bn, dropout_enc=dropout_enc)
     pool4 = MaxPooling2D(pool_size=(2, 2))(enc4)
 
     # Bottleneck
-    enc5 = unet_block(pool4, 1024, use_bn=use_bn, dropout_rate=dropout_rate)
+    enc5 = unet_block(pool4, 1024, use_bn=use_bn, dropout_bn=dropout_bn)
 
     # Decoder
     dec1 = Conv2DTranspose(512, kernel_size=3, strides=2, padding='same')(enc5) # padding same avoids cropping
-    enc4 = crop_to_match(enc4, dec1)
     dec1 = concatenate([dec1, enc4])    # skip connections
     dec1 = unet_block(dec1, 512, use_bn=use_bn)
 
     dec2 = Conv2DTranspose(256, kernel_size=3, strides=2, padding='same')(dec1) # padding same avoids cropping
-    enc3 = crop_to_match(enc3, dec2)
     dec2 = concatenate([dec2, enc3])    # skip connections
     dec2 = unet_block(dec2, 256, use_bn=use_bn)
 
     dec3 = Conv2DTranspose(128, kernel_size=3, strides=2, padding='same')(dec2) # padding same avoids cropping
-    enc2 = crop_to_match(enc2, dec3)
     dec3 = concatenate([dec3, enc2])    # skip connections
     dec3 = unet_block(dec3, 128, use_bn=use_bn)
 
-    dec4 = Conv2DTranspose(64, kernel_size=3, strides=2, padding='same')(dec3) # padding same avoids cropping
-    enc1 = crop_to_match(enc1, dec4)
+    dec4 = Conv2DTranspose(64, kernel_size=3, strides=2, padding='same')(dec3)
     dec4 = concatenate([dec4, enc1])    # skip connections
+    dec4 = Cropping2D(cropping=padding)(dec4)   # Remove extra padding
     dec4 = unet_block(dec4, 64, use_bn=use_bn)
 
     # Output layer
-    x = Conv2D(2, kernel_size=1, activation='softmax')(dec4)
+    x = Conv2D(2, kernel_size=1)(dec4)
+    x = Softmax(axis=2)(x)      # softmax over elementID
     output = Permute((3, 1, 2))(x)  # permute to match shape required by loss: (batch, 2, det, elem)
 
     # Initialize model
@@ -153,7 +175,7 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use
     return model
 
 
-def train_model(root_file, output_model, learning_rate=0.00005, use_bn=False, dropout_rate=0.0):
+def train_model(root_file, output_model, learning_rate=0.00005, patience=5, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
     X, y_muPlus, y_muMinus = load_data(root_file)
 
     if X is None:
@@ -162,8 +184,30 @@ def train_model(root_file, output_model, learning_rate=0.00005, use_bn=False, dr
     y = np.stack([y_muPlus, y_muMinus], axis=1)  # Shape: (num_events, 2, 62)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    model = build_model(learning_rate=learning_rate, use_bn=use_bn, dropout_rate=dropout_rate)
-    model.fit(X_train, y_train, epochs=40, batch_size=32, validation_data=(X_test, y_test))
+    lr_scheduler = ReduceLROnPlateau(
+        monitor='val_loss',
+        factor=0.3,
+        patience=patience // 3,
+        min_lr=1e-7
+    )
+    early_stopping = EarlyStopping(monitor="val_loss", patience=patience, restore_best_weights=True)
+
+    model = build_model(learning_rate=learning_rate, use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc)
+    history = model.fit(X_train, y_train, epochs=40, batch_size=32, validation_data=(X_test, y_test), callbacks=[lr_scheduler, early_stopping])
+
+    # Plot train and val loss over epochs
+    plt.figure(figsize=(8, 6))
+    plt.plot(history.history['loss'], label='Train Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.title('Training and Val Loss Over Epochs')
+
+    plot_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "plots")
+    os.makedirs(plot_dir, exist_ok=True)
+    plt.savefig(os.path.join(plot_dir, "losses.png"))
+    plt.show()
 
     model.save(output_model)
     print(f"Model saved to {output_model}")
@@ -175,7 +219,8 @@ if __name__ == "__main__":
     parser.add_argument("--output_model", type=str, default="models/track_finder.h5", help="Path to save the trained model.")
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
     parser.add_argument("--batch_norm", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")
-    parser.add_argument("--dropout_rate", type=float, default=0.0, help="Dropout rate for bottleneck layer.")
+    parser.add_argument("--dropout_bn", type=float, default=0.0, help="Dropout rate for bottleneck layer.")
+    parser.add_argument("--dropout_enc", type=float, default=0.0, help="Dropout rate for encoder blocks.")
     args = parser.parse_args()
 
     use_bn = bool(args.batch_norm)
@@ -184,6 +229,8 @@ if __name__ == "__main__":
         args.root_file, 
         args.output_model, 
         args.learning_rate, 
+        patience=10,
         use_bn=use_bn, 
-        dropout_rate=args.dropout_rate      # recommend 0.5 as starting point
+        dropout_bn=args.dropout_bn,      # recommend 0.5 as starting point,
+        dropout_enc=args.dropout_enc         # recommend 0.1-0.3 as starting point
     )
