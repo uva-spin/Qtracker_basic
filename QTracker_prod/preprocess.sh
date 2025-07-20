@@ -16,6 +16,9 @@ python data/gen_training.py \
  data/original_files/JPsi_Target_100K_track2.root \
  --output data/processed_files/finder_training.root
 
+mv momentum_training-1.root data/processed_files/momentum_training-1.root
+mv momentum_training-2.root data/processed_files/momentum_training-2.root
+
 
 # --- 4. Inject background muon tracks to signal file from 3 ---
 python data/messy_gen.py \
