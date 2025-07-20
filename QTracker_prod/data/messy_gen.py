@@ -4,13 +4,13 @@ from array import array
 import random
 
 # Detector efficiency probability
-NUM_TRACKS = 20
+NUM_TRACKS = 19
 PROB_MEAN = 0.9
 PROB_WIDTH = 0.1
 
 # Hit fall model: "linear", "gaussian", or "exponential"
 PROPAGATION_MODEL = "gaussian"
-GAUSSIAN_SIGMA = 45.0
+GAUSSIAN_SIGMA = 60.0
 EXP_DECAY_CONST = 15.0
 
 def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
@@ -145,7 +145,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
 
         random_num_tracks = random.randint(0, num_tracks)
 
-        for _ in range(num_tracks):
+        for _ in range(random_num_tracks):
             if tree2_index >= num_events_tree2:
                 break
 

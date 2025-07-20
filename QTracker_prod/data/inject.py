@@ -3,14 +3,14 @@ import numpy as np
 from array import array
 
 # Detector efficiency probability
-NUM_TRACKS = 20
+NUM_TRACKS = 19
 PROB_MEAN = 0.9
 PROB_WIDTH = 0.1
 
 # Hit fall model: None, "linear", "gaussian", or "exponential"
 PROPAGATION_MODEL = "gaussian"
 GAUSSIAN_MEAN = 1.0
-GAUSSIAN_SIGMA = 45.0
+GAUSSIAN_SIGMA = 60.0
 EXP_DECAY_CONST = 45.0
 
 
@@ -136,9 +136,9 @@ def inject_tracks(file1, file2, output_file, num_tracks=NUM_TRACKS):
         tree2.GetEntry(tree2_index)
         tree2_index += 1
 
-        while tree2.elementID.size() <= 35:
-            tree2.GetEntry(tree2_index)
-            tree2_index += 1
+        # while tree2.elementID.size() <= 35:
+        #     tree2.GetEntry(tree2_index)
+        #     tree2_index += 1
 
         this_trackID = next_trackID
         next_trackID += 1

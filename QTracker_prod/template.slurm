@@ -13,25 +13,26 @@ module purge
 
 # For apptainer exec
 APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
-IMAGE=path/to/TfRootBuild.sif
+IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 CODEDIR=path/to/Qtracker_basic/QTracker_prod
 
 
 ### Main Body ###
-# # --- Install Dependencies ---
-# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     pip install --user tensorflow==2.15.0 uproot numba
-
-# --- Training Track Finder ---
+# --- Training and Evaluating Track Finder ---
 LEARNING_RATE=0.00005
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/training_scripts/TrackFinder_prod.py \
-     /mnt/code/data/processed_files/finder_training.root \
+     /mnt/code/data/processed_files/mc_events.root \
     --output_model models/track_finder.h5 \
     --learning_rate $LEARNING_RATE
 
-# --- Training Momentum Model ---
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/evaluate.py \
+     /mnt/code/data/processed_files/mc_events.root \
+     /mnt/code/models/track_finder.h5
+
+# --- Training and Evaluating Momentum Model ---
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/training_scripts/Momentum_training.py \
      /mnt/code/data/processed_files/momentum_training-1.root \
@@ -45,3 +46,8 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     --output models/mom_mum.h5 \
     --epochs 300 \
     --batch_size 32
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/QTracker_prod.py \
+     /mnt/code/data/raw_files/${QTRACKER_INPUT}.root \
+     --output_file /mnt/code/data/processed_files/qtracker_reco.root
