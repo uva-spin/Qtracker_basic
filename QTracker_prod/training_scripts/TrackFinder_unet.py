@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from tensorflow.keras import regularizers
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
+from tensorflow.keras.applications import ResNet50
 from tensorflow.keras.layers import (
     Input, 
     Conv2D, 
@@ -21,7 +22,8 @@ from tensorflow.keras.layers import (
     Dropout,
     ZeroPadding2D,
     Softmax,
-    Add
+    Add,
+    Concatenate
 )
 
 
@@ -112,7 +114,7 @@ def unet_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.
     return x
 
 
-def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
+def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use_bn=False, dropout_bn=0.0, dropout_enc=0.0, backbone=None):
     input_layer = Input(shape=(num_detectors, num_elementIDs, 1))
 
     # Zero padding (aligns to closest 2^n -> preserves input shape)
@@ -129,20 +131,37 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use
     x = ZeroPadding2D(padding=padding)(input_layer)
 
     # Encoder
-    enc1 = unet_block(x, 64, use_bn=use_bn)
-    pool1 = MaxPooling2D(pool_size=(2, 2))(enc1)
+    if backbone == 'resnet50':
+        # x = Concatenate()([x, x, x])
+        x = Conv2D(3, kernel_size=1, padding='same')(x)
+        backbone = ResNet50(include_top=False, input_tensor=x)
 
-    enc2 = unet_block(pool1, 128, use_bn=use_bn, dropout_enc=dropout_enc)
-    pool2 = MaxPooling2D(pool_size=(2, 2))(enc2)
+        # Freeze backbone
+        backbone.trainable = False
+        for layer in backbone.layers:
+            if layer.name.startswith('conv5_'):
+                layer.trainable = True
 
-    enc3 = unet_block(pool2, 256, use_bn=use_bn)
-    pool3 = MaxPooling2D(pool_size=(2, 2))(enc3)
+        enc1 = backbone.get_layer('conv1_relu').output
+        enc2 = backbone.get_layer('conv2_block3_out').output
+        enc3 = backbone.get_layer('conv3_block4_out').output
+        enc4 = backbone.get_layer('conv4_block6_out').output
+        enc5 = backbone.get_layer('conv5_block3_out').output
+    else:
+        enc1 = unet_block(x, 64, use_bn=use_bn)
+        pool1 = MaxPooling2D(pool_size=(2, 2))(enc1)
 
-    enc4 = unet_block(pool3, 512, use_bn=use_bn, dropout_enc=dropout_enc)
-    pool4 = MaxPooling2D(pool_size=(2, 2))(enc4)
+        enc2 = unet_block(pool1, 128, use_bn=use_bn, dropout_enc=dropout_enc)
+        pool2 = MaxPooling2D(pool_size=(2, 2))(enc2)
 
-    # Bottleneck
-    enc5 = unet_block(pool4, 1024, use_bn=use_bn, dropout_bn=dropout_bn)
+        enc3 = unet_block(pool2, 256, use_bn=use_bn)
+        pool3 = MaxPooling2D(pool_size=(2, 2))(enc3)
+
+        enc4 = unet_block(pool3, 512, use_bn=use_bn, dropout_enc=dropout_enc)
+        pool4 = MaxPooling2D(pool_size=(2, 2))(enc4)
+
+        # Bottleneck
+        enc5 = unet_block(pool4, 1024, use_bn=use_bn, dropout_bn=dropout_bn)
 
     # Decoder
     dec1 = Conv2DTranspose(512, kernel_size=3, strides=2, padding='same')(enc5) # padding same avoids cropping
@@ -190,9 +209,9 @@ def train_model(root_file, output_model, learning_rate=0.00005, patience=5, use_
         patience=patience // 3,
         min_lr=1e-7
     )
-    early_stopping = EarlyStopping(monitor="val_loss", patience=patience, restore_best_weights=True)
+    early_stopping = EarlyStopping(monitor="val_loss", patience=patience, restore_best_weights=True, backbone=None)
 
-    model = build_model(learning_rate=learning_rate, use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc)
+    model = build_model(learning_rate=learning_rate, use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc, backbone=backbone)
     history = model.fit(X_train, y_train, epochs=40, batch_size=32, validation_data=(X_test, y_test), callbacks=[lr_scheduler, early_stopping])
 
     # Plot train and val loss over epochs
@@ -221,6 +240,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_norm", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")
     parser.add_argument("--dropout_bn", type=float, default=0.0, help="Dropout rate for bottleneck layer.")
     parser.add_argument("--dropout_enc", type=float, default=0.0, help="Dropout rate for encoder blocks.")
+    parser.add_argument("--backbone", type=str, default=None, help="Backbone encoder. Available: [None, 'resnet50'].")
     args = parser.parse_args()
 
     use_bn = bool(args.batch_norm)
@@ -232,5 +252,6 @@ if __name__ == "__main__":
         patience=10,
         use_bn=use_bn, 
         dropout_bn=args.dropout_bn,      # recommend 0.5 as starting point,
-        dropout_enc=args.dropout_enc         # recommend 0.1-0.3 as starting point
+        dropout_enc=args.dropout_enc,    # recommend 0.1-0.3 as starting point
+        backbone=args.backbone
     )
