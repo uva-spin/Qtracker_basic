@@ -118,7 +118,8 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use
     input_layer = Input(shape=(num_detectors, num_elementIDs, 1))
 
     # Zero padding (aligns to closest 2^n -> preserves input shape)
-    num_pool = 2 ** 4   # 2 ^ n, n = number of max pooling
+    n = 5 if backbone == 'resnet50' else 4
+    num_pool = 2 ** n   # 2 ^ n, n = number of max pooling
     closest_even_det = num_pool * math.ceil(num_detectors / num_pool)
     closest_even_elem = num_pool * math.ceil(num_elementIDs / num_pool)
     det_diff = closest_even_det - num_detectors
@@ -132,13 +133,15 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use
 
     # Encoder
     if backbone == 'resnet50':
-        # x = Concatenate()([x, x, x])
-        x = Conv2D(3, kernel_size=1, padding='same')(x)
+        x = Concatenate()([x, x, x])
+        # x = Conv2D(3, kernel_size=1, padding='same')(x)
         backbone = ResNet50(include_top=False, input_tensor=x)
 
         # Freeze backbone
         backbone.trainable = False
         for layer in backbone.layers:
+            if layer.name == 'conv1_conv':
+                layer.strides = (1, 1)
             if layer.name.startswith('conv5_'):
                 layer.trainable = True
 
@@ -194,7 +197,7 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use
     return model
 
 
-def train_model(root_file, output_model, learning_rate=0.00005, patience=5, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
+def train_model(root_file, output_model, learning_rate=0.00005, patience=5, use_bn=False, dropout_bn=0.0, dropout_enc=0.0, backbone=None):
     X, y_muPlus, y_muMinus = load_data(root_file)
 
     if X is None:
@@ -209,7 +212,7 @@ def train_model(root_file, output_model, learning_rate=0.00005, patience=5, use_
         patience=patience // 3,
         min_lr=1e-7
     )
-    early_stopping = EarlyStopping(monitor="val_loss", patience=patience, restore_best_weights=True, backbone=None)
+    early_stopping = EarlyStopping(monitor="val_loss", patience=patience, restore_best_weights=True)
 
     model = build_model(learning_rate=learning_rate, use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc, backbone=backbone)
     history = model.fit(X_train, y_train, epochs=40, batch_size=32, validation_data=(X_test, y_test), callbacks=[lr_scheduler, early_stopping])

@@ -1,19 +1,19 @@
 # --- 1. Split signal ROOT file into μ⁺ and μ⁻ tracks ---
-python data/separate.py data/original_files/JPsi_Target_100K.root
+python data/separate.py data/raw_files/JPsi_Target_1K.root
 
 
 # --- 2. Merge two single-muon ROOT files ---
 MAX_OUTPUT_EVENTS=100000
 
-python data/combine.py data/original_files/MUP_Dump_100K.root data/original_files/MUM_Dump_100K.root \
+python data/combine.py data/raw_files/MUP_Dump_100K.root data/raw_files/MUM_Dump_100K.root \
  --output data/processed_files/single_muons.root \
  --max_output_events $MAX_OUTPUT_EVENTS
 
 
 # --- 3. Generate training data by combining μ⁺ and μ⁻ signal tracks ---
 python data/gen_training.py \
- data/original_files/JPsi_Target_100K_track1.root \
- data/original_files/JPsi_Target_100K_track2.root \
+ data/raw_files/JPsi_Target_1K_track1.root \
+ data/raw_files/JPsi_Target_1K_track2.root \
  --output data/processed_files/finder_training.root
 
 mv momentum_training-1.root data/processed_files/momentum_training-1.root
