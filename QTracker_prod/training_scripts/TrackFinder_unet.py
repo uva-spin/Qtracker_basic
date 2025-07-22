@@ -137,12 +137,12 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use
         # x = Conv2D(3, kernel_size=1, padding='same')(x)
         backbone = ResNet50(include_top=False, input_tensor=x)
 
-        # Freeze backbone
+        # Partially freeze backbone and alter stride for compatibility with U-Net decoder
         backbone.trainable = False
         for layer in backbone.layers:
             if layer.name == 'conv1_conv':
                 layer.strides = (1, 1)
-            if layer.name.startswith('conv5_'):
+            if layer.name.startswith('conv5_') or layer.name.startswith('conv4_'):
                 layer.trainable = True
 
         enc1 = backbone.get_layer('conv1_relu').output
