@@ -99,4 +99,4 @@ def distance_loss(y_true, y_pred):
         tf.square(y_muMinus_pred - y_muMinus_true)
     )
 
-    return tf.reduce_mean(1e-4 * distance_penalty)
+    return tf.reduce_mean(5e-4 * distance_penalty)

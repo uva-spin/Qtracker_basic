@@ -11,6 +11,7 @@ from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from tensorflow.keras.applications import ResNet50
 from tensorflow.keras import layers
 
+from data_loader import load_data
 from losses import (
     custom_loss, 
     custom_loss_v2, 
@@ -19,45 +20,8 @@ from losses import (
     distance_loss
 )
 
-
 # Ensure the models directory exists
 os.makedirs("models", exist_ok=True)
-
-
-def load_data(root_file):
-    f = ROOT.TFile.Open(root_file, "READ")
-    tree = f.Get("tree")
-
-    if not tree:
-        print("Error: Tree not found in file.")
-        return None, None, None
-
-    num_detectors = 62
-    num_elementIDs = 201
-
-    X = []
-    y_muPlus = []
-    y_muMinus = []
-
-    for event in tree:
-        event_hits_matrix = np.zeros((num_detectors, num_elementIDs), dtype=np.float32)
-
-        for det_id, elem_id in zip(event.detectorID, event.elementID):
-            if 0 <= det_id < num_detectors and 0 <= elem_id < num_elementIDs:
-                event_hits_matrix[det_id, elem_id] = 1
-
-        mu_plus_array = np.array(event.HitArray_mup, dtype=np.int32)
-        mu_minus_array = np.array(event.HitArray_mum, dtype=np.int32)
-
-        X.append(event_hits_matrix)
-        y_muPlus.append(mu_plus_array)
-        y_muMinus.append(mu_minus_array)
-
-    X = np.array(X)[..., np.newaxis]  # Shape: (num_events, 62, 201, 1)
-    y_muPlus = np.array(y_muPlus)
-    y_muMinus = np.array(y_muMinus)
-
-    return X, y_muPlus, y_muMinus
 
 
 def unet_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
@@ -89,7 +53,7 @@ def unet_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.
     return x
 
 
-def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use_bn=False, dropout_bn=0.0, dropout_enc=0.0, backbone=None):
+def build_model(num_detectors=62, num_elementIDs=201, use_bn=False, dropout_bn=0.0, dropout_enc=0.0, backbone=None):
     input_layer = layers.Input(shape=(num_detectors, num_elementIDs, 1))
 
     # Zero padding (aligns to closest 2^n -> preserves input shape)
@@ -166,9 +130,6 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use
 
     # Initialize model
     model = tf.keras.Model(inputs=input_layer, outputs=output)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-    model.compile(optimizer=optimizer, loss=custom_loss_v2, metrics=['accuracy', regular_loss, overlap_loss, distance_loss])
-
     return model
 
 
@@ -189,7 +150,15 @@ def train_model(root_file, output_model, learning_rate=0.00005, patience=5, use_
     )
     early_stopping = EarlyStopping(monitor="val_loss", patience=patience, restore_best_weights=True)
 
-    model = build_model(learning_rate=learning_rate, use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc, backbone=backbone)
+    model = build_model(use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc, backbone=backbone)
+    
+    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+    model.compile(
+        optimizer=optimizer, 
+        loss=custom_loss_v2, 
+        metrics=['accuracy', regular_loss, overlap_loss, distance_loss]
+    )
+    
     history = model.fit(X_train, y_train, epochs=40, batch_size=32, validation_data=(X_test, y_test), callbacks=[lr_scheduler, early_stopping])
 
     # Plot train and val loss over epochs
