@@ -15,7 +15,8 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 
 # core TrackFinder loaders / custom loss
-from training_scripts import TrackFinder_prod, TrackFinder_attention
+from training_scripts import data_loader
+from training_scripts.losses import custom_loss
 from training_scripts.TrackFinder_attention import (
     ChannelAvgPool, ChannelMaxPool, SpatialAvgPool, SpatialMaxPool
 )
@@ -55,10 +56,7 @@ def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
 
 def evaluate_model(root_file, model_path):
     # 1) load X, y
-    if 'track_finder.h5' in model_path:
-        X, y_muPlus, y_muMinus = TrackFinder_prod.load_data(root_file)
-    else:
-        X, y_muPlus, y_muMinus = TrackFinder_attention.load_data(root_file)
+    X, y_muPlus, y_muMinus = data_loader.load_data(root_file)
     if X is None:
         return
 
@@ -84,7 +82,7 @@ def evaluate_model(root_file, model_path):
 
     # 4) load model with custom objects
     custom_objects = {
-        "custom_loss": TrackFinder_prod.custom_loss,
+        "custom_loss": custom_loss,
         "Adam":        tf.keras.optimizers.legacy.Adam
     }
     if 'track_finder_cbam.keras' in model_path:
@@ -98,7 +96,7 @@ def evaluate_model(root_file, model_path):
         model = tf.keras.models.load_model(model_path)
 
     # 5) predict on test set
-    y_pred = model.predict(X_test)
+    y_pred = model.predict(X_test)    
 
     # 6) compute raw residuals
     y_p_raw = tf.cast(
@@ -128,14 +126,20 @@ def evaluate_model(root_file, model_path):
     dets_used = (np.where(mask)[0] + 1)  # 1-based IDs for display
     plot_residuals(dets_used, raw_p_res[:,mask], raw_m_res[:,mask], model_path, 'raw')
 
-    # 9) refinement
+    # 9) calculate raw distance-based accuracy
+    acc_p = np.mean(np.abs(raw_p_res) <= 2)
+    acc_m = np.mean(np.abs(raw_m_res) <= 2)
+    print(f"\nRaw μ+ accuracy: {acc_p:.4f}")
+    print(f"Raw μ- accuracy: {acc_m:.4f}")
+
+    # 10) refinement
     ref_p, ref_m = QTracker_prod.refine_hit_arrays(
         y_p_raw, y_m_raw, det_test, elem_test
     )
     ref_p_res = ref_p - y_p_true
     ref_m_res = ref_m - y_m_true
 
-    # 10) print per-layer stats AFTER refinement (only unmasked)
+    # 11) print per-layer stats AFTER refinement (only unmasked)
     print("\n--- Refined Absolute Residuals (After Refinement) ---")
     print("Det |  μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
     for det in np.where(mask)[0]:
@@ -143,10 +147,16 @@ def evaluate_model(root_file, model_path):
         m_m, s_m = np.mean(np.abs(ref_m_res[:,det])),  np.std(np.abs(ref_m_res[:,det]))
         print(f"{det+1:3d} | {m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
 
-    # 11) plot refined residuals
+    # 12) calculate refined distance-based accuracy
+    acc_p = np.mean(np.abs(ref_p_res) <= 2)
+    acc_m = np.mean(np.abs(ref_m_res) <= 2)
+    print(f"\nRefined μ+ accuracy: {acc_p:.4f}")
+    print(f"Refined μ- accuracy: {acc_m:.4f}")
+
+    # 13) plot refined residuals
     plot_residuals(dets_used, ref_p_res[:,mask], ref_m_res[:,mask], model_path, 'refined')
 
-    # 12) Print summary of results
+    # 14) Print summary of results
     print("\n--- Raw Absolute Residuals (Before Refinement) ---")
     print("μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
     m_p, s_p = np.mean(np.abs(raw_p_res)),  np.std(np.abs(raw_p_res))
