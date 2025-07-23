@@ -9,21 +9,14 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras import regularizers
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from tensorflow.keras.applications import ResNet50
-from tensorflow.keras.layers import (
-    Input, 
-    Conv2D, 
-    MaxPooling2D,
-    Conv2DTranspose,
-    Cropping2D,
-    concatenate,
-    Permute,
-    Activation,
-    BatchNormalization,
-    Dropout,
-    ZeroPadding2D,
-    Softmax,
-    Add,
-    Concatenate
+from tensorflow.keras import layers
+
+from losses import (
+    custom_loss, 
+    custom_loss_v2, 
+    regular_loss, 
+    overlap_loss, 
+    distance_loss
 )
 
 
@@ -67,55 +60,37 @@ def load_data(root_file):
     return X, y_muPlus, y_muMinus
 
 
-def custom_loss(y_true, y_pred):
-    y_muPlus_true, y_muMinus_true = tf.split(y_true, num_or_size_splits=2, axis=1)
-    y_muPlus_pred, y_muMinus_pred = tf.split(y_pred, num_or_size_splits=2, axis=1)
-
-    y_muPlus_true = tf.squeeze(y_muPlus_true, axis=1)
-    y_muMinus_true = tf.squeeze(y_muMinus_true, axis=1)
-
-    y_muPlus_pred = tf.squeeze(y_muPlus_pred, axis=1)
-    y_muMinus_pred = tf.squeeze(y_muMinus_pred, axis=1)
-
-    loss_mup = tf.keras.losses.sparse_categorical_crossentropy(y_muPlus_true, y_muPlus_pred)
-    loss_mum = tf.keras.losses.sparse_categorical_crossentropy(y_muMinus_true, y_muMinus_pred)
-
-    overlap_penalty = tf.reduce_sum(tf.square(y_muPlus_pred - y_muMinus_pred), axis=-1)
-
-    return tf.reduce_mean(loss_mup + loss_mum + 0.1 * overlap_penalty)
-
-
 def unet_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
     # First Conv Layer + Activation
-    x = Conv2D(
+    x = layers.Conv2D(
         filters, kernel_size=3, padding='same',
         kernel_regularizer=regularizers.l2(l2)
     )(x)
     if use_bn:
-        x = BatchNormalization()(x)
-    x = Activation('relu')(x)
+        x = layers.BatchNormalization()(x)
+    x = layers.Activation('relu')(x)
 
     # Dropout for bottleneck layers
     if dropout_bn > 0:
-        x = Dropout(dropout_bn)(x)
+        x = layers.Dropout(dropout_bn)(x)
 
     # Second Conv Layer
-    x = Conv2D(
+    x = layers.Conv2D(
         filters, kernel_size=3, padding='same',
         kernel_regularizer=regularizers.l2(l2)
     )(x)
     if use_bn:
-        x = BatchNormalization()(x)
-    x = Activation('relu')(x)
+        x = layers.BatchNormalization()(x)
+    x = layers.Activation('relu')(x)
 
     # Dropout for encoder blocks
     if dropout_enc > 0:
-        x = Dropout(dropout_enc)(x)
+        x = layers.Dropout(dropout_enc)(x)
     return x
 
 
 def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use_bn=False, dropout_bn=0.0, dropout_enc=0.0, backbone=None):
-    input_layer = Input(shape=(num_detectors, num_elementIDs, 1))
+    input_layer = layers.Input(shape=(num_detectors, num_elementIDs, 1))
 
     # Zero padding (aligns to closest 2^n -> preserves input shape)
     n = 5 if backbone == 'resnet50' else 4
@@ -129,11 +104,11 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use
         (elem_diff // 2, elem_diff - elem_diff // 2)
     )
 
-    x = ZeroPadding2D(padding=padding)(input_layer)
+    x = layers.ZeroPadding2D(padding=padding)(input_layer)
 
     # Encoder
     if backbone == 'resnet50':
-        x = Concatenate()([x, x, x])
+        x = layers.Concatenate()([x, x, x])
         # x = Conv2D(3, kernel_size=1, padding='same')(x)
         backbone = ResNet50(include_top=False, input_tensor=x)
 
@@ -152,47 +127,47 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005, use
         enc5 = backbone.get_layer('conv5_block3_out').output
     else:
         enc1 = unet_block(x, 64, use_bn=use_bn)
-        pool1 = MaxPooling2D(pool_size=(2, 2))(enc1)
+        pool1 = layers.MaxPooling2D(pool_size=(2, 2))(enc1)
 
         enc2 = unet_block(pool1, 128, use_bn=use_bn, dropout_enc=dropout_enc)
-        pool2 = MaxPooling2D(pool_size=(2, 2))(enc2)
+        pool2 = layers.MaxPooling2D(pool_size=(2, 2))(enc2)
 
         enc3 = unet_block(pool2, 256, use_bn=use_bn)
-        pool3 = MaxPooling2D(pool_size=(2, 2))(enc3)
+        pool3 = layers.MaxPooling2D(pool_size=(2, 2))(enc3)
 
         enc4 = unet_block(pool3, 512, use_bn=use_bn, dropout_enc=dropout_enc)
-        pool4 = MaxPooling2D(pool_size=(2, 2))(enc4)
+        pool4 = layers.MaxPooling2D(pool_size=(2, 2))(enc4)
 
         # Bottleneck
         enc5 = unet_block(pool4, 1024, use_bn=use_bn, dropout_bn=dropout_bn)
 
     # Decoder
-    dec1 = Conv2DTranspose(512, kernel_size=3, strides=2, padding='same')(enc5) # padding same avoids cropping
-    dec1 = concatenate([dec1, enc4])    # skip connections
+    dec1 = layers.Conv2DTranspose(512, kernel_size=3, strides=2, padding='same')(enc5) # padding same avoids cropping
+    dec1 = layers.concatenate([dec1, enc4])    # skip connections
     dec1 = unet_block(dec1, 512, use_bn=use_bn)
 
-    dec2 = Conv2DTranspose(256, kernel_size=3, strides=2, padding='same')(dec1) # padding same avoids cropping
-    dec2 = concatenate([dec2, enc3])    # skip connections
+    dec2 = layers.Conv2DTranspose(256, kernel_size=3, strides=2, padding='same')(dec1) # padding same avoids cropping
+    dec2 = layers.concatenate([dec2, enc3])    # skip connections
     dec2 = unet_block(dec2, 256, use_bn=use_bn)
 
-    dec3 = Conv2DTranspose(128, kernel_size=3, strides=2, padding='same')(dec2) # padding same avoids cropping
-    dec3 = concatenate([dec3, enc2])    # skip connections
+    dec3 = layers.Conv2DTranspose(128, kernel_size=3, strides=2, padding='same')(dec2) # padding same avoids cropping
+    dec3 = layers.concatenate([dec3, enc2])    # skip connections
     dec3 = unet_block(dec3, 128, use_bn=use_bn)
 
-    dec4 = Conv2DTranspose(64, kernel_size=3, strides=2, padding='same')(dec3)
-    dec4 = concatenate([dec4, enc1])    # skip connections
-    dec4 = Cropping2D(cropping=padding)(dec4)   # Remove extra padding
+    dec4 = layers.Conv2DTranspose(64, kernel_size=3, strides=2, padding='same')(dec3)
+    dec4 = layers.concatenate([dec4, enc1])    # skip connections
+    dec4 = layers.Cropping2D(cropping=padding)(dec4)   # Remove extra padding
     dec4 = unet_block(dec4, 64, use_bn=use_bn)
 
     # Output layer
-    x = Conv2D(2, kernel_size=1)(dec4)
-    x = Softmax(axis=2)(x)      # softmax over elementID
-    output = Permute((3, 1, 2))(x)  # permute to match shape required by loss: (batch, 2, det, elem)
+    x = layers.Conv2D(2, kernel_size=1)(dec4)
+    x = layers.Softmax(axis=2)(x)      # softmax over elementID
+    output = layers.Permute((3, 1, 2))(x)  # permute to match shape required by loss: (batch, 2, det, elem)
 
     # Initialize model
     model = tf.keras.Model(inputs=input_layer, outputs=output)
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-    model.compile(optimizer=optimizer, loss=custom_loss, metrics=['accuracy'])
+    model.compile(optimizer=optimizer, loss=custom_loss_v2, metrics=['accuracy', regular_loss, overlap_loss, distance_loss])
 
     return model
 

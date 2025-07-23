@@ -7,7 +7,7 @@ python training_scripts/TrackFinder_unet.py \
  --batch_norm 1 \
  --dropout_bn 0.5 \
  --dropout_enc 0.4 \
- --backbone resnet50
+ --backbone None
 
 # python evaluate.py \
 #  data/processed_files/mc_events.root \
