@@ -1,0 +1,311 @@
+import ROOT
+import numpy as np
+from array import array
+import math
+
+
+def inject_tracks(
+    file1: str, 
+    file2: str, 
+    output_file: str, 
+    num_tracks: int, 
+    prob_mean: float, 
+    prob_width: float, 
+    propagation_model: str, 
+    gaussian_sigma: float, 
+    exp_decay_const: float,
+    clean_ratio: float, 
+) -> None:
+    if not (1 <= num_tracks <= 100):
+        raise ValueError("num_tracks must be between 1 and 100.")
+    if not (0 <= clean_ratio <= 1):
+        raise ValueError("clean_ratio must be between 0 and 1.")
+    if not (0 <= prob_mean <= 1):
+        raise ValueError("prob_mean must be between 0 and 1.")
+    if prob_width < 0:
+        raise ValueError("prob_width must be non-negative.")
+
+    f1 = ROOT.TFile.Open(file1, "READ")
+    f2 = ROOT.TFile.Open(file2, "READ")
+    tree1 = f1.Get("tree")
+    tree2 = f2.Get("tree")
+
+    fout = ROOT.TFile.Open(output_file, "RECREATE", "", ROOT.kLZMA)
+    fout.SetCompressionLevel(9)
+    output_tree = ROOT.TTree("tree", "Tree with injected tracks and preserved signal hit arrays")
+
+    # Event-level and hit-level branches
+    eventID = array('i', [0])
+    muID = ROOT.std.vector("int")()
+    elementID = ROOT.std.vector("int")()
+    detectorID = ROOT.std.vector("int")()
+    driftDistance = ROOT.std.vector("double")()
+    tdcTime = ROOT.std.vector("double")()
+    hitID = ROOT.std.vector("int")()
+    hitTrackID = ROOT.std.vector("int")()
+    gProcessID = ROOT.std.vector("int")()
+    gCharge = ROOT.std.vector("int")()
+    gTrackID = ROOT.std.vector("int")()
+    gpx = ROOT.std.vector("double")()
+    gpy = ROOT.std.vector("double")()
+    gpz = ROOT.std.vector("double")()
+    gvx = ROOT.std.vector("double")()
+    gvy = ROOT.std.vector("double")()
+    gvz = ROOT.std.vector("double")()
+
+    HitArray_mup = np.zeros(62, dtype=np.int32)
+    HitArray_mum = np.zeros(62, dtype=np.int32)
+
+    # Output tree branches
+    output_tree.Branch("eventID", eventID, "eventID/I")
+    output_tree.Branch("muID", muID)
+    output_tree.Branch("elementID", elementID)
+    output_tree.Branch("detectorID", detectorID)
+    output_tree.Branch("driftDistance", driftDistance)
+    output_tree.Branch("tdcTime", tdcTime)
+    output_tree.Branch("hitID", hitID)
+    output_tree.Branch("hitTrackID", hitTrackID)
+    output_tree.Branch("gProcessID", gProcessID)
+    output_tree.Branch("gTrackID", gTrackID)
+    output_tree.Branch("gCharge", gCharge)
+    output_tree.Branch("gpx", gpx)
+    output_tree.Branch("gpy", gpy)
+    output_tree.Branch("gpz", gpz)
+    output_tree.Branch("gvx", gvx)
+    output_tree.Branch("gvy", gvy)
+    output_tree.Branch("gvz", gvz)
+    output_tree.Branch("HitArray_mup", HitArray_mup, "HitArray_mup[62]/I")
+    output_tree.Branch("HitArray_mum", HitArray_mum, "HitArray_mum[62]/I")
+
+    # Bind input HitArray branches to NumPy buffers
+    HitArray_mup_input = np.zeros(62, dtype=np.int32)
+    HitArray_mum_input = np.zeros(62, dtype=np.int32)
+    tree1.SetBranchAddress("HitArray_mup", HitArray_mup_input)
+    tree1.SetBranchAddress("HitArray_mum", HitArray_mum_input)
+
+    num_events_tree1 = tree1.GetEntries()
+    num_events_tree2 = tree2.GetEntries()
+    tree2_index = 0
+
+    occupancies = []
+    event_ids = []
+
+    # Find number of total, messy, and clean events in output tree
+    num_messy_events = math.ceil(num_events_tree2 / num_tracks)
+    num_total_events = (
+        min(num_events_tree1, num_messy_events / (1 - clean_ratio)) 
+        if clean_ratio < 1 else num_events_tree1
+    )
+    num_clean_events = num_total_events * clean_ratio
+
+    clean_count = 0
+    messy_count = 0
+
+    for i in range(num_events_tree1):
+        # --- Handle whether event should be clean ---
+        num_tracks_event = num_tracks
+        remaining_clean_needed = num_clean_events - clean_count
+
+        if tree2_index >= num_events_tree2:
+            # Messy injection complete: check whether more clean events needed
+            if remaining_clean_needed <= 0:
+                break
+            clean_count += 1
+            num_tracks_event = 0
+
+        elif remaining_clean_needed > 0 and np.random.random() < clean_ratio:
+            # Event is clean
+            clean_count += 1
+            num_tracks_event = 0   # no injected tracks for this event
+        
+        else:
+            # Event is messy
+            messy_count += 1
+
+
+        # --- Original messy_gen implementation ---
+        tree1.GetEntry(i)
+
+        # NOTE: Seems redundant
+        # tree2.GetEntry(tree2_index)
+        # tree2_index += 1
+
+        # Reset
+        eventID[0] = tree1.eventID
+        muID.clear()
+        elementID.clear()
+        detectorID.clear()
+        driftDistance.clear()
+        tdcTime.clear()
+        hitID.clear()
+        hitTrackID.clear()
+        gProcessID.clear()
+        gCharge.clear()
+        gTrackID.clear()
+        gpx.clear()
+        gpy.clear()
+        gpz.clear()
+        gvx.clear()
+        gvy.clear()
+        gvz.clear()
+        HitArray_mup.fill(0)
+        HitArray_mum.fill(0)
+
+        # Preserve muID, gCharge, gTrackID (true signal)
+        muID.push_back(1)
+        muID.push_back(2)
+        gCharge.push_back(tree1.gCharge[0])
+        gCharge.push_back(tree1.gCharge[1])
+        gTrackID.push_back(tree1.gTrackID[0])
+        gTrackID.push_back(tree1.gTrackID[1])
+
+        for v in tree1.gpx: gpx.push_back(v)
+        for v in tree1.gpy: gpy.push_back(v)
+        for v in tree1.gpz: gpz.push_back(v)
+        for v in tree1.gvx: gvx.push_back(v)
+        for v in tree1.gvy: gvy.push_back(v)
+        for v in tree1.gvz: gvz.push_back(v)
+
+        for j in range(len(tree1.elementID)):
+            elementID.push_back(tree1.elementID[j])
+            detectorID.push_back(tree1.detectorID[j])
+            driftDistance.push_back(tree1.driftDistance[j])
+            tdcTime.push_back(tree1.tdcTime[j])
+            hitID.push_back(tree1.hitID[j])
+            hitTrackID.push_back(tree1.hitTrackID[j])
+            gProcessID.push_back(tree1.gProcessID[j])
+
+        for k in range(62):
+            HitArray_mup[k] = HitArray_mup_input[k]
+            HitArray_mum[k] = HitArray_mum_input[k]
+
+        current_max_hitID = max(tree1.hitID) if len(tree1.hitID) > 0 else 0
+        local_hitID_counter = current_max_hitID + 1
+        next_gTrackID = max(tree1.gTrackID) + 1 if len(tree1.gTrackID) > 0 else 3
+
+        for _ in range(num_tracks_event):
+            if tree2_index >= num_events_tree2:
+                break
+
+            tree2.GetEntry(tree2_index)
+            tree2_index += 1
+
+            this_gTrackID = next_gTrackID
+            next_gTrackID += 1
+            gTrackID.push_back(this_gTrackID)
+            gCharge.push_back(tree2.gCharge[0])
+            gpx.push_back(tree2.gpx[0])
+            gpy.push_back(tree2.gpy[0])
+            gpz.push_back(tree2.gpz[0])
+            gvx.push_back(tree2.gvx[0])
+            gvy.push_back(tree2.gvy[0])
+            gvz.push_back(tree2.gvz[0])
+
+            probability = np.clip(np.random.normal(prob_mean, prob_width), 0, 1)
+
+            for procID, elem, det, dist, tdc in zip(tree2.gProcessID, tree2.elementID, tree2.detectorID, tree2.driftDistance, tree2.tdcTime):
+
+                if propagation_model == "linear":
+                    weight = 1 - det / 100
+                elif propagation_model == "gaussian":
+                    weight = np.exp(-0.5 * ((det - 1) / gaussian_sigma) ** 2)
+                elif propagation_model == "exponential":
+                    weight = np.exp(-det / exp_decay_const)
+                else:
+                    raise ValueError(f"Unknown PROPAGATION_MODEL: {propagation_model}")
+
+                if np.random.random() < probability * weight:
+                    gProcessID.push_back(procID)
+                    elementID.push_back(elem)
+                    detectorID.push_back(det)
+                    driftDistance.push_back(dist)
+                    tdcTime.push_back(tdc)
+                    hitID.push_back(local_hitID_counter)
+                    hitTrackID.push_back(this_gTrackID)
+                    local_hitID_counter += 1
+            
+        total_hits_this_event = elementID.size()
+        occupancies.append(total_hits_this_event)
+        event_ids.append(tree1.eventID)
+
+        output_tree.Fill()
+
+    fout.Write()
+    fout.Close()
+    f1.Close()
+    f2.Close()
+
+    print(f'{clean_count} clean events, {messy_count} messy events generated.')
+
+    mean_occ = float(np.mean(occupancies))
+    median_occ = float(np.median(occupancies))
+    min_occ = min(occupancies)
+    max_occ = max(occupancies)
+    print(f"\n=== Occupancy summary over {len(occupancies)} events ===")
+    print(f"  • mean hits/event    = {mean_occ:.1f}")
+    print(f"  • median hits/event  = {median_occ:.1f}")
+    print(f"  • min/max hits/event = {min_occ}/{max_occ}")
+
+    idx_max = int(np.argmax(occupancies))
+    event_max = event_ids[idx_max]
+    hits_max = occupancies[idx_max]
+
+    idx_min = int(np.argmin(occupancies))
+    event_min = event_ids[idx_min]
+    hits_min = occupancies[idx_min]
+
+    pairs = sorted(zip(occupancies, event_ids), key=lambda x: x[0])
+    mid = len(pairs) // 2
+    if len(pairs) % 2 == 1:
+        hits_med, event_med = pairs[mid]
+    else:
+        hits_med, event_med = pairs[mid - 1]
+
+    print(f"\nEvent with MOST hits   : eventID = {event_max}, hits = {hits_max}")
+    print(f"Event with LEAST hits  : eventID = {event_min}, hits = {hits_min}")
+    print(f"Event with MEDIAN hits : eventID = {event_med}, hits = {hits_med}")
+
+    try:
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(6,4))
+        plt.hist(occupancies, bins=20, edgecolor='black')
+        plt.xlabel('Hits per event')
+        plt.ylabel('Number of events')
+        plt.title('Occupancy Distribution')
+        plt.tight_layout()
+        plt.show()
+    except ImportError:
+        print("matplotlib not installed")
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Inject background tracks into ROOT data while preserving hit arrays.")
+    parser.add_argument("file1", type=str, help="Path to the finder_training.root file (signal).")
+    parser.add_argument("file2", type=str, help="Path to the background file.")
+    parser.add_argument("--output", type=str, default="mc_events.root", help="Output ROOT file name.")
+    
+    # Detector efficiency probability
+    parser.add_argument("--num_tracks", type=int, default=5, help="Number of injected background tracks.")
+    parser.add_argument("--clean_ratio", type=float, default=0.0, help="Ratio of output events that have no injected tracks.")
+    parser.add_argument("--prob_mean", type=float, default=0.9, help="Probability Distribution Mean.")
+    parser.add_argument("--prob_width", type=float, default=0.1, help="Width of probability distribution for variance.")
+    
+    # Hit fall model: "linear", "gaussian", or "exponential"
+    parser.add_argument("--propagation_model", type=str, default="gaussian", help="Choose: ['linear', 'gaussian', or 'exponential'].")
+    parser.add_argument("--gaussian_sigma", type=float, default=10.0, help="Hyperparameter for Gaussian Decay.")
+    parser.add_argument("--exp_decay_const", type=float, default=15.0, help="Hyperparameter for Exponential Decay.")
+    args = parser.parse_args()
+
+    inject_tracks(
+        args.file1, 
+        args.file2, 
+        args.output, 
+        args.num_tracks, 
+        args.prob_mean, 
+        args.prob_width,
+        args.propagation_model,
+        args.gaussian_sigma,
+        args.exp_decay_const,
+        args.clean_ratio,
+    )

@@ -166,7 +166,7 @@ def train_model(root_file, output_model, learning_rate, epoch, batch_size, patie
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a TensorFlow model to predict hit arrays from event hits.")
     parser.add_argument("root_file", type=str, help="Path to the combined ROOT file.")
-    parser.add_argument("--output_model", type=str, default="models/track_finder_cbam.h5", help="Path to save the trained model.")
+    parser.add_argument("--output_model", type=str, default="models/track_finder_cbam.keras", help="Path to save the trained model.")
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
     parser.add_argument("--epoch", type=int, default=40, help="Training epoch count.")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size.")
