@@ -3,9 +3,9 @@ python data/separate.py data/raw_files/JPsi_Target_1K.root
 
 
 # --- 2. Merge two single-muon ROOT files ---
-MAX_OUTPUT_EVENTS=100000
+MAX_OUTPUT_EVENTS=1000000
 
-python data/combine.py data/raw_files/MUP_Dump_100K.root data/raw_files/MUM_Dump_100K.root \
+python data/combine.py data/raw_files/MUP_Dump_1M.root data/raw_files/MUM_Dump_1M.root \
  --output data/processed_files/single_muons.root \
  --max_output_events $MAX_OUTPUT_EVENTS
 

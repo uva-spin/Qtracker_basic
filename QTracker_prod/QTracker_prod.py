@@ -284,7 +284,6 @@ def write_predicted_root_file(output_file, input_file, rHitArray_mup, rHitArray_
     f_input.Close()
     print(f"Predicted data written to {output_file}, retaining all original data.")
 
-<<<<<<< HEAD
 
 def refine_hit_arrays(pred_mup, pred_mum, detectorIDs, elementIDs, softmax_mup, softmax_mum, k=1):
     N, NUM_DETECTORS = pred_mup.shape
@@ -424,89 +423,8 @@ def refine_hit_arrays(pred_mup, pred_mum, detectorIDs, elementIDs, softmax_mup, 
     print("\n[For all events]")
     print(f"mu+ hit (before refine): {pre_muplus_hits.sum()}   After refine: {post_muplus_hits.sum()}")
     print(f"mu- hit (before refine): {pre_muminus_hits.sum()}   After refine: {post_muminus_hits.sum()}")
-=======
-def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs):
-    """
-    Refines the HitArrays by replacing inferred elementIDs with the closest actual elementID
-    using the detectorID and elementID vectors. Returns 0 if no actual hits exist.
-    Optimized for speed.
-    """
-    def find_closest_actual_hits(
-        inferred_mup: int, 
-        inferred_mum: int, 
-        actual_elementIDs: np.ndarray
-    ) -> Tuple[int, int]:
-        """
-        Finds the closest actual hits to the inferred_mup and inferred_mum for a specific detector_id.
-        Returns 0 if no hits exist.
-        """
-
-        # Return 0 if no hits exist.
-        if len(actual_elementIDs) == 0:
-            return 0, 0
-
-        # Default to 0 if inferred element is 0 (no hits)
-        closest_elementID_mup = 0
-        closest_elementID_mum = 0
-
-        # Find the closest actual hit elementID using NumPy's vectorized operations
-        if inferred_mup > 0:
-            distances_mup = np.abs(actual_elementIDs - inferred_mup)
-            closest_elementID_mup = actual_elementIDs[np.argmin(distances_mup)]
-        if inferred_mum > 0:
-            distances_mum = np.abs(actual_elementIDs - inferred_mum)
-            closest_elementID_mum = actual_elementIDs[np.argmin(distances_mum)]
-
-        # If μ⁺ and μ⁻ both selected the same nonzero element ID, break the tie:
-        # Remove that ID from the list of candidates and reassign the track with the larger error to its next-closest hit
-        if closest_elementID_mup == closest_elementID_mum != 0:
-            actual_elementIDs = np.delete(actual_elementIDs, np.argmin(distances_mup))
-            if np.min(distances_mup) > np.min(distances_mum):
-                closest_elementID_mup = (
-                    0 if actual_elementIDs.size == 0
-                    else actual_elementIDs[np.argmin(np.abs(actual_elementIDs - inferred_mup))]
-                )
-            else:
-                closest_elementID_mum = (
-                    0 if actual_elementIDs.size == 0
-                    else actual_elementIDs[np.argmin(np.abs(actual_elementIDs - inferred_mum))]
-                )
-
-        return closest_elementID_mup, closest_elementID_mum
-
-
-    # Initialize refined arrays
-    refined_mup = np.zeros_like(hit_array_mup)
-    refined_mum = np.zeros_like(hit_array_mum)
-
-    num_events, num_detectors = hit_array_mup.shape
-
-    # Precompute detector IDs (1-based to match detector_id in the ROOT file)
-    detector_ids = np.arange(1, num_detectors + 1)
-
-    # Iterate over events
-    for event in range(num_events):
-        # Convert detectorIDs and elementIDs to NumPy arrays for faster processing
-        detectorIDs_event = np.array(detectorIDs[event], dtype=np.int32)
-        elementIDs_event = np.array(elementIDs[event], dtype=np.int32)
-
-        # Iterate over detectors
-        for detector in range(num_detectors):
-            # Get inferred elementIDs for mu+ and mu-
-            inferred_mup = hit_array_mup[event, detector]
-            inferred_mum = hit_array_mum[event, detector]
-
-            actual_elementIDs = elementIDs_event[detectorIDs_event == detector_ids[detector]]
-
-            # Find the closest actual hits
-            refined_mup[event, detector], refined_mum[event, detector] = find_closest_actual_hits(
-                inferred_mup, inferred_mum, actual_elementIDs
-            )
->>>>>>> 4485e104d958d5d57a4f78043a097a7e91eaa12e
 
     return refined_mup, refined_mum
-
-
 
 
 def write_hit_matrices_to_root(fout, hits_before, hits_after):
