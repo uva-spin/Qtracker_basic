@@ -2,7 +2,7 @@ import ROOT
 import argparse
 
 
-def skim_root_file(input_file, output_file, max_events):
+def skim_root_file(input_file, output_file, max_events, from_last=False):
     # Open input file
     fin = ROOT.TFile.Open(input_file, "READ")
     if not fin or fin.IsZombie():
@@ -23,7 +23,10 @@ def skim_root_file(input_file, output_file, max_events):
 
     # Copy entries
     n_entries = min(tree.GetEntries(), max_events)
-    for i in range(n_entries):
+    start = tree.GetEntries() - n_entries if from_last else 0
+    end = start + n_entries
+    print(start, end)
+    for i in range(start, end):
         tree.GetEntry(i)
         skimmed_tree.Fill()
 
@@ -40,6 +43,11 @@ if __name__ == "__main__":
     parser.add_argument("input_file", type=str, help="Input ROOT file")
     parser.add_argument("--output_file", type=str, default="skimmed_output.root", help="Output ROOT file")
     parser.add_argument("--max_events", type=int, default=2000, help="Max events to keep")
+    parser.add_argument("--from_last", type=int, default=0, help="Whether to skim from the last N events.")
 
     args = parser.parse_args()
-    skim_root_file(args.input_file, args.output_file, args.max_events)
+
+    if args.from_last:
+        from_last = bool(args.from_last)
+
+    skim_root_file(args.input_file, args.output_file, args.max_events, from_last)

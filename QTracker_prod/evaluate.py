@@ -43,7 +43,7 @@ def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
     plt.savefig(os.path.join(plot_dir, fname))
     plt.show()
 
-def evaluate_model(root_file, model_path):
+def evaluate_model(root_file, model_path, mode="val"):
     X, y_muPlus, y_muMinus = data_loader.load_data(root_file)
     if X is None:
         return
@@ -56,14 +56,16 @@ def evaluate_model(root_file, model_path):
     mask[6:12]   = False
     mask[54:62]  = False
 
-
-    (X_train, X_test,
-     y_train, y_test,
-     det_train, det_test,
-     elem_train, elem_test) = train_test_split(
-        X, y, detectorIDs, elementIDs,
-        test_size=0.2, random_state=42
-    )
+    if mode == "test":
+        X_test, y_test, det_test, elem_test = X, y, detectorIDs, elementIDs
+    else:
+        (X_train, X_test,
+        y_train, y_test,
+        det_train, det_test,
+        elem_train, elem_test) = train_test_split(
+            X, y, detectorIDs, elementIDs,
+            test_size=0.2, random_state=42
+        )
 
     custom_objects = {
         "custom_loss": custom_loss,
@@ -167,7 +169,8 @@ if __name__ == '__main__':
     )
     parser.add_argument("root_file",  type=str, help="Path to the combined ROOT file.")
     parser.add_argument("model_path", type=str, help="Path to the saved model file (.h5 or .keras).")
+    parser.add_argument("--mode", type=str, default="val", help="Evaluation mode: 'val' or 'test'.")
     args = parser.parse_args()
 
     print(f"\nResults for {args.model_path}...")
-    evaluate_model(args.root_file, args.model_path)
+    evaluate_model(args.root_file, args.model_path, args.mode)

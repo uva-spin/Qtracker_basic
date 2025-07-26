@@ -13,7 +13,7 @@ PROPAGATION_MODEL = "gaussian"
 GAUSSIAN_SIGMA = 60.0
 EXP_DECAY_CONST = 15.0
 
-def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
+def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width, test_mode=False):
     if not (1 <= num_tracks <= 100):
         raise ValueError("num_tracks must be between 1 and 100.")
     if not (0 <= prob_mean <= 1):
@@ -143,7 +143,8 @@ def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
         local_hitID_counter = current_max_hitID + 1
         next_trackID = max(tree1.gTrackID) + 1 if len(tree1.gTrackID) > 0 else 3
 
-        random_num_tracks = random.randint(0, num_tracks)
+        lower_bound = num_tracks - 5 if test_mode else 0
+        random_num_tracks = random.randint(lower_bound, num_tracks)
 
         for _ in range(random_num_tracks):
             if tree2_index >= num_events_tree2:
@@ -200,6 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("file1", type=str, help="Path to the finder_training.root file (signal).")
     parser.add_argument("file2", type=str, help="Path to the background file.")
     parser.add_argument("--output", type=str, default="mc_events.root", help="Output ROOT file name.")
+    parser.add_argument("--test_mode", type=int, default=0, help="Test mode (0 or 1). If 1, uses higher number of tracks and events for testing.")
     args = parser.parse_args()
 
-    inject_tracks(args.file1, args.file2, args.output, NUM_TRACKS, PROB_MEAN, PROB_WIDTH)
+    inject_tracks(args.file1, args.file2, args.output, NUM_TRACKS, PROB_MEAN, PROB_WIDTH, bool(args.test_mode))
