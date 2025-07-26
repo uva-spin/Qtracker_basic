@@ -100,7 +100,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser('Evaluate momentum models using residuals')
     parser.add_argument('input_file', type=str, help='Input ROOT file')
-    parser.add_argument('--output', type=str, default='mom_res_stats.txt', help='Output file name for storing residual stats')
+    parser.add_argument('--output', type=str, default='results/mom_res_stats.txt', help='Output file name for storing residual stats')
     args = parser.parse_args()
 
     momentum_residuals(args.input_file, args.output)

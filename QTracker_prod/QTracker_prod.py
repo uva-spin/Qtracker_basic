@@ -9,6 +9,8 @@ from typing import Tuple
 from tensorflow.keras.losses import MeanSquaredError
 from scipy.optimize import linear_sum_assignment
 
+from refine import refine_hit_arrays, refine_hit_arrays_v3
+
 # USE_CHI2 must be False the first time the script is ran to obtain output for training the quality metric
 USE_CHI2 = False
 USE_DECLUSTERING = False  # Toggle to enable/disable declustering
@@ -16,7 +18,7 @@ USE_SMAXMATRIX = False  # Toggle to enable/disable write softmax matrix
 
 # Paths to models
 MODEL_PATH_TRACK = "./models/track_finder_Dump_100K.h5"
-MODEL_PATH_MOMENTUM_MUP = "./models/mom_mu_Dump_100Kp.h5"
+MODEL_PATH_MOMENTUM_MUP = "./models/mom_mup_Dump_100K.h5"
 MODEL_PATH_MOMENTUM_MUM = "./models/mom_mum_Dump_100K.h5"
 MODEL_PATH_METRIC = "./models/chi2_predictor_model.h5"
 
@@ -283,148 +285,6 @@ def write_predicted_root_file(output_file, input_file, rHitArray_mup, rHitArray_
     fout.Close()
     f_input.Close()
     print(f"Predicted data written to {output_file}, retaining all original data.")
-
-
-def refine_hit_arrays(pred_mup, pred_mum, detectorIDs, elementIDs, softmax_mup, softmax_mum, k=1):
-    N, NUM_DETECTORS = pred_mup.shape
-
-    refined_mup = np.zeros_like(pred_mup, dtype=np.int32)
-    refined_mum = np.zeros_like(pred_mum, dtype=np.int32)
-
-    # Masking unused detectors (index 6~11, 54~61)
-    mask = np.ones(NUM_DETECTORS, dtype=bool)
-    mask[6:12] = False
-    mask[54:62] = False
-
-    # Splitting detectors into multiple stations based on their hit behavior
-    region_map = {}
-    for d in range(NUM_DETECTORS):
-        if not mask[d]:
-            region_map[d] = 'masked'
-        elif 0 <= d <= 5:
-            region_map[d] = 'st1'
-        elif 12 <= d <= 17:
-            region_map[d] = 'st2'
-        elif 18 <= d <= 24:
-            region_map[d] = 'st3'
-        elif 25 <= d <= 31:
-            region_map[d] = 'st4'
-        elif 32 <= d <= 33:
-            region_map[d] = 'st5'
-        elif 36 <= d <= 39:
-            region_map[d] = 'st6'
-        elif 44 <= d <= 45:
-            region_map[d] = 'st7'
-        elif 46 <= d <= 53:
-            region_map[d] = 'st8'
-        elif d in [34, 40, 42]:  # Special (mu+)
-            region_map[d] = 'muplus'
-        elif d in [35, 41, 43]:  # Special (mu-)
-            region_map[d] = 'muminus'
-        else:
-            region_map[d] = 'etc'
-
-    region2dets = {}
-    for d in range(NUM_DETECTORS):
-        region = region_map[d]
-        region2dets.setdefault(region, []).append(d)
-
-    # Refine
-    for i in range(N):
-        det_ids_evt = np.array(detectorIDs[i], dtype=np.int32)
-        elem_ids_evt = np.array(elementIDs[i], dtype=np.int32)
-
-        # Priority given based on total softmax over each station
-        region_assign_order = {}
-        for region, det_list in region2dets.items():
-            if region in ['masked', 'muplus', 'muminus']:
-                continue
-            region_softmax_plus = np.sum(softmax_mup[i, det_list, :])
-            region_softmax_minus = np.sum(softmax_mum[i, det_list, :])
-            if region_softmax_plus >= region_softmax_minus:
-                region_assign_order[region] = ['plus', 'minus']
-            else:
-                region_assign_order[region] = ['minus', 'plus']
-
-        for d in range(NUM_DETECTORS):
-            region = region_map[d]
-            if region == 'masked':
-                refined_mup[i, d] = 0
-                refined_mum[i, d] = 0
-                continue
-
-            # Special detectors treated separately
-            if region == 'muplus':
-                pred = pred_mup[i, d]
-                if pred == 0:
-                    refined_mup[i, d] = 0
-                else:
-                    actual_elems = elem_ids_evt[det_ids_evt == (d+1)]
-                    candidates = [e for e in actual_elems if abs(e - pred) <= k]
-                    if len(candidates) == 0:
-                        refined_mup[i, d] = 0
-                    else:
-                        best = candidates[np.argmin(np.abs(np.array(candidates) - pred))]
-                        refined_mup[i, d] = best
-                refined_mum[i, d] = 0
-                continue
-
-            if region == 'muminus':
-                pred = pred_mum[i, d]
-                if pred == 0:
-                    refined_mum[i, d] = 0
-                else:
-                    actual_elems = elem_ids_evt[det_ids_evt == (d+1)]
-                    candidates = [e for e in actual_elems if abs(e - pred) <= k]
-                    if len(candidates) == 0:
-                        refined_mum[i, d] = 0
-                    else:
-                        best = candidates[np.argmin(np.abs(np.array(candidates) - pred))]
-                        refined_mum[i, d] = best
-                refined_mup[i, d] = 0
-                continue
-
-            # Normal region (station)
-            assign_order = region_assign_order.get(region, ['plus', 'minus'])
-            assigned_elem = set()
-            pred_elem = {'plus': pred_mup[i, d], 'minus': pred_mum[i, d]}
-            for track in assign_order:
-                pred = pred_elem[track]
-                if pred == 0:
-                    if track == 'plus': refined_mup[i, d] = 0
-                    else: refined_mum[i, d] = 0
-                    continue
-                actual_elems = elem_ids_evt[det_ids_evt == (d+1)]
-                candidates = [e for e in actual_elems if e not in assigned_elem and abs(e - pred) <= k]
-                if len(candidates) == 0:
-                    if track == 'plus': refined_mup[i, d] = 0
-                    else: refined_mum[i, d] = 0
-                    continue
-                distances = np.abs(np.array(candidates) - pred)
-                best = candidates[np.argmin(distances)]
-                assigned_elem.add(best)
-                if track == 'plus': refined_mup[i, d] = best
-                else: refined_mum[i, d] = best
-
-    # Some statistics for K value, number of hits before and after refinement
-    pre_muplus_hits = (pred_mup != 0).sum(axis=0)
-    pre_muminus_hits = (pred_mum != 0).sum(axis=0)
-    post_muplus_hits = (refined_mup != 0).sum(axis=0)
-    post_muminus_hits = (refined_mum != 0).sum(axis=0)
-
-    print(f"\n[k={k}] refine before/after mu+/mu- hit (event):")
-    print(f"{'Det':>4} | {'pred_mu+':>9} | {'refined_mu+':>11} | {'pred_mu-':>9} | {'refined_mu-':>11}")
-    print("-"*54)
-    for d in range(NUM_DETECTORS):
-        if not mask[d]:
-            continue
-        print(f"{d+1:4d} | {pre_muplus_hits[d]:9d} | {post_muplus_hits[d]:11d} | {pre_muminus_hits[d]:9d} | {post_muminus_hits[d]:11d}")
-
-    print("\n[For all events]")
-    print(f"mu+ hit (before refine): {pre_muplus_hits.sum()}   After refine: {post_muplus_hits.sum()}")
-    print(f"mu- hit (before refine): {pre_muminus_hits.sum()}   After refine: {post_muminus_hits.sum()}")
-
-    return refined_mup, refined_mum
 
 
 def write_hit_matrices_to_root(fout, hits_before, hits_after):

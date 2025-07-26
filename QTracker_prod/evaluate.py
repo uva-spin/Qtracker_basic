@@ -9,6 +9,7 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+import pandas as pd
 
 # core TrackFinder loaders / custom loss
 from training_scripts import data_loader
@@ -17,12 +18,13 @@ from training_scripts.TrackFinder_attention import (
     ChannelAvgPool, ChannelMaxPool, SpatialAvgPool, SpatialMaxPool
 )
 import QTracker_prod
+from refine import refine_hit_arrays, refine_hit_arrays_v3
 
 def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
-    mean_p  = np.nanmean(res_plus, axis=0)
-    std_p   = np.nanstd(res_plus, axis=0)
-    mean_m  = np.nanmean(res_minus, axis=0)
-    std_m   = np.nanstd(res_minus, axis=0)
+    mean_p  = np.nanmean(np.abs(res_plus), axis=0)
+    std_p   = np.nanstd(np.abs(res_plus), axis=0)
+    mean_m  = np.nanmean(np.abs(res_minus), axis=0)
+    std_m   = np.nanstd(np.abs(res_minus), axis=0)
 
     plt.figure(figsize=(10, 5))
     plt.errorbar(det_ids, mean_p, yerr=std_p, marker='o', label='μ+ mean±σ')
@@ -94,61 +96,57 @@ def evaluate_model(root_file, model_path):
     y_p_true = y_test[:,0,:].astype(np.int32)
     y_m_true = y_test[:,1,:].astype(np.int32)
 
-    raw_p_res = y_p_raw  - y_p_true
-    raw_m_res = y_m_raw  - y_m_true
+    raw_p_res = y_p_raw - y_p_true
+    raw_m_res = y_m_raw - y_m_true
 
     print("\n--- Raw Residuals (Before Refinement, all events) ---")
     print("Det |  μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
     for det in np.where(mask)[0]:
-        m_p, s_p = np.mean(np.abs(raw_p_res[:,det])),  np.std(np.abs(raw_p_res[:,det]))
-        m_m, s_m = np.mean(np.abs(raw_m_res[:,det])),  np.std(np.abs(raw_m_res[:,det]))
+        m_p, s_p = np.mean(np.abs(raw_p_res[:,det])), np.std(np.abs(raw_p_res[:,det]))
+        m_m, s_m = np.mean(np.abs(raw_m_res[:,det])), np.std(np.abs(raw_m_res[:,det]))
         print(f"{det+1:3d} | {m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
+
+    # Inspect non-zero residuals
+    big_raw, big_true = [], []
+    for i, res in enumerate(np.abs(raw_p_res[:,0])):
+        if res > 0:
+            big_raw.append(y_p_raw[i,0])
+            big_true.append(y_p_true[i,0])
+    
+    df = pd.DataFrame({
+        'Raw μ+ Values': big_raw,
+        'True μ+ Values': big_true
+    })
+    print(f'\n{df.head(20)}')
 
     dets_used = (np.where(mask)[0] + 1)
     plot_residuals(dets_used, raw_p_res[:,mask], raw_m_res[:,mask], model_path, 'raw')
 
     acc_p = np.mean(np.abs(raw_p_res) <= 2)
     acc_m = np.mean(np.abs(raw_m_res) <= 2)
-    print(f"\nRaw μ+ accuracy: {acc_p:.4f}")
-    print(f"Raw μ- accuracy: {acc_m:.4f}")
+    print(f"\nRaw μ+ distance-based accuracy: {acc_p:.4f}")
+    print(f"Raw μ- distance-based accuracy: {acc_m:.4f}")
 
-    ref_p, ref_m = QTracker_prod.refine_hit_arrays(
-        y_p_raw, y_m_raw, det_test, elem_test, softmax_mup, softmax_mum
+    ref_p, ref_m = refine_hit_arrays_v3(
+        y_p_raw, y_m_raw, det_test, elem_test, softmax_mup, softmax_mum, prob_threshold=0.5,
     )
     ref_p_res = ref_p - y_p_true
     ref_m_res = ref_m - y_m_true
 
-    print("\n--- Refined Residuals (After Refinement) ---")
+    print("\n--- Refined Residuals (After Refinement, all events) ---")
     print("Det |  μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
     for det in np.where(mask)[0]:
-        mask_plus  = ref_p[:,det] != 0
-        mask_minus = ref_m[:,det] != 0
-
-        m_p = np.nan
-        s_p = np.nan
-        m_m = np.nan
-        s_m = np.nan
-
-        if np.any(mask_plus):
-            m_p = (ref_p_res[:,det][mask_plus]).mean()
-            s_p = (ref_p_res[:,det][mask_plus]).std()
-        if np.any(mask_minus):
-            m_m = (ref_m_res[:,det][mask_minus]).mean()
-            s_m = (ref_m_res[:,det][mask_minus]).std()
-
+        m_p, s_p = np.mean(np.abs(ref_p_res[:,det])),  np.std(np.abs(ref_p_res[:,det]))
+        m_m, s_m = np.mean(np.abs(ref_m_res[:,det])),  np.std(np.abs(ref_m_res[:,det]))
         print(f"{det+1:3d} | {m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
+
+    dets_used = (np.where(mask)[0] + 1)
+    plot_residuals(dets_used, ref_p_res[:,mask], ref_m_res[:,mask], model_path, 'refined')
 
     acc_p = np.mean(np.abs(ref_p_res) <= 2)
     acc_m = np.mean(np.abs(ref_m_res) <= 2)
-    print(f"\nRefined μ+ accuracy: {acc_p:.4f}")
-    print(f"Refined μ- accuracy: {acc_m:.4f}")
-
-    plot_residuals(
-        dets_used,
-        np.where(ref_p[:,mask]!=0, ref_p_res[:,mask], np.nan),
-        np.where(ref_m[:,mask]!=0, ref_m_res[:,mask], np.nan),
-        model_path, 'refined'
-    )
+    print(f"\nRefined μ+ distance-based accuracy: {acc_p:.4f}")
+    print(f"Refined μ- distance-based accuracy: {acc_m:.4f}")
 
     print("\n--- Raw Absolute Residuals (Before Refinement) ---")
     print("μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
@@ -156,7 +154,7 @@ def evaluate_model(root_file, model_path):
     m_m, s_m = np.mean(np.abs(raw_m_res)),  np.std(np.abs(raw_m_res))
     print(f"{m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
 
-    print("\n--- Refined Absolute Residuals (Before Refinement) ---")
+    print("\n--- Refined Absolute Residuals (After Refinement) ---")
     print("μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
     m_p, s_p = np.mean(np.abs(ref_p_res)),  np.std(np.abs(ref_p_res))
     m_m, s_m = np.mean(np.abs(ref_m_res)),  np.std(np.abs(ref_m_res))
