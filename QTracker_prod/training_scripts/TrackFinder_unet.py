@@ -12,13 +12,7 @@ from tensorflow.keras.applications import ResNet50
 from tensorflow.keras import layers
 
 from data_loader import load_data
-from losses import (
-    custom_loss, 
-    custom_loss_v2, 
-    regular_loss, 
-    overlap_loss, 
-    distance_loss
-)
+from losses import custom_loss
 
 # Ensure the models directory exists
 os.makedirs("models", exist_ok=True)
@@ -155,8 +149,8 @@ def train_model(root_file, output_model, learning_rate=0.00005, patience=5, use_
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     model.compile(
         optimizer=optimizer, 
-        loss=custom_loss_v2, 
-        metrics=['accuracy', regular_loss, overlap_loss, distance_loss]
+        loss=custom_loss, 
+        metrics=['accuracy']
     )
     
     history = model.fit(X_train, y_train, epochs=40, batch_size=32, validation_data=(X_test, y_test), callbacks=[lr_scheduler, early_stopping])
