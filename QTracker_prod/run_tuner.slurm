@@ -8,6 +8,7 @@
 #SBATCH -o Slurm_Files/tuner.out
 #SBATCH -e Slurm_Files/tuner.err
 #SBATCH --mem=256000
+#SBATCH --export=CODEDIR
 
 module purge
 
