@@ -1,3 +1,5 @@
+""" Custom U-Net for particle track reconstruction """
+
 import os
 import ROOT
 import numpy as np
@@ -13,8 +15,8 @@ from tensorflow.keras import layers
 from data_loader import load_data
 from losses import custom_loss
 
-# Ensure the models directory exists
-os.makedirs("models", exist_ok=True)
+# Ensure the checkpoints directory exists
+os.makedirs("checkpoints", exist_ok=True)
 
 
 def unet_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
@@ -178,7 +180,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a TensorFlow model to predict hit arrays from event hits.")
     parser.add_argument("train_root_file", type=str, help="Path to the train ROOT file.")
     parser.add_argument("val_root_file", type=str, help="Path to the validation ROOT file.")
-    parser.add_argument("--output_model", type=str, default="models/track_finder.h5", help="Path to save the trained model.")
+    parser.add_argument("--output_model", type=str, default="checkpoints/track_finder.h5", help="Path to save the trained model.")
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
     parser.add_argument("--patience", type=int, default=5, help="Patience for EarlyStopping.")
     parser.add_argument("--batch_norm", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")

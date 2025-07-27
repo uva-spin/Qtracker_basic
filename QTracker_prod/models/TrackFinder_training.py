@@ -6,8 +6,8 @@ import argparse
 from tensorflow.keras import regularizers
 from sklearn.model_selection import train_test_split
 
-# Ensure the models directory exists
-os.makedirs("models", exist_ok=True)
+# Ensure the checkpoints directory exists
+os.makedirs("checkpoints", exist_ok=True)
 
 def load_data(root_file):
     """Loads detector hits and hit arrays from ROOT file and converts them into a binary hit matrix."""
@@ -144,7 +144,7 @@ def train_model(root_file, output_model, learning_rate=0.00005):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a TensorFlow model to predict hit arrays from event hits.")
     parser.add_argument("root_file", type=str, help="Path to the combined ROOT file.")
-    parser.add_argument("--output_model", type=str, default="models/track_finder.h5", help="Path to save the trained model.")
+    parser.add_argument("--output_model", type=str, default="checkpoints/track_finder.h5", help="Path to save the trained model.")
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
     args = parser.parse_args()
 

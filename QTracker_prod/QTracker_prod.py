@@ -16,11 +16,11 @@ USE_CHI2 = False
 USE_DECLUSTERING = False  # Toggle to enable/disable declustering
 USE_SMAXMATRIX = False  # Toggle to enable/disable write softmax matrix
 
-# Paths to models
-MODEL_PATH_TRACK = "./models/track_finder_Dump_100K.h5"
-MODEL_PATH_MOMENTUM_MUP = "./models/mom_mup_Dump_100K.h5"
-MODEL_PATH_MOMENTUM_MUM = "./models/mom_mum_Dump_100K.h5"
-MODEL_PATH_METRIC = "./models/chi2_predictor_model.h5"
+# Paths to model checkpoints
+MODEL_PATH_TRACK = "./checkpoints/track_finder_Dump_100K.h5"
+MODEL_PATH_MOMENTUM_MUP = "./checkpoints/mom_mup_Dump_100K.h5"
+MODEL_PATH_MOMENTUM_MUM = "./checkpoints/mom_mum_Dump_100K.h5"
+MODEL_PATH_METRIC = "./checkpoints/chi2_predictor_model.h5"
 
 # Number of detectors and element IDs
 NUM_DETECTORS = 62

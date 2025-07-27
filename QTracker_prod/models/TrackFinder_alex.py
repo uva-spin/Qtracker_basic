@@ -6,8 +6,8 @@ import argparse
 from tensorflow.keras import regularizers
 from sklearn.model_selection import train_test_split
 
-# Ensure the models directory exists
-os.makedirs("models", exist_ok=True)
+# Ensure the checkpoints directory exists
+os.makedirs("checkpoints", exist_ok=True)
 
 def load_data(root_file):
     f = ROOT.TFile.Open(root_file, "READ")
@@ -62,74 +62,53 @@ def custom_loss(y_true, y_pred):
 
     return tf.reduce_mean(loss_mup + loss_mum + 0.1 * overlap_penalty)
 
-def crop_to_match(skip, up):
-    def crop(inputs):
-        skip_tensor, up_tensor = inputs
-        sh, sw = tf.shape(skip_tensor)[1], tf.shape(skip_tensor)[2]
-        uh, uw = tf.shape(up_tensor)[1], tf.shape(up_tensor)[2]
-        crop_h = sh - uh
-        crop_w = sw - uw
-        crop_top = crop_h // 2
-        crop_bottom = crop_h - crop_top
-        crop_left = crop_w // 2
-        crop_right = crop_w - crop_left
-        return skip_tensor[:, crop_top:sh - crop_bottom, crop_left:sw - crop_right, :]
-    return tf.keras.layers.Lambda(crop)([skip, up])
-
-
 
 def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005):
-    inputs = tf.keras.Input(shape=(num_detectors, num_elementIDs, 1))  # (62, 201, 1)
+    input_layer = tf.keras.layers.Input(shape=(num_detectors, num_elementIDs, 1))
 
-    # Encoder
-    c1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(inputs)
-    p1 = tf.keras.layers.MaxPooling2D((2, 2))(c1)
+    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same')(input_layer)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Activation('relu')(x)
+    x = tf.keras.layers.MaxPooling2D((2, 2))(x)
 
-    c2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(p1)
-    p2 = tf.keras.layers.MaxPooling2D((2, 2))(c2)
+    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same')(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Activation('relu')(x)
+    x = tf.keras.layers.MaxPooling2D((2, 2))(x)
 
-    c3 = tf.keras.layers.Conv2D(256, (3, 3), activation='relu', padding='same')(p2)
-    p3 = tf.keras.layers.MaxPooling2D((2, 2))(c3)
+    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same')(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Activation('relu')(x)
+    x = tf.keras.layers.MaxPooling2D((2, 2))(x)
 
-    c4 = tf.keras.layers.Conv2D(512, (3, 3), activation='relu', padding='same')(p3)
-    p4 = tf.keras.layers.MaxPooling2D((2, 2))(c4)
+    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same')(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Activation('relu')(x)
 
-    b = tf.keras.layers.Conv2D(1024, (3, 3), activation='relu', padding='same')(p4)
+    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same')(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Activation('relu')(x)
 
-    # Decoder
-    u4 = tf.keras.layers.Conv2DTranspose(512, (2, 2), strides=(2, 2), padding='same')(b)
-    c4_cropped = crop_to_match(c4, u4)
-    u4 = tf.keras.layers.concatenate([u4, c4_cropped])
-
-    u3 = tf.keras.layers.Conv2DTranspose(256, (2, 2), strides=(2, 2), padding='same')(u4)
-    c3_cropped = crop_to_match(c3, u3)
-    u3 = tf.keras.layers.concatenate([u3, c3_cropped])
-
-    u2 = tf.keras.layers.Conv2DTranspose(128, (2, 2), strides=(2, 2), padding='same')(u3)
-    c2_cropped = crop_to_match(c2, u2)
-    u2 = tf.keras.layers.concatenate([u2, c2_cropped])
-
-    u1 = tf.keras.layers.Conv2DTranspose(64, (2, 2), strides=(2, 2), padding='same')(u2)
-    c1_cropped = crop_to_match(c1, u1)
-    u1 = tf.keras.layers.concatenate([u1, c1_cropped])
-
-
-    x = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(u1)
-
-    # Flatten and output per track
     x = tf.keras.layers.Flatten()(x)
     x = tf.keras.layers.Dense(4096, activation='relu')(x)
-    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
     x = tf.keras.layers.Dense(2048, activation='relu')(x)
-    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
+    x = tf.keras.layers.Dense(1024, activation='relu')(x)
+    x = tf.keras.layers.Dense(512, activation='relu')(x)
+    x = tf.keras.layers.Dense(256, activation='relu')(x)
+    x = tf.keras.layers.Dense(128, activation='relu')(x)
+
+    # Output layer: flattened probability vector for 2 tracks
     x = tf.keras.layers.Dense(2 * num_detectors * num_elementIDs, activation='softmax')(x)
     output = tf.keras.layers.Reshape((2, num_detectors, num_elementIDs))(x)
 
-    model = tf.keras.Model(inputs=inputs, outputs=output)
+    model = tf.keras.Model(inputs=input_layer, outputs=output)
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     model.compile(optimizer=optimizer, loss=custom_loss, metrics=['accuracy'])
 
     return model
+
 
 
 def train_model(root_file, output_model, learning_rate=0.00005):
@@ -142,7 +121,7 @@ def train_model(root_file, output_model, learning_rate=0.00005):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     model = build_model(learning_rate=learning_rate)
-    model.fit(X_train, y_train, epochs=40, batch_size=1, validation_data=(X_test, y_test))
+    model.fit(X_train, y_train, epochs=40, batch_size=32, validation_data=(X_test, y_test))
 
     model.save(output_model)
     print(f"Model saved to {output_model}")
@@ -151,7 +130,7 @@ def train_model(root_file, output_model, learning_rate=0.00005):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a TensorFlow model to predict hit arrays from event hits.")
     parser.add_argument("root_file", type=str, help="Path to the combined ROOT file.")
-    parser.add_argument("--output_model", type=str, default="models/track_finder.h5", help="Path to save the trained model.")
+    parser.add_argument("--output_model", type=str, default="checkpoints/track_finder.h5", help="Path to save the trained model.")
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
     args = parser.parse_args()
 

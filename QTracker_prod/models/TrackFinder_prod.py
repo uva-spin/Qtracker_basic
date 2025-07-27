@@ -6,8 +6,8 @@ import argparse
 from tensorflow.keras import regularizers
 from sklearn.model_selection import train_test_split
 
-# Ensure the models directory exists
-os.makedirs("models", exist_ok=True)
+# Ensure the checkpoints directory exists
+os.makedirs("checkpoints", exist_ok=True)
 
 def load_data(root_file):
     f = ROOT.TFile.Open(root_file, "READ")
@@ -66,49 +66,52 @@ def custom_loss(y_true, y_pred):
 def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005):
     input_layer = tf.keras.layers.Input(shape=(num_detectors, num_elementIDs, 1))
 
-    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same')(input_layer)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Activation('relu')(x)
-    x = tf.keras.layers.MaxPooling2D((2, 2))(x)
+    # Block 1
+    x = tf.keras.layers.Conv2D(64, (3, 3), padding='same', activation='relu')(input_layer)
+    x = tf.keras.layers.Conv2D(64, (3, 3), padding='same', activation='relu')(x)
+    x = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(x)
 
-    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same')(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Activation('relu')(x)
-    x = tf.keras.layers.MaxPooling2D((2, 2))(x)
+    # Block 2
+    x = tf.keras.layers.Conv2D(128, (3, 3), padding='same', activation='relu')(x)
+    x = tf.keras.layers.Conv2D(128, (3, 3), padding='same', activation='relu')(x)
+    x = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(x)
 
-    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same')(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Activation('relu')(x)
-    x = tf.keras.layers.MaxPooling2D((2, 2))(x)
+    # Block 3
+    x = tf.keras.layers.Conv2D(256, (3, 3), padding='same', activation='relu')(x)
+    x = tf.keras.layers.Conv2D(256, (3, 3), padding='same', activation='relu')(x)
+    x = tf.keras.layers.Conv2D(256, (3, 3), padding='same', activation='relu')(x)
+    x = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(x)
 
-    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same')(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Activation('relu')(x)
+    # Block 4
+    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same', activation='relu')(x)
+    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same', activation='relu')(x)
+    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same', activation='relu')(x)
+    x = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(x)
 
-    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same')(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Activation('relu')(x)
+    # Block 5
+    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same', activation='relu')(x)
+    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same', activation='relu')(x)
+    x = tf.keras.layers.Conv2D(512, (3, 3), padding='same', activation='relu')(x)
+    x = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(x)
 
+    # Flatten and Fully Connected
     x = tf.keras.layers.Flatten()(x)
     x = tf.keras.layers.Dense(4096, activation='relu')(x)
-    x = tf.keras.layers.Dropout(0.2)(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
     x = tf.keras.layers.Dense(2048, activation='relu')(x)
-    x = tf.keras.layers.Dropout(0.2)(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
     x = tf.keras.layers.Dense(1024, activation='relu')(x)
-    x = tf.keras.layers.Dense(512, activation='relu')(x)
-    x = tf.keras.layers.Dense(256, activation='relu')(x)
-    x = tf.keras.layers.Dense(128, activation='relu')(x)
 
-    # Output layer: flattened probability vector for 2 tracks
+    # Output layer
     x = tf.keras.layers.Dense(2 * num_detectors * num_elementIDs, activation='softmax')(x)
     output = tf.keras.layers.Reshape((2, num_detectors, num_elementIDs))(x)
 
     model = tf.keras.Model(inputs=input_layer, outputs=output)
+
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     model.compile(optimizer=optimizer, loss=custom_loss, metrics=['accuracy'])
 
     return model
-
 
 
 def train_model(root_file, output_model, learning_rate=0.00005):
@@ -130,9 +133,8 @@ def train_model(root_file, output_model, learning_rate=0.00005):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a TensorFlow model to predict hit arrays from event hits.")
     parser.add_argument("root_file", type=str, help="Path to the combined ROOT file.")
-    parser.add_argument("--output_model", type=str, default="models/track_finder.h5", help="Path to save the trained model.")
+    parser.add_argument("--output_model", type=str, default="checkpoints/track_finder.h5", help="Path to save the trained model.")
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
     args = parser.parse_args()
 
     train_model(args.root_file, args.output_model, args.learning_rate)
-    
