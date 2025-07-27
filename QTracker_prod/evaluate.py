@@ -43,29 +43,18 @@ def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
     plt.savefig(os.path.join(plot_dir, fname))
     plt.show()
 
-def evaluate_model(root_file, model_path, mode="val"):
-    X, y_muPlus, y_muMinus = data_loader.load_data(root_file)
+def evaluate_model(root_file, model_path):
+    X_test, y_muPlus_test, y_muMinus_test = data_loader.load_data(root_file)
     if X is None:
         return
 
-    y = np.stack([y_muPlus, y_muMinus], axis=1)
-    detectorIDs, elementIDs, _, _, _ = QTracker_prod.load_detector_element_data(root_file)
+    y_test = np.stack([y_muPlus_test, y_muMinus_test], axis=1)
+    det_test, elem_test, _, _, _ = QTracker_prod.load_detector_element_data(root_file)
     N = QTracker_prod.NUM_DETECTORS
 
     mask = np.ones(62, dtype=bool)
     mask[6:12]   = False
     mask[54:62]  = False
-
-    if mode == "test":
-        X_test, y_test, det_test, elem_test = X, y, detectorIDs, elementIDs
-    else:
-        (X_train, X_test,
-        y_train, y_test,
-        det_train, det_test,
-        elem_train, elem_test) = train_test_split(
-            X, y, detectorIDs, elementIDs,
-            test_size=0.2, random_state=42
-        )
 
     custom_objects = {
         "custom_loss": custom_loss,
@@ -124,13 +113,18 @@ def evaluate_model(root_file, model_path, mode="val"):
     dets_used = (np.where(mask)[0] + 1)
     plot_residuals(dets_used, raw_p_res[:,mask], raw_m_res[:,mask], model_path, 'raw')
 
+    acc_p = np.mean(np.abs(raw_p_res) == 0)
+    acc_m = np.mean(np.abs(raw_m_res) == 0)
+    print(f"\nRaw μ+ accuracy: {acc_p:.4f}")
+    print(f"Raw μ- accuracy: {acc_m:.4f}")
+
     acc_p = np.mean(np.abs(raw_p_res) <= 2)
     acc_m = np.mean(np.abs(raw_m_res) <= 2)
     print(f"\nRaw μ+ distance-based accuracy: {acc_p:.4f}")
     print(f"Raw μ- distance-based accuracy: {acc_m:.4f}")
 
-    ref_p, ref_m = refine_hit_arrays_v3(
-        y_p_raw, y_m_raw, det_test, elem_test, softmax_mup, softmax_mum, prob_threshold=0.5,
+    ref_p, ref_m = refine_hit_arrays(
+        y_p_raw, y_m_raw, det_test, elem_test
     )
     ref_p_res = ref_p - y_p_true
     ref_m_res = ref_m - y_m_true
@@ -144,6 +138,11 @@ def evaluate_model(root_file, model_path, mode="val"):
 
     dets_used = (np.where(mask)[0] + 1)
     plot_residuals(dets_used, ref_p_res[:,mask], ref_m_res[:,mask], model_path, 'refined')
+
+    acc_p = np.mean(np.abs(ref_p_res) == 0)
+    acc_m = np.mean(np.abs(ref_m_res) == 0)
+    print(f"\nRefined μ+ accuracy: {acc_p:.4f}")
+    print(f"Refined μ- accuracy: {acc_m:.4f}")
 
     acc_p = np.mean(np.abs(ref_p_res) <= 2)
     acc_m = np.mean(np.abs(ref_m_res) <= 2)
@@ -167,10 +166,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Evaluate pre-trained TrackFinder models."
     )
-    parser.add_argument("root_file",  type=str, help="Path to the combined ROOT file.")
+    parser.add_argument("root_file",  type=str, help="Path to the val/test ROOT file.")
     parser.add_argument("model_path", type=str, help="Path to the saved model file (.h5 or .keras).")
-    parser.add_argument("--mode", type=str, default="val", help="Evaluation mode: 'val' or 'test'.")
     args = parser.parse_args()
 
     print(f"\nResults for {args.model_path}...")
-    evaluate_model(args.root_file, args.model_path, args.mode)
+    evaluate_model(args.root_file, args.model_path)

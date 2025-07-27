@@ -5,7 +5,6 @@ import tensorflow as tf
 import argparse
 import math
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
 from tensorflow.keras import regularizers
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from tensorflow.keras.applications import ResNet50
@@ -127,14 +126,16 @@ def build_model(num_detectors=62, num_elementIDs=201, use_bn=False, dropout_bn=0
     return model
 
 
-def train_model(root_file, output_model, learning_rate=0.00005, patience=5, use_bn=False, dropout_bn=0.0, dropout_enc=0.0, backbone=None):
-    X, y_muPlus, y_muMinus = load_data(root_file)
-
-    if X is None:
+def train_model(train_root_file, val_root_file, output_model, learning_rate=0.00005, patience=5, use_bn=False, dropout_bn=0.0, dropout_enc=0.0, backbone=None):
+    X_train, y_muPlus_train, y_muMinus_train = load_data(train_root_file)
+    if X_train is None:
         return
+    y_train = np.stack([y_muPlus_train, y_muMinus_train], axis=1)  # Shape: (num_events, 2, 62)
 
-    y = np.stack([y_muPlus, y_muMinus], axis=1)  # Shape: (num_events, 2, 62)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_val, y_muPlus_val, y_muMinus_val = load_data(val_root_file)
+    if X_val is None:
+        return
+    y_val = np.stack([y_muPlus_val, y_muMinus_val], axis=1)  # Shape: (num_events, 2, 62)
 
     lr_scheduler = ReduceLROnPlateau(
         monitor='val_loss',
@@ -153,7 +154,7 @@ def train_model(root_file, output_model, learning_rate=0.00005, patience=5, use_
         metrics=['accuracy']
     )
     
-    history = model.fit(X_train, y_train, epochs=40, batch_size=32, validation_data=(X_test, y_test), callbacks=[lr_scheduler, early_stopping])
+    history = model.fit(X_train, y_train, epochs=40, batch_size=32, validation_data=(X_val, y_val), callbacks=[lr_scheduler, early_stopping])
 
     # Plot train and val loss over epochs
     plt.figure(figsize=(8, 6))
@@ -175,9 +176,11 @@ def train_model(root_file, output_model, learning_rate=0.00005, patience=5, use_
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a TensorFlow model to predict hit arrays from event hits.")
-    parser.add_argument("root_file", type=str, help="Path to the combined ROOT file.")
+    parser.add_argument("train_root_file", type=str, help="Path to the train ROOT file.")
+    parser.add_argument("val_root_file", type=str, help="Path to the validation ROOT file.")
     parser.add_argument("--output_model", type=str, default="models/track_finder.h5", help="Path to save the trained model.")
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
+    parser.add_argument("--patience", type=int, default=5, help="Patience for EarlyStopping.")
     parser.add_argument("--batch_norm", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")
     parser.add_argument("--dropout_bn", type=float, default=0.0, help="Dropout rate for bottleneck layer.")
     parser.add_argument("--dropout_enc", type=float, default=0.0, help="Dropout rate for encoder blocks.")
@@ -187,10 +190,11 @@ if __name__ == "__main__":
     use_bn = bool(args.batch_norm)
 
     train_model(
-        args.root_file, 
+        args.train_root_file, 
+        args.val_root_file, 
         args.output_model, 
         args.learning_rate, 
-        patience=10,
+        patience=args.patience,
         use_bn=use_bn, 
         dropout_bn=args.dropout_bn,      # recommend 0.5 as starting point,
         dropout_enc=args.dropout_enc,    # recommend 0.1-0.3 as starting point

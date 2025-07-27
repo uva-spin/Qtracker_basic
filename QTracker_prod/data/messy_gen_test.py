@@ -4,7 +4,7 @@ from array import array
 import random
 
 # Detector efficiency probability
-NUM_TRACKS = 19
+NUM_TRACKS = 5
 PROB_MEAN = 0.9
 PROB_WIDTH = 0.1
 
@@ -13,13 +13,13 @@ PROPAGATION_MODEL = "gaussian"
 GAUSSIAN_SIGMA = 60.0
 EXP_DECAY_CONST = 15.0
 
-def inject_tracks(file1, file2, output_file, num_tracks, lower_bound=0, uniform_tracks=True):
+def inject_tracks(file1, file2, output_file, num_tracks, prob_mean, prob_width):
     if not (1 <= num_tracks <= 100):
         raise ValueError("num_tracks must be between 1 and 100.")
-    if not (0 <= PROB_MEAN <= 1):
-        raise ValueError("PROB_MEAN must be between 0 and 1.")
-    if PROB_WIDTH < 0:
-        raise ValueError("PROB_WIDTH must be non-negative.")
+    if not (0 <= prob_mean <= 1):
+        raise ValueError("prob_mean must be between 0 and 1.")
+    if prob_width < 0:
+        raise ValueError("prob_width must be non-negative.")
 
     f1 = ROOT.TFile.Open(file1, "READ")
     f2 = ROOT.TFile.Open(file2, "READ")
@@ -143,22 +143,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, lower_bound=0, uniform_
         local_hitID_counter = current_max_hitID + 1
         next_trackID = max(tree1.gTrackID) + 1 if len(tree1.gTrackID) > 0 else 3
 
-        weights = [2] * (num_tracks - lower_bound + 1)
-        
-        # Skew probabilities towards higher track counts
-        if not uniform_tracks:
-            for i in range(len(weights)):
-                if i >= len(weights) // 3:
-                    weights[i] += 1
-                if i >= len(weights) // 3 * 2:
-                    weights[i] += 1
-
-        random_num_tracks = random.choices(
-            range(lower_bound, num_tracks + 1), 
-            weights=weights,
-            k=1
-        )[0]
-        # random_num_tracks = random.randint(lower_bound, num_tracks)
+        random_num_tracks = random.randint(0, num_tracks)
 
         for _ in range(random_num_tracks):
             if tree2_index >= num_events_tree2:
@@ -178,7 +163,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, lower_bound=0, uniform_
             gvy.push_back(tree2.gvy[0])
             gvz.push_back(tree2.gvz[0])
 
-            probability = np.clip(np.random.normal(PROB_MEAN, PROB_WIDTH), 0, 1)
+            probability = np.clip(np.random.normal(prob_mean, prob_width), 0, 1)
 
             for procID, elem, det, dist, tdc in zip(tree2.gProcessID, tree2.elementID, tree2.detectorID, tree2.driftDistance, tree2.tdcTime):
 
@@ -215,8 +200,6 @@ if __name__ == "__main__":
     parser.add_argument("file1", type=str, help="Path to the finder_training.root file (signal).")
     parser.add_argument("file2", type=str, help="Path to the background file.")
     parser.add_argument("--output", type=str, default="mc_events.root", help="Output ROOT file name.")
-    parser.add_argument("--lower_bound", type=int, default=0, help="Lower bound number of background tracks to inject.")
-    parser.add_argument("--uniform_tracks", type=int, default=1, help="Use uniform distribution for track injection: 1 for True, 0 for False.")
     args = parser.parse_args()
 
-    inject_tracks(args.file1, args.file2, args.output, NUM_TRACKS, lower_bound=args.lower_bound, uniform_tracks=bool(args.uniform_tracks))
+    inject_tracks(args.file1, args.file2, args.output, NUM_TRACKS, PROB_MEAN, PROB_WIDTH)

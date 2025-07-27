@@ -1,13 +1,8 @@
-### Full RUN logic ###
-TRAIN=1     # 0 = False (eval mode); 1 = True (train mode)
+# Data Preprocessing
+# ./scripts/preprocess.sh
 
-if (( TRAIN )); then
-    # --- Data Preprocessing ---
-    # ./scripts/preprocess.sh
+# TrackFinder Training and Evaluation
+sbatch run_tuner.slurm
 
-    # --- Model Training ---
-    sbatch run_tuner.slurm
-else
-    # Model Evaluation
-    ./scripts/evaluate.sh
-fi
+# QTracker Evaluation
+# ./scripts/evaluate.sh
