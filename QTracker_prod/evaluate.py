@@ -41,7 +41,7 @@ def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
 
 def evaluate_model(root_file, model_path):
     X_test, y_muPlus_test, y_muMinus_test = data_loader.load_data(root_file)
-    if X is None:
+    if X_test is None:
         return
 
     y_test = np.stack([y_muPlus_test, y_muMinus_test], axis=1)

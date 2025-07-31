@@ -21,16 +21,47 @@ IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 # --- Training and Evaluating Track Finder ---
 LEARNING_RATE=0.00005
 
+# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+#     python3 /mnt/code/models/TrackFinder_unet.py \
+#      /mnt/code/data/processed_files/mc_events_train.root \
+#      /mnt/code/data/processed_files/mc_events_val.root \
+#     --output_model checkpoints/track_finder_unet.h5 \
+#     --learning_rate $LEARNING_RATE \
+#     --batch_norm 1 \
+#     --dropout_bn 0.5 \
+#     --dropout_enc 0.4 \
+#     --backbone None
+
+# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+#     python3 /mnt/code/evaluate.py \
+#      /mnt/code/data/processed_files/mc_events_val.root \
+#      /mnt/code/checkpoints/track_finder_unet.h5
+
+# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+#     python3 /mnt/code/evaluate.py \
+#      /mnt/code/data/processed_files/mc_events_val_high.root \
+#      /mnt/code/checkpoints/track_finder_unet.h5
+
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/models/TrackFinder_unet.py \
-     /mnt/code/data/processed_files/mc_events_train.root \
+     /mnt/code/data/processed_files/finder_training_train.root \
      /mnt/code/data/processed_files/mc_events_val.root \
-    --output_model checkpoints/track_finder_unet.h5 \
+    --output_model checkpoints/track_finder_unet_clean.h5 \
     --learning_rate $LEARNING_RATE \
     --batch_norm 1 \
     --dropout_bn 0.5 \
     --dropout_enc 0.4 \
     --backbone None
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/evaluate.py \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     /mnt/code/checkpoints/track_finder_unet_clean.h5
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/evaluate.py \
+     /mnt/code/data/processed_files/mc_events_val_high.root \
+     /mnt/code/checkpoints/track_finder_unet_clean.h5
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/evaluate.py \
