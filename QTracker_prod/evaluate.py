@@ -8,17 +8,13 @@ import ROOT
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
 import pandas as pd
 
 # core TrackFinder loaders / custom loss
-from training_scripts import data_loader
-from training_scripts.losses import custom_loss
-from training_scripts.TrackFinder_attention import (
-    ChannelAvgPool, ChannelMaxPool, SpatialAvgPool, SpatialMaxPool
-)
+from models import data_loader
+from models.losses import custom_loss
 import QTracker_prod
-from refine import refine_hit_arrays, refine_hit_arrays_v3
+from refine import refine_hit_arrays
 
 def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
     mean_p  = np.nanmean(np.abs(res_plus), axis=0)
@@ -60,13 +56,6 @@ def evaluate_model(root_file, model_path):
         "custom_loss": custom_loss,
         "Adam":        tf.keras.optimizers.legacy.Adam
     }
-    if 'track_finder_cbam.keras' in model_path:
-        custom_objects.update({
-            'ChannelAvgPool': ChannelAvgPool,
-            'ChannelMaxPool': ChannelMaxPool,
-            'SpatialAvgPool': SpatialAvgPool,
-            'SpatialMaxPool': SpatialMaxPool
-        })
     with tf.keras.utils.custom_object_scope(custom_objects):
         model = tf.keras.models.load_model(model_path)
 
