@@ -1,0 +1,240 @@
+--- 0 injected track ---
+Mean occupancy: 70.38223
+Raw μ+ accuracy: 0.9977
+Raw μ- accuracy: 0.9946
+Raw μ+ distance-based accuracy: 0.9997
+Raw μ- distance-based accuracy: 0.9998
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.012 |    0.813 |    0.011 |    0.531
+
+--- 1 injected track ---
+Mean occupancy: 97.5372
+Raw μ+ accuracy: 0.9942
+Raw μ- accuracy: 0.9907
+Raw μ+ distance-based accuracy: 0.9989
+Raw μ- distance-based accuracy: 0.9988
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.023 |    0.941 |    0.023 |    0.650
+
+--- 2 injected track ---
+Mean occupancy: 124.63046739065219
+Raw μ+ accuracy: 0.9893
+Raw μ- accuracy: 0.9872
+Raw μ+ distance-based accuracy: 0.9973
+Raw μ- distance-based accuracy: 0.9978
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.039 |    1.083 |    0.034 |    0.751
+
+--- 3 injected track ---
+Mean occupancy: 151.7726
+Raw μ+ accuracy: 0.9850
+Raw μ- accuracy: 0.9823
+Raw μ+ distance-based accuracy: 0.9961
+Raw μ- distance-based accuracy: 0.9961
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.054 |    1.186 |    0.054 |    0.958
+
+--- 4 injected track ---
+Mean occupancy: 178.9643
+Raw μ+ accuracy: 0.9790
+Raw μ- accuracy: 0.9781
+Raw μ+ distance-based accuracy: 0.9937
+Raw μ- distance-based accuracy: 0.9948
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.084 |    1.509 |    0.065 |    0.964
+
+--- 5 injected track ---
+Mean occupancy: 206.05105897882044
+Raw μ+ accuracy: 0.9738
+Raw μ- accuracy: 0.9721
+Raw μ+ distance-based accuracy: 0.9918
+Raw μ- distance-based accuracy: 0.9925
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.105 |    1.694 |    0.089 |    1.094
+
+--- 6 injected track ---
+Mean occupancy: 233.36819263614728
+Raw μ+ accuracy: 0.9663
+Raw μ- accuracy: 0.9666
+Raw μ+ distance-based accuracy: 0.9886
+Raw μ- distance-based accuracy: 0.9903
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.148 |    2.082 |    0.112 |    1.210
+
+--- 7 injected track ---
+Mean occupancy: 260.45592
+Raw μ+ accuracy: 0.9607
+Raw μ- accuracy: 0.9608
+Raw μ+ distance-based accuracy: 0.9863
+Raw μ- distance-based accuracy: 0.9884
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.165 |    2.101 |    0.131 |    1.288
+
+--- 8 injected track ---
+Mean occupancy: 287.3759899208063
+Raw μ+ accuracy: 0.9529
+Raw μ- accuracy: 0.9542
+Raw μ+ distance-based accuracy: 0.9828
+Raw μ- distance-based accuracy: 0.9849
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.212 |    2.443 |    0.170 |    1.506
+
+--- 9 injected track ---
+Mean occupancy: 314.5824
+Raw μ+ accuracy: 0.9452
+Raw μ- accuracy: 0.9473
+Raw μ+ distance-based accuracy: 0.9795
+Raw μ- distance-based accuracy: 0.9816
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.254 |    2.759 |    0.204 |    1.692
+
+--- 10 injected track ---
+Mean occupancy: 342.05741942580573
+Raw μ+ accuracy: 0.9364
+Raw μ- accuracy: 0.9399
+Raw μ+ distance-based accuracy: 0.9747
+Raw μ- distance-based accuracy: 0.9778
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.315 |    3.175 |    0.246 |    1.863
+
+--- 11 injected track ---
+Mean occupancy: 369.19174466042716
+Raw μ+ accuracy: 0.9289
+Raw μ- accuracy: 0.9323
+Raw μ+ distance-based accuracy: 0.9709
+Raw μ- distance-based accuracy: 0.9739
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.369 |    3.483 |    0.281 |    1.965
+
+--- 12 injected track ---
+Mean occupancy: 395.80319771220593
+Raw μ+ accuracy: 0.9190
+Raw μ- accuracy: 0.9258
+Raw μ+ distance-based accuracy: 0.9658
+Raw μ- distance-based accuracy: 0.9709
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.441 |    3.906 |    0.317 |    2.077
+
+--- 13 injected track ---
+Mean occupancy: 423.289934201316
+Raw μ+ accuracy: 0.9115
+Raw μ- accuracy: 0.9145
+Raw μ+ distance-based accuracy: 0.9616
+Raw μ- distance-based accuracy: 0.9645
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.500 |    4.132 |    0.376 |    2.242
+
+--- 14 injected track ---
+Mean occupancy: 450.4564271786411
+Raw μ+ accuracy: 0.9008
+Raw μ- accuracy: 0.9079
+Raw μ+ distance-based accuracy: 0.9564
+Raw μ- distance-based accuracy: 0.9612
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.560 |    4.361 |    0.411 |    2.333
+
+--- 15 injected track ---
+Mean occupancy: 477.46864
+Raw μ+ accuracy: 0.8929
+Raw μ- accuracy: 0.9001
+Raw μ+ distance-based accuracy: 0.9511
+Raw μ- distance-based accuracy: 0.9566
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.655 |    4.898 |    0.459 |    2.538
+
+--- 16 injected track ---
+Mean occupancy: 504.61074281828996
+Raw μ+ accuracy: 0.8829
+Raw μ- accuracy: 0.8899
+Raw μ+ distance-based accuracy: 0.9460
+Raw μ- distance-based accuracy: 0.9505
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.758 |    5.539 |    0.525 |    2.680
+
+--- 17 injected track ---
+Mean occupancy: 531.8776097912167
+Raw μ+ accuracy: 0.8736
+Raw μ- accuracy: 0.8816
+Raw μ+ distance-based accuracy: 0.9392
+Raw μ- distance-based accuracy: 0.9461
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.886 |    6.191 |    0.580 |    2.858
+
+--- 18 injected track ---
+Mean occupancy: 558.8463145896657
+Raw μ+ accuracy: 0.8630
+Raw μ- accuracy: 0.8739
+Raw μ+ distance-based accuracy: 0.9336
+Raw μ- distance-based accuracy: 0.9414
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.930 |    6.194 |    0.638 |    3.063
+
+--- 19 injected track ---
+Mean occupancy: 586.188
+Raw μ+ accuracy: 0.8529
+Raw μ- accuracy: 0.8616
+Raw μ+ distance-based accuracy: 0.9274
+Raw μ- distance-based accuracy: 0.9341
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   1.057 |    6.755 |    0.706 |    3.170
+
+--- 20 injected track ---
+Mean occupancy: 613.1314573708526
+Raw μ+ accuracy: 0.8449
+Raw μ- accuracy: 0.8566
+Raw μ+ distance-based accuracy: 0.9212
+Raw μ- distance-based accuracy: 0.9307
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   1.141 |    7.000 |    0.748 |    3.252
+
+--- 21 injected track ---
+Mean occupancy: 640.727012758469
+Raw μ+ accuracy: 0.8358
+Raw μ- accuracy: 0.8456
+Raw μ+ distance-based accuracy: 0.9173
+Raw μ- distance-based accuracy: 0.9227
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   1.220 |    7.384 |    0.836 |    3.495
+
+--- 22 injected track ---
+Mean occupancy: 668.0071297148114
+Raw μ+ accuracy: 0.8252
+Raw μ- accuracy: 0.8367
+Raw μ+ distance-based accuracy: 0.9095
+Raw μ- distance-based accuracy: 0.9177
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   1.375 |    7.989 |    0.895 |    3.613
+
+--- 23 injected track ---
+Mean occupancy: 694.2769378449724
+Raw μ+ accuracy: 0.8192
+Raw μ- accuracy: 0.8301
+Raw μ+ distance-based accuracy: 0.9059
+Raw μ- distance-based accuracy: 0.9136
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   1.425 |    8.069 |    0.926 |    3.613
+
+--- 24 injected track ---
+Mean occupancy: 721.8255
+Raw μ+ accuracy: 0.8057
+Raw μ- accuracy: 0.8212
+Raw μ+ distance-based accuracy: 0.8967
+Raw μ- distance-based accuracy: 0.9081
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   1.556 |    8.433 |    0.998 |    3.800
+
+--- 25 injected track ---
+Mean occupancy: 748.7782687808682
+Raw μ+ accuracy: 0.7961
+Raw μ- accuracy: 0.8100
+Raw μ+ distance-based accuracy: 0.8882
+Raw μ- distance-based accuracy: 0.8997
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   1.795 |    9.379 |    1.106 |    4.046
+
+Mean occupancy: 328.7590720904252
+Mean occupancy: 327.1103094939356
+Mean occupancy: 531.5127697841726
+Mean occupancy: 417.5549963806832
+Mean occupancy: 328.34897637795274
+Mean occupancy: 531.7571068729759
