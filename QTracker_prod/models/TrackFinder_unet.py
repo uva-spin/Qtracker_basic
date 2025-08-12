@@ -88,7 +88,7 @@ def build_model(num_detectors=62, num_elementIDs=201, use_bn=False, dropout_bn=0
         enc1 = unet_block(x, 64, use_bn=use_bn)
         pool1 = layers.MaxPooling2D(pool_size=(2, 2))(enc1)
 
-        enc2 = unet_block(pool1, 128, use_bn=use_bn, dropout_enc=dropout_enc)
+        enc2 = unet_block(pool1, 128, use_bn=use_bn)
         pool2 = layers.MaxPooling2D(pool_size=(2, 2))(enc2)
 
         enc3 = unet_block(pool2, 256, use_bn=use_bn)
@@ -180,7 +180,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a TensorFlow model to predict hit arrays from event hits.")
     parser.add_argument("train_root_file", type=str, help="Path to the train ROOT file.")
     parser.add_argument("val_root_file", type=str, help="Path to the validation ROOT file.")
-    parser.add_argument("--output_model", type=str, default="checkpoints/track_finder.h5", help="Path to save the trained model.")
+    parser.add_argument("--output_model", type=str, default="checkpoints/track_finder_unet.h5", help="Path to save the trained model.")
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
     parser.add_argument("--patience", type=int, default=5, help="Patience for EarlyStopping.")
     parser.add_argument("--batch_norm", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")
