@@ -11,11 +11,62 @@ import tensorflow as tf
 from tensorflow.keras import layers, regularizers
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 
-from losses import custom_loss
-from data_loader import load_data
-
 # Ensure the checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
+
+
+def load_data(root_file):
+    f = ROOT.TFile.Open(root_file, "READ")
+    tree = f.Get("tree")
+
+    if not tree:
+        print("Error: Tree not found in file.")
+        return None, None, None
+
+    num_detectors = 62
+    num_elementIDs = 201
+
+    X = []
+    y_muPlus = []
+    y_muMinus = []
+
+    for event in tree:
+        event_hits_matrix = np.zeros((num_detectors, num_elementIDs), dtype=np.float32)
+
+        for det_id, elem_id in zip(event.detectorID, event.elementID):
+            if 0 <= det_id < num_detectors and 0 <= elem_id < num_elementIDs:
+                event_hits_matrix[det_id, elem_id] = 1
+
+        mu_plus_array = np.array(event.HitArray_mup, dtype=np.int32)
+        mu_minus_array = np.array(event.HitArray_mum, dtype=np.int32)
+
+        X.append(event_hits_matrix)
+        y_muPlus.append(mu_plus_array)
+        y_muMinus.append(mu_minus_array)
+
+    X = np.array(X)[..., np.newaxis]  # Shape: (num_events, 62, 201, 1)
+    y_muPlus = np.array(y_muPlus)
+    y_muMinus = np.array(y_muMinus)
+
+    return X, y_muPlus, y_muMinus
+
+
+def custom_loss(y_true, y_pred):
+    y_muPlus_true, y_muMinus_true = tf.split(y_true, num_or_size_splits=2, axis=1)
+    y_muPlus_pred, y_muMinus_pred = tf.split(y_pred, num_or_size_splits=2, axis=1)
+
+    y_muPlus_true = tf.squeeze(y_muPlus_true, axis=1)
+    y_muMinus_true = tf.squeeze(y_muMinus_true, axis=1)
+
+    y_muPlus_pred = tf.squeeze(y_muPlus_pred, axis=1)
+    y_muMinus_pred = tf.squeeze(y_muMinus_pred, axis=1)
+
+    loss_mup = tf.keras.losses.sparse_categorical_crossentropy(y_muPlus_true, y_muPlus_pred)
+    loss_mum = tf.keras.losses.sparse_categorical_crossentropy(y_muMinus_true, y_muMinus_pred)
+
+    overlap_penalty = tf.reduce_sum(tf.square(y_muPlus_pred - y_muMinus_pred), axis=-1)
+
+    return tf.reduce_mean(loss_mup + loss_mum + 0.1 * overlap_penalty)
 
 
 def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
@@ -61,6 +112,7 @@ def build_model(
     use_bn=False,
     dropout_bn=0.0,
     dropout_enc=0.0,
+    deep_supervision=False,
 ):
     input_layer = layers.Input(shape=(num_detectors, num_elementIDs, 1))
 
@@ -102,8 +154,13 @@ def build_model(
             X[i][j] = conv_block(layers.Concatenate()(concat_parts), filters[i], use_bn=use_bn)
 
     # Logits
-    x = layers.Cropping2D(cropping=padding)(X[0][len(filters)-1])
-    x = layers.Conv2D(2, kernel_size=1)(x)
+    if deep_supervision:
+        x = layers.Average()([
+            head(X[0][j], padding, name=f'logits_{j}') for j in range(1, len(filters))
+        ])
+    else:
+        j = len(filters)-1
+        x = head(X[0][j], padding, name=f'logits_{j}')
 
     # Output layer
     x = layers.Softmax(axis=2)(x)  # softmax over elementID
@@ -125,6 +182,7 @@ def train_model(
     use_bn=False,
     dropout_bn=0.0,
     dropout_enc=0.0,
+    deep_supervision=True,
 ):
     X_train, y_muPlus_train, y_muMinus_train = load_data(train_root_file)
     if X_train is None:
@@ -148,7 +206,8 @@ def train_model(
     )
 
     model = build_model(
-        use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc
+        use_bn=use_bn, dropout_bn=dropout_bn, 
+        dropout_enc=dropout_enc, deep_supervision=deep_supervision,
     )
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
@@ -177,7 +236,7 @@ def train_model(
     plt.savefig(os.path.join(plot_dir, "losses.png"))
     plt.show()
 
-    model.save(output_model)
+    model.save_weights(output_model)
     print(f"Model saved to {output_model}")
 
 
@@ -194,7 +253,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_model",
         type=str,
-        default="checkpoints/track_finder_unetpp.h5",
+        default="checkpoints/track_finder_unetpp.weights.h5",
         help="Path to save the trained model.",
     )
     parser.add_argument(
@@ -224,6 +283,12 @@ if __name__ == "__main__":
         default=0.0,
         help="Dropout rate for encoder blocks.",
     )
+    parser.add_argument(
+        "--deep_supervision",
+        type=int,
+        default=1,
+        help="Flag to enable deep supervision: [0 = False, 1 = True].",
+    )
     args = parser.parse_args()
 
     train_model(
@@ -235,4 +300,5 @@ if __name__ == "__main__":
         use_bn=bool(args.batch_norm),
         dropout_bn=args.dropout_bn,  # recommend 0.5 as starting point,
         dropout_enc=args.dropout_enc,  # recommend 0.1-0.3 as starting point
+        deep_supervision=bool(args.deep_supervision),
     )
