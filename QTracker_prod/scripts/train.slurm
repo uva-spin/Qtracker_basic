@@ -29,20 +29,17 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     --learning_rate $LEARNING_RATE \
     --batch_norm 1 \
     --dropout_bn 0.5 \
-    --dropout_enc 0.3 \
-    --deep_supervision 1
+    --dropout_enc 0.3
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/evaluate.py \
      /mnt/code/data/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/track_finder_unetpp.h5 \
-     --batch_norm 1
+     /mnt/code/checkpoints/track_finder_unetpp.h5
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/evaluate.py \
      /mnt/code/data/processed_files/mc_events_val_high.root \
-     /mnt/code/checkpoints/track_finder_unetpp.h5 \
-     --batch_norm 1
+     /mnt/code/checkpoints/track_finder_unetpp.h5
 
 # # --- Training and Evaluating Momentum Model ---
 # ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \

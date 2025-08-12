@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # core TrackFinder loaders / custom loss
-from models import TrackFinder_unetpp, data_loader
+from models import data_loader
 from models.losses import custom_loss
 import QTracker_prod
 from refine import refine_hit_arrays
@@ -39,7 +39,7 @@ def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
     plt.savefig(os.path.join(plot_dir, fname))
     plt.show()
 
-def evaluate_model(root_file, model_path, use_bn=False):
+def evaluate_model(root_file, model_path):
     X_test, y_muPlus_test, y_muMinus_test = data_loader.load_data(root_file)
     if X_test is None:
         return
@@ -57,11 +57,7 @@ def evaluate_model(root_file, model_path, use_bn=False):
         "Adam":        tf.keras.optimizers.legacy.Adam
     }
     with tf.keras.utils.custom_object_scope(custom_objects):
-        if "track_finder_unetpp" in model_path:
-            model = TrackFinder_unetpp.build_model(use_bn=use_bn, deep_supervision=False)
-            model.load_weights(model_path)
-        else:
-            model = tf.keras.models.load_model(model_path)
+        model = tf.keras.models.load_model(model_path)
 
     y_pred = model.predict(X_test)  # shape: (num_events, 2, num_detectors, num_elementids)
 
@@ -161,8 +157,7 @@ if __name__ == '__main__':
     )
     parser.add_argument("root_file",  type=str, help="Path to the val/test ROOT file.")
     parser.add_argument("model_path", type=str, help="Path to the saved model file (.h5 or .keras).")
-    parser.add_argument("--batch_norm", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")
     args = parser.parse_args()
 
     print(f"\nResults for {args.model_path}...")
-    evaluate_model(args.root_file, args.model_path, bool(args.batch_norm))
+    evaluate_model(args.root_file, args.model_path)

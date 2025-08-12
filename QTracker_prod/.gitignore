@@ -1,6 +1,7 @@
 *.root
 checkpoints/
 Slurm_Files/
+local/
 
 run.sh
 

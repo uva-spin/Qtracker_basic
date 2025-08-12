@@ -8,10 +8,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import ROOT
 import tensorflow as tf
-from data_loader import load_data
-from losses import custom_loss
 from tensorflow.keras import layers, regularizers
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+
+from losses import custom_loss
+from data_loader import load_data
 
 # Ensure the checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
@@ -44,8 +45,9 @@ def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.
     return x
 
 
-def upsample(x, filters):
-    return layers.Conv2DTranspose(filters, kernel_size=3, strides=2, padding="same")(x)
+def upsample(x):
+    x = layers.UpSampling2D(interpolation="bilinear")(x)
+    return x
 
 
 def head(feature, padding, name):
@@ -59,7 +61,6 @@ def build_model(
     use_bn=False,
     dropout_bn=0.0,
     dropout_enc=0.0,
-    deep_supervision=False,
 ):
     input_layer = layers.Input(shape=(num_detectors, num_elementIDs, 1))
 
@@ -97,17 +98,12 @@ def build_model(
     # Column j=1
     for j in range(1, len(filters)):
         for i in range(0, len(filters) - j):
-            concat_parts = [X[i][k] for k in range(j)] + [upsample(X[i+1][j-1], filters[i])]
+            concat_parts = [X[i][k] for k in range(j)] + [upsample(X[i+1][j-1])]
             X[i][j] = conv_block(layers.Concatenate()(concat_parts), filters[i], use_bn=use_bn)
 
     # Logits
-    if deep_supervision:
-        x = layers.Average()([
-            head(X[0][j], padding, name=f'logits_{j}') for j in range(1, len(filters))
-        ])
-    else:
-        j = len(filters)-1
-        x = head(X[0][j], padding, name=f'logits_{j}')
+    x = layers.Cropping2D(cropping=padding)(X[0][len(filters)-1])
+    x = layers.Conv2D(2, kernel_size=1)(x)
 
     # Output layer
     x = layers.Softmax(axis=2)(x)  # softmax over elementID
@@ -129,7 +125,6 @@ def train_model(
     use_bn=False,
     dropout_bn=0.0,
     dropout_enc=0.0,
-    deep_supervision=True,
 ):
     X_train, y_muPlus_train, y_muMinus_train = load_data(train_root_file)
     if X_train is None:
@@ -153,8 +148,7 @@ def train_model(
     )
 
     model = build_model(
-        use_bn=use_bn, dropout_bn=dropout_bn, 
-        dropout_enc=dropout_enc, deep_supervision=deep_supervision,
+        use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc
     )
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
@@ -183,7 +177,7 @@ def train_model(
     plt.savefig(os.path.join(plot_dir, "losses.png"))
     plt.show()
 
-    model.save_weights(output_model)
+    model.save(output_model)
     print(f"Model saved to {output_model}")
 
 
@@ -230,12 +224,6 @@ if __name__ == "__main__":
         default=0.0,
         help="Dropout rate for encoder blocks.",
     )
-    parser.add_argument(
-        "--deep_supervision",
-        type=int,
-        default=1,
-        help="Dropout rate for encoder blocks.",
-    )
     args = parser.parse_args()
 
     train_model(
@@ -247,5 +235,4 @@ if __name__ == "__main__":
         use_bn=bool(args.batch_norm),
         dropout_bn=args.dropout_bn,  # recommend 0.5 as starting point,
         dropout_enc=args.dropout_enc,  # recommend 0.1-0.3 as starting point
-        deep_supervision=bool(args.deep_supervision),
     )
