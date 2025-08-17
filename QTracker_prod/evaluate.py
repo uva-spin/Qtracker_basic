@@ -40,7 +40,7 @@ def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
     plt.savefig(os.path.join(plot_dir, fname))
     plt.show()
 
-def evaluate_model(root_file, model_path, use_bn=False):
+def evaluate_model(root_file, model_path, use_bn=False, base=64, deep_supervision=False):
     X_test, y_muPlus_test, y_muMinus_test = data_loader.load_data(root_file)
     if X_test is None:
         return
@@ -59,7 +59,11 @@ def evaluate_model(root_file, model_path, use_bn=False):
     }
     with tf.keras.utils.custom_object_scope(custom_objects):
         if ".weights.h5" in model_path:
-            model = TrackFinder_unetpp.build_model(use_bn=use_bn, deep_supervision=False)
+            model = TrackFinder_unetpp.build_model(
+                use_bn=use_bn, 
+                base=base,
+                deep_supervision=deep_supervision
+            )
             model.load_weights(model_path)
         else:
             model = tf.keras.models.load_model(model_path)
@@ -163,7 +167,9 @@ if __name__ == '__main__':
     parser.add_argument("root_file",  type=str, help="Path to the val/test ROOT file.")
     parser.add_argument("model_path", type=str, help="Path to the saved model file (.h5 or .keras).")
     parser.add_argument("--batch_norm", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")
+    parser.add_argument("--base", type=int, default=64, help="Flag to set batch normalization: [0 = False, 1 = True].")
+    parser.add_argument("--deep_supervision", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")
     args = parser.parse_args()
 
     print(f"\nResults for {args.model_path}...")
-    evaluate_model(args.root_file, args.model_path, bool(args.batch_norm))
+    evaluate_model(args.root_file, args.model_path, bool(args.batch_norm), args.base, bool(args.deep_supervision))

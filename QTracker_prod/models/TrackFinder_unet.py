@@ -148,7 +148,8 @@ def train_model(train_root_file, val_root_file, output_model, learning_rate=0.00
     early_stopping = EarlyStopping(monitor="val_loss", patience=patience, restore_best_weights=True)
 
     model = build_model(use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc, backbone=backbone)
-    
+    model.summary()
+
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     model.compile(
         optimizer=optimizer, 
@@ -156,7 +157,7 @@ def train_model(train_root_file, val_root_file, output_model, learning_rate=0.00
         metrics=['accuracy']
     )
     
-    history = model.fit(X_train, y_train, epochs=40, batch_size=32, validation_data=(X_val, y_val), callbacks=[lr_scheduler, early_stopping])
+    history = model.fit(X_train, y_train, epochs=70, batch_size=64, validation_data=(X_val, y_val), callbacks=[lr_scheduler, early_stopping])
 
     # Plot train and val loss over epochs
     plt.figure(figsize=(8, 6))

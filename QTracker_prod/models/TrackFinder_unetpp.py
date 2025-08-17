@@ -112,12 +112,13 @@ def build_model(
     use_bn=False,
     dropout_bn=0.0,
     dropout_enc=0.0,
+    base=64,
     deep_supervision=False,
 ):
     input_layer = layers.Input(shape=(num_detectors, num_elementIDs, 1))
 
     # Zero padding (aligns to closest 2^n -> preserves input shape)
-    filters = [64, 128, 256, 512, 1024]
+    filters = [base, base*2, base*4, base*8, base*16]
     num_pool = 2**(len(filters) - 1)  # 2 ^ n, n = number of max pooling
     closest_even_det = num_pool * math.ceil(num_detectors / num_pool)
     closest_even_elem = num_pool * math.ceil(num_elementIDs / num_pool)
@@ -139,7 +140,7 @@ def build_model(
     X[1][0] = conv_block(pool1, filters[1], use_bn=use_bn)
     pool2 = layers.MaxPooling2D(pool_size=(2, 2))(X[1][0])
 
-    X[2][0] = conv_block(pool2, filters[2], use_bn=use_bn)
+    X[2][0] = conv_block(pool2, filters[2], use_bn=use_bn, dropout_enc=dropout_enc)
     pool3 = layers.MaxPooling2D(pool_size=(2, 2))(X[2][0])
 
     X[3][0] = conv_block(pool3, filters[3], use_bn=use_bn, dropout_enc=dropout_enc)
@@ -182,6 +183,7 @@ def train_model(
     use_bn=False,
     dropout_bn=0.0,
     dropout_enc=0.0,
+    base=64,
     deep_supervision=True,
 ):
     X_train, y_muPlus_train, y_muMinus_train = load_data(train_root_file)
@@ -207,8 +209,9 @@ def train_model(
 
     model = build_model(
         use_bn=use_bn, dropout_bn=dropout_bn, 
-        dropout_enc=dropout_enc, deep_supervision=deep_supervision,
+        dropout_enc=dropout_enc, base=base, deep_supervision=deep_supervision,
     )
+    model.summary()
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     model.compile(optimizer=optimizer, loss=custom_loss, metrics=["accuracy"])
@@ -216,8 +219,8 @@ def train_model(
     history = model.fit(
         X_train,
         y_train,
-        epochs=40,
-        batch_size=32,
+        epochs=70,
+        batch_size=64,
         validation_data=(X_val, y_val),
         callbacks=[lr_scheduler, early_stopping],
     )
@@ -284,6 +287,12 @@ if __name__ == "__main__":
         help="Dropout rate for encoder blocks.",
     )
     parser.add_argument(
+        "--base",
+        type=int,
+        default=64,
+        help="Number of base channels in U-Net++.",
+    )
+    parser.add_argument(
         "--deep_supervision",
         type=int,
         default=1,
@@ -300,5 +309,6 @@ if __name__ == "__main__":
         use_bn=bool(args.batch_norm),
         dropout_bn=args.dropout_bn,  # recommend 0.5 as starting point,
         dropout_enc=args.dropout_enc,  # recommend 0.1-0.3 as starting point
+        base=args.base,
         deep_supervision=bool(args.deep_supervision),
     )

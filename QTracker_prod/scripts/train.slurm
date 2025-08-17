@@ -19,31 +19,83 @@ IMAGE=/project/ptgroup/spinquest/David/TfRootBuild_v3.sif
 
 ### Main Body ###
 # --- Training and Evaluating Track Finder ---
-LEARNING_RATE=0.00005
+LEARNING_RATE=0.00021
 BATCH_NORM=1
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/models/TrackFinder_unetpp.py \
-     /mnt/code/data/processed_files/finder_training_train.root \
+    python3 /mnt/code/models/TrackFinder_unet.py \
+     /mnt/code/data/processed_files/mc_events_train.root \
      /mnt/code/data/processed_files/mc_events_val.root \
-     --output_model checkpoints/track_finder_unetpp.weights.h5 \
+     --output_model checkpoints/track_finder_unet.h5 \
      --learning_rate $LEARNING_RATE \
+     --patience 12 \
      --batch_norm $BATCH_NORM \
-     --dropout_bn 0.5 \
-     --dropout_enc 0.3 \
+     --dropout_bn 0.35 \
+     --dropout_enc 0.25
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/models/TrackFinder_unetpp.py \
+     /mnt/code/data/processed_files/mc_events_train.root \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     --output_model checkpoints/track_finder_unetpp_ds.weights.h5 \
+     --learning_rate $LEARNING_RATE \
+     --patience 12 \
+     --batch_norm $BATCH_NORM \
+     --dropout_bn 0.35 \
+     --dropout_enc 0.25 \
+     --base 64 \
+     --deep_supervision 1
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/models/TrackFinder_unetpp.py \
+     /mnt/code/data/processed_files/mc_events_train.root \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     --output_model checkpoints/track_finder_unetpp_no_ds.weights.h5 \
+     --learning_rate $LEARNING_RATE \
+     --patience 12 \
+     --batch_norm $BATCH_NORM \
+     --dropout_bn 0.35 \
+     --dropout_enc 0.25 \
+     --base 64 \
+     --deep_supervision 0
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/models/TrackFinder_unetpp.py \
+     /mnt/code/data/processed_files/mc_events_train.root \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     --output_model checkpoints/track_finder_unetpp_small_no_ds.weights.h5 \
+     --learning_rate $LEARNING_RATE \
+     --patience 12 \
+     --batch_norm $BATCH_NORM \
+     --dropout_bn 0.35 \
+     --dropout_enc 0.25 \
+     --base 32 \
+     --deep_supervision 0
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/evaluate.py \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     /mnt/code/checkpoints/track_finder_unet.h5
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/evaluate.py \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     /mnt/code/checkpoints/track_finder_unetpp_ds.weights.h5 \
+     --batch_norm $BATCH_NORM \
      --deep_supervision 1
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/evaluate.py \
      /mnt/code/data/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/track_finder_unetpp.weights.h5 \
+     /mnt/code/checkpoints/track_finder_unetpp_no_ds.weights.h5 \
      --batch_norm $BATCH_NORM
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/evaluate.py \
-     /mnt/code/data/processed_files/mc_events_val_high.root \
-     /mnt/code/checkpoints/track_finder_unetpp.weights.h5 \
-     --batch_norm $BATCH_NORM
+     /mnt/code/data/processed_files/mc_events_val.root \
+     /mnt/code/checkpoints/track_finder_unetpp_small_no_ds.weights.h5 \
+     --batch_norm $BATCH_NORM \
+     --base 32
 
 # # --- Training and Evaluating Momentum Model ---
 # ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
