@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -A spinquest_standard
 #SBATCH -p gpu
-#SBATCH --gres=gpu
+#SBATCH --gres=gpu:1
 #SBATCH -c 4
 #SBATCH -t 72:00:00
 #SBATCH -J tunertest
@@ -22,6 +22,61 @@ IMAGE=/project/ptgroup/spinquest/David/TfRootBuild_v3.sif
 LEARNING_RATE=0.00021
 BATCH_NORM=1
 
+# Attention U-Net (64 and 32 filter sizes)
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/models/TrackFinder_attn_unet.py \
+     /mnt/code/data/processed_files/mc_events_train.root \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     --output_model checkpoints/track_finder_attn_unet.h5 \
+     --learning_rate $LEARNING_RATE \
+     --patience 12 \
+     --base 64 \
+     --batch_norm $BATCH_NORM \
+     --dropout_bn 0.35 \
+     --dropout_enc 0.25
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/evaluate.py \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     /mnt/code/checkpoints/track_finder_attn_unet.h5
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/models/TrackFinder_attn_unet.py \
+     /mnt/code/data/processed_files/mc_events_train.root \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     --output_model checkpoints/track_finder_attn_unet_small.h5 \
+     --learning_rate $LEARNING_RATE \
+     --patience 12 \
+     --base 32 \
+     --batch_norm $BATCH_NORM \
+     --dropout_bn 0.35 \
+     --dropout_enc 0.25
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/evaluate.py \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     /mnt/code/checkpoints/track_finder_attn_unet_small.h5
+
+# U-Net with ResNet50 Backbone
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/models/TrackFinder_unet.py \
+     /mnt/code/data/processed_files/mc_events_train.root \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     --output_model checkpoints/track_finder_res_unet.h5 \
+     --learning_rate $LEARNING_RATE \
+     --patience 12 \
+     --base 64 \
+     --batch_norm $BATCH_NORM \
+     --dropout_bn 0.35 \
+     --dropout_enc 0.25 \
+     --backbone resnet50
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/evaluate.py \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     /mnt/code/checkpoints/track_finder_res_unet.h5
+
+# Smaller U-Net with Base 32 Filters
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/models/TrackFinder_unet.py \
      /mnt/code/data/processed_files/mc_events_train.root \
@@ -29,71 +84,34 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
      --output_model checkpoints/track_finder_unet.h5 \
      --learning_rate $LEARNING_RATE \
      --patience 12 \
+     --base 32 \
      --batch_norm $BATCH_NORM \
      --dropout_bn 0.35 \
      --dropout_enc 0.25
-
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/models/TrackFinder_unetpp.py \
-     /mnt/code/data/processed_files/mc_events_train.root \
-     /mnt/code/data/processed_files/mc_events_val.root \
-     --output_model checkpoints/track_finder_unetpp_ds.weights.h5 \
-     --learning_rate $LEARNING_RATE \
-     --patience 12 \
-     --batch_norm $BATCH_NORM \
-     --dropout_bn 0.35 \
-     --dropout_enc 0.25 \
-     --base 64 \
-     --deep_supervision 1
-
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/models/TrackFinder_unetpp.py \
-     /mnt/code/data/processed_files/mc_events_train.root \
-     /mnt/code/data/processed_files/mc_events_val.root \
-     --output_model checkpoints/track_finder_unetpp_no_ds.weights.h5 \
-     --learning_rate $LEARNING_RATE \
-     --patience 12 \
-     --batch_norm $BATCH_NORM \
-     --dropout_bn 0.35 \
-     --dropout_enc 0.25 \
-     --base 64 \
-     --deep_supervision 0
-
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/models/TrackFinder_unetpp.py \
-     /mnt/code/data/processed_files/mc_events_train.root \
-     /mnt/code/data/processed_files/mc_events_val.root \
-     --output_model checkpoints/track_finder_unetpp_small_no_ds.weights.h5 \
-     --learning_rate $LEARNING_RATE \
-     --patience 12 \
-     --batch_norm $BATCH_NORM \
-     --dropout_bn 0.35 \
-     --dropout_enc 0.25 \
-     --base 32 \
-     --deep_supervision 0
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/evaluate.py \
      /mnt/code/data/processed_files/mc_events_val.root \
      /mnt/code/checkpoints/track_finder_unet.h5
 
+# U-Net++ with stronger dropout
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/evaluate.py \
+    python3 /mnt/code/models/TrackFinder_unetpp.py \
+     /mnt/code/data/processed_files/mc_events_train.root \
      /mnt/code/data/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/track_finder_unetpp_ds.weights.h5 \
+     --output_model checkpoints/track_finder_unetpp_regularized.weights.h5 \
+     --learning_rate $LEARNING_RATE \
+     --patience 12 \
      --batch_norm $BATCH_NORM \
-     --deep_supervision 1
+     --dropout_bn 0.45 \
+     --dropout_enc 0.35 \
+     --base 32 \
+     --deep_supervision 0
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/evaluate.py \
      /mnt/code/data/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/track_finder_unetpp_no_ds.weights.h5 \
-     --batch_norm $BATCH_NORM
-
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/evaluate.py \
-     /mnt/code/data/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/track_finder_unetpp_small_no_ds.weights.h5 \
+     /mnt/code/checkpoints/track_finder_unetpp_regularized.weights.h5 \
      --batch_norm $BATCH_NORM \
      --base 32
 
