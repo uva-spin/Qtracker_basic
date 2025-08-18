@@ -4,7 +4,7 @@ LEARNING_RATE=0.00005
 BATCH_NORM=1
 
 python models/TrackFinder_unetpp.py \
- data/processed_files/finder_training_train.root \
+ data/processed_files/mc_events_train.root \
  data/processed_files/mc_events_val.root \
  --output_model checkpoints/track_finder_unetpp.weights.h5 \
  --learning_rate $LEARNING_RATE \

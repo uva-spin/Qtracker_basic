@@ -174,26 +174,15 @@ def build_model(
     return model
 
 
-def train_model(
-    train_root_file,
-    val_root_file,
-    output_model,
-    learning_rate=0.00005,
-    patience=5,
-    use_bn=False,
-    dropout_bn=0.0,
-    dropout_enc=0.0,
-    base=64,
-    deep_supervision=True,
-):
-    X_train, y_muPlus_train, y_muMinus_train = load_data(train_root_file)
+def train_model(args):
+    X_train, y_muPlus_train, y_muMinus_train = load_data(args.train_root_file)
     if X_train is None:
         return
     y_train = np.stack(
         [y_muPlus_train, y_muMinus_train], axis=1
     )  # Shape: (num_events, 2, 62)
 
-    X_val, y_muPlus_val, y_muMinus_val = load_data(val_root_file)
+    X_val, y_muPlus_val, y_muMinus_val = load_data(args.val_root_file)
     if X_val is None:
         return
     y_val = np.stack(
@@ -201,19 +190,19 @@ def train_model(
     )  # Shape: (num_events, 2, 62)
 
     lr_scheduler = ReduceLROnPlateau(
-        monitor="val_loss", factor=0.3, patience=patience // 3, min_lr=1e-7
+        monitor="val_loss", factor=0.3, patience=args.patience // 3, min_lr=1e-7
     )
     early_stopping = EarlyStopping(
-        monitor="val_loss", patience=patience, restore_best_weights=True
+        monitor="val_loss", patience=args.patience, restore_best_weights=True
     )
 
     model = build_model(
-        use_bn=use_bn, dropout_bn=dropout_bn, 
-        dropout_enc=dropout_enc, base=base, deep_supervision=deep_supervision,
+        use_bn=args.batch_norm, dropout_bn=args.dropout_bn, 
+        dropout_enc=args.dropout_enc, base=args.base, deep_supervision=args.deep_supervision,
     )
     model.summary()
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=args.learning_rate)
     model.compile(optimizer=optimizer, loss=custom_loss, metrics=["accuracy"])
 
     history = model.fit(
@@ -239,8 +228,8 @@ def train_model(
     plt.savefig(os.path.join(plot_dir, "losses.png"))
     plt.show()
 
-    model.save_weights(output_model)
-    print(f"Model saved to {output_model}")
+    model.save_weights(args.output_model)
+    print(f"Model saved to {args.output_model}")
 
 
 if __name__ == "__main__":
@@ -300,15 +289,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    train_model(
-        args.train_root_file,
-        args.val_root_file,
-        args.output_model,
-        args.learning_rate,
-        patience=args.patience,
-        use_bn=bool(args.batch_norm),
-        dropout_bn=args.dropout_bn,  # recommend 0.5 as starting point,
-        dropout_enc=args.dropout_enc,  # recommend 0.1-0.3 as starting point
-        base=args.base,
-        deep_supervision=bool(args.deep_supervision),
-    )
+    train_model(args)
