@@ -11,6 +11,7 @@ from tensorflow.keras import regularizers
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from tensorflow.keras.applications import ResNet50
 from tensorflow.keras import layers
+from tensorflow.keras.optimizers import AdamW
 
 from data_loader import load_data
 from losses import custom_loss
@@ -70,15 +71,15 @@ def build_model(num_detectors=62, num_elementIDs=201, base=64, use_bn=False, dro
     if backbone == 'resnet50':
         x = layers.Concatenate()([x, x, x])
         # x = Conv2D(3, kernel_size=1, padding='same')(x)
-        backbone = ResNet50(include_top=False, input_tensor=x)
+        backbone = ResNet50(include_top=False, input_tensor=x, weights=None)
 
         # Partially freeze backbone and alter stride for compatibility with U-Net decoder
-        backbone.trainable = False
+        # backbone.trainable = False
         for layer in backbone.layers:
             if layer.name == 'conv1_conv':
                 layer.strides = (1, 1)
-            if layer.name.startswith('conv5_') or layer.name.startswith('conv4_'):
-                layer.trainable = True
+            # if layer.name.startswith('conv5_') or layer.name.startswith('conv4_'):
+            #     layer.trainable = True
 
         enc1 = backbone.get_layer('conv1_relu').output
         enc2 = backbone.get_layer('conv2_block3_out').output
@@ -144,7 +145,7 @@ def train_model(args):
         monitor='val_loss',
         factor=0.3,
         patience=args.patience // 3,
-        min_lr=1e-7
+        min_lr=1e-6
     )
     early_stopping = EarlyStopping(monitor="val_loss", patience=args.patience, restore_best_weights=True)
 
@@ -157,14 +158,14 @@ def train_model(args):
     )
     model.summary()
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=args.learning_rate)
+    optimizer = AdamW(learning_rate=args.learning_rate, weight_decay=args.weight_decay)
     model.compile(
         optimizer=optimizer, 
         loss=custom_loss, 
         metrics=['accuracy']
     )
     
-    history = model.fit(X_train, y_train, epochs=70, batch_size=64, validation_data=(X_val, y_val), callbacks=[lr_scheduler, early_stopping])
+    history = model.fit(X_train, y_train, epochs=args.epochs, batch_size=args.batch_size, validation_data=(X_val, y_val), callbacks=[lr_scheduler, early_stopping])
 
     # Plot train and val loss over epochs
     plt.figure(figsize=(8, 6))
@@ -196,6 +197,24 @@ if __name__ == "__main__":
     parser.add_argument("--dropout_bn", type=float, default=0.0, help="Dropout rate for bottleneck layer.")
     parser.add_argument("--dropout_enc", type=float, default=0.0, help="Dropout rate for encoder blocks.")
     parser.add_argument("--backbone", type=str, default=None, help="Backbone encoder. Available: [None, 'resnet50'].")
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=40,
+        help="Number of epochs in training.",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=32,
+        help="Batch size for mini-batch gradient descent.",
+    )
+    parser.add_argument(
+        "--weight_decay",
+        type=float,
+        default=1e-4,
+        help="Weight decay for AdamW optimizer.",
+    )
     args = parser.parse_args()
 
     train_model(args)

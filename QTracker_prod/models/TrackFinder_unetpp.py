@@ -10,6 +10,10 @@ import ROOT
 import tensorflow as tf
 from tensorflow.keras import layers, regularizers
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.optimizers import AdamW
+from tensorflow.keras import mixed_precision
+
+mixed_precision.set_global_policy("mixed_float16")
 
 # Ensure the checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
@@ -64,12 +68,12 @@ def custom_loss(y_true, y_pred):
     loss_mup = tf.keras.losses.sparse_categorical_crossentropy(y_muPlus_true, y_muPlus_pred)
     loss_mum = tf.keras.losses.sparse_categorical_crossentropy(y_muMinus_true, y_muMinus_pred)
 
-    overlap_penalty = tf.reduce_sum(tf.square(y_muPlus_pred - y_muMinus_pred), axis=-1)
+    overlap_penalty = tf.reduce_sum(y_muPlus_pred * y_muMinus_pred, axis=-1)
 
     return tf.reduce_mean(loss_mup + loss_mum + 0.1 * overlap_penalty)
 
 
-def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
+def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout=0.0):
     # First Conv Layer + Activation
     x = layers.Conv2D(
         filters, kernel_size=3, padding="same", kernel_regularizer=regularizers.l2(l2)
@@ -78,9 +82,9 @@ def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.
         x = layers.BatchNormalization()(x)
     x = layers.Activation("relu")(x)
 
-    # Dropout for bottleneck layers
+    # Dropout for bottleneck block
     if dropout_bn > 0:
-        x = layers.Dropout(dropout_bn)(x)
+        x = layers.SpatialDropout2D(dropout_bn)(x)
 
     # Second Conv Layer
     x = layers.Conv2D(
@@ -90,9 +94,9 @@ def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.
         x = layers.BatchNormalization()(x)
     x = layers.Activation("relu")(x)
 
-    # Dropout for encoder blocks
-    if dropout_enc > 0:
-        x = layers.Dropout(dropout_enc)(x)
+    # Dropout for encoder/decoder blocks
+    if dropout > 0:
+        x = layers.SpatialDropout2D(dropout)(x)
     return x
 
 
@@ -137,13 +141,13 @@ def build_model(
     X[0][0] = conv_block(x, filters[0], use_bn=use_bn)
     pool1 = layers.MaxPooling2D(pool_size=(2, 2))(X[0][0])
 
-    X[1][0] = conv_block(pool1, filters[1], use_bn=use_bn)
+    X[1][0] = conv_block(pool1, filters[1], use_bn=use_bn, dropout=dropout_enc / 2)
     pool2 = layers.MaxPooling2D(pool_size=(2, 2))(X[1][0])
 
-    X[2][0] = conv_block(pool2, filters[2], use_bn=use_bn, dropout_enc=dropout_enc)
+    X[2][0] = conv_block(pool2, filters[2], use_bn=use_bn, dropout=dropout_enc)
     pool3 = layers.MaxPooling2D(pool_size=(2, 2))(X[2][0])
 
-    X[3][0] = conv_block(pool3, filters[3], use_bn=use_bn, dropout_enc=dropout_enc)
+    X[3][0] = conv_block(pool3, filters[3], use_bn=use_bn, dropout=dropout_enc)
     pool4 = layers.MaxPooling2D(pool_size=(2, 2))(X[3][0])
 
     X[4][0] = conv_block(pool4, filters[4], use_bn=use_bn, dropout_bn=dropout_bn)
@@ -190,7 +194,7 @@ def train_model(args):
     )  # Shape: (num_events, 2, 62)
 
     lr_scheduler = ReduceLROnPlateau(
-        monitor="val_loss", factor=0.3, patience=args.patience // 3, min_lr=1e-7
+        monitor="val_loss", factor=0.3, patience=args.patience // 3, min_lr=1e-6
     )
     early_stopping = EarlyStopping(
         monitor="val_loss", patience=args.patience, restore_best_weights=True
@@ -202,14 +206,18 @@ def train_model(args):
     )
     model.summary()
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=args.learning_rate)
+    optimizer = AdamW(
+        learning_rate=args.learning_rate,
+        weight_decay=args.weight_decay,
+        clipnorm=args.clipnorm,
+    )
     model.compile(optimizer=optimizer, loss=custom_loss, metrics=["accuracy"])
 
     history = model.fit(
         X_train,
         y_train,
-        epochs=70,
-        batch_size=64,
+        epochs=args.epochs,
+        batch_size=args.batch_size,
         validation_data=(X_val, y_val),
         callbacks=[lr_scheduler, early_stopping],
     )
@@ -286,6 +294,30 @@ if __name__ == "__main__":
         type=int,
         default=1,
         help="Flag to enable deep supervision: [0 = False, 1 = True].",
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=40,
+        help="Number of epochs in training.",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=32,
+        help="Batch size for mini-batch gradient descent.",
+    )
+    parser.add_argument(
+        "--weight_decay",
+        type=float,
+        default=1e-4,
+        help="Weight decay for AdamW optimizer.",
+    )
+    parser.add_argument(
+        "--clipnorm",
+        type=float,
+        default=1.0,
+        help="Hyperparameter for gradient clipping in AdamW.",
     )
     args = parser.parse_args()
 
