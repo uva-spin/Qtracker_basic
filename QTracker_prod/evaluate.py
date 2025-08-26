@@ -12,7 +12,7 @@ import pandas as pd
 
 # core TrackFinder loaders / custom loss
 from models import data_loader
-from models import TrackFinder_unetpp_ds
+from models import TrackFinder_unetpp
 from models.losses import custom_loss
 import QTracker_prod
 from refine import refine_hit_arrays
@@ -55,21 +55,21 @@ def evaluate_model(root_file, model_path, use_bn=False, base=64, deep_supervisio
 
     custom_objects = {
         "custom_loss": custom_loss,
-        "Adam":        tf.keras.optimizers.legacy.Adam
+        "Adam": tf.keras.optimizers.legacy.Adam,
+        "AdamW": tf.keras.optimizers.AdamW
     }
     with tf.keras.utils.custom_object_scope(custom_objects):
         if ".weights.h5" in model_path:
-            model = TrackFinder_unetpp_ds.build_model(
+            model = TrackFinder_unetpp.build_model(
                 use_bn=use_bn, 
                 base=base,
+                deep_supervision=deep_supervision
             )
             model.load_weights(model_path)
         else:
             model = tf.keras.models.load_model(model_path)
 
     y_pred = model.predict(X_test)  # shape: (num_events, 2, num_detectors, num_elementids)
-    if ".weights.h5" in model_path:
-        y_pred = y_pred[0]
 
     softmax_mup = y_pred[:, 0, :, :]   # (num_events, num_detectors, num_elementids)
     softmax_mum = y_pred[:, 1, :, :]   # (num_events, num_detectors, num_elementids)
@@ -95,19 +95,6 @@ def evaluate_model(root_file, model_path, use_bn=False, base=64, deep_supervisio
         m_p, s_p = np.mean(np.abs(raw_p_res[:,det])), np.std(np.abs(raw_p_res[:,det]))
         m_m, s_m = np.mean(np.abs(raw_m_res[:,det])), np.std(np.abs(raw_m_res[:,det]))
         print(f"{det+1:3d} | {m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
-
-    # Inspect non-zero residuals
-    big_raw, big_true = [], []
-    for i, res in enumerate(np.abs(raw_p_res[:,0])):
-        if res > 0:
-            big_raw.append(y_p_raw[i,0])
-            big_true.append(y_p_true[i,0])
-    
-    df = pd.DataFrame({
-        'Raw μ+ Values': big_raw,
-        'True μ+ Values': big_true
-    })
-    print(f'\n{df.head(20)}')
 
     dets_used = (np.where(mask)[0] + 1)
     plot_residuals(dets_used, raw_p_res[:,mask], raw_m_res[:,mask], model_path, 'raw')

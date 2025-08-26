@@ -62,8 +62,8 @@ def custom_loss(y_true, y_pred):
     y_muPlus_true = tf.squeeze(y_muPlus_true, axis=1)
     y_muMinus_true = tf.squeeze(y_muMinus_true, axis=1)
 
-    y_muPlus_pred = tf.squeeze(y_muPlus_pred, axis=1)
-    y_muMinus_pred = tf.squeeze(y_muMinus_pred, axis=1)
+    y_muPlus_pred = tf.cast(tf.squeeze(y_muPlus_pred, axis=1), tf.float32)
+    y_muMinus_pred = tf.cast(tf.squeeze(y_muMinus_pred, axis=1), tf.float32)
 
     loss_mup = tf.keras.losses.sparse_categorical_crossentropy(y_muPlus_true, y_muPlus_pred)
     loss_mum = tf.keras.losses.sparse_categorical_crossentropy(y_muMinus_true, y_muMinus_pred)
@@ -74,29 +74,40 @@ def custom_loss(y_true, y_pred):
 
 
 def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout=0.0):
+    shortcut = x
+
     # First Conv Layer + Activation
     x = layers.Conv2D(
-        filters, kernel_size=3, padding="same", kernel_regularizer=regularizers.l2(l2)
+        filters, kernel_size=3, padding='same',
+        kernel_regularizer=regularizers.l2(l2)
     )(x)
     if use_bn:
         x = layers.BatchNormalization()(x)
-    x = layers.Activation("relu")(x)
+    x = layers.Activation('relu')(x)
 
-    # Dropout for bottleneck block
+    # Dropout for bottleneck layers
     if dropout_bn > 0:
-        x = layers.SpatialDropout2D(dropout_bn)(x)
+        x = layers.Dropout(dropout_bn)(x)
 
     # Second Conv Layer
     x = layers.Conv2D(
-        filters, kernel_size=3, padding="same", kernel_regularizer=regularizers.l2(l2)
+        filters, kernel_size=3, padding='same',
+        kernel_regularizer=regularizers.l2(l2)
     )(x)
     if use_bn:
         x = layers.BatchNormalization()(x)
-    x = layers.Activation("relu")(x)
 
-    # Dropout for encoder/decoder blocks
+    # Project shortcut if needed
+    if shortcut.shape[-1] != x.shape[-1]:
+        shortcut = tf.keras.layers.Conv2D(filters, (1, 1), padding='same')(shortcut)
+
+    x = tf.keras.layers.Add()([x, shortcut])
+    
+    x = layers.Activation('relu')(x)
+
+    # Dropout for encoder blocks
     if dropout > 0:
-        x = layers.SpatialDropout2D(dropout)(x)
+        x = layers.Dropout(dropout)(x)
     return x
 
 
@@ -117,7 +128,6 @@ def build_model(
     dropout_bn=0.0,
     dropout_enc=0.0,
     base=64,
-    deep_supervision=False,
 ):
     input_layer = layers.Input(shape=(num_detectors, num_elementIDs, 1))
 
@@ -159,13 +169,8 @@ def build_model(
             X[i][j] = conv_block(layers.Concatenate()(concat_parts), filters[i], use_bn=use_bn)
 
     # Logits
-    if deep_supervision:
-        x = layers.Average()([
-            head(X[0][j], padding, name=f'logits_{j}') for j in range(1, len(filters))
-        ])
-    else:
-        j = len(filters)-1
-        x = head(X[0][j], padding, name=f'logits_{j}')
+    j = len(filters)-1
+    x = head(X[0][j], padding, name=f'logits_{j}')
 
     # Output layer
     x = layers.Softmax(axis=2)(x)  # softmax over elementID
@@ -202,7 +207,7 @@ def train_model(args):
 
     model = build_model(
         use_bn=args.batch_norm, dropout_bn=args.dropout_bn, 
-        dropout_enc=args.dropout_enc, base=args.base, deep_supervision=args.deep_supervision,
+        dropout_enc=args.dropout_enc, base=args.base
     )
     model.summary()
 
@@ -236,7 +241,7 @@ def train_model(args):
     plt.savefig(os.path.join(plot_dir, "losses.png"))
     plt.show()
 
-    model.save_weights(args.output_model)
+    model.save(args.output_model)
     print(f"Model saved to {args.output_model}")
 
 
@@ -253,7 +258,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_model",
         type=str,
-        default="checkpoints/track_finder_unetpp.weights.h5",
+        default="checkpoints/track_finder_unetpp.h5",
         help="Path to save the trained model.",
     )
     parser.add_argument(
@@ -288,12 +293,6 @@ if __name__ == "__main__":
         type=int,
         default=64,
         help="Number of base channels in U-Net++.",
-    )
-    parser.add_argument(
-        "--deep_supervision",
-        type=int,
-        default=1,
-        help="Flag to enable deep supervision: [0 = False, 1 = True].",
     )
     parser.add_argument(
         "--epochs",

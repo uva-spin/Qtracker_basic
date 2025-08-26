@@ -3,7 +3,7 @@ import numpy as np
 from array import array
 
 # Detector efficiency probability
-NUM_TRACKS = 19
+NUM_TRACKS = 20
 PROB_MEAN = 0.9
 PROB_WIDTH = 0.1
 
@@ -188,7 +188,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Inject background tracks into ROOT data while preserving hit arrays.")
     parser.add_argument("file1", type=str, help="Path to the finder_training.root file (signal).")
     parser.add_argument("file2", type=str, help="Path to the background file.")
-    parser.add_argument("--output", type=str, default="mc_events.root", help="Output ROOT file name.")
+    parser.add_argument("--output", type=str, default="data/processed_files/injected_events.root", help="Output ROOT file name.")
     args = parser.parse_args()
 
     inject_tracks(args.file1, args.file2, args.output)

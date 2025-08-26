@@ -20,7 +20,7 @@ from losses import custom_loss
 os.makedirs("checkpoints", exist_ok=True)
 
 
-def unet_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
+def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
     # First Conv Layer + Activation
     x = layers.Conv2D(
         filters, kernel_size=3, padding='same',
@@ -41,6 +41,44 @@ def unet_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.
     )(x)
     if use_bn:
         x = layers.BatchNormalization()(x)
+    x = layers.Activation('relu')(x)
+
+    # Dropout for encoder blocks
+    if dropout_enc > 0:
+        x = layers.Dropout(dropout_enc)(x)
+    return x
+
+
+def res_conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
+    shortcut = x
+
+    # First Conv Layer + Activation
+    x = layers.Conv2D(
+        filters, kernel_size=3, padding='same',
+        kernel_regularizer=regularizers.l2(l2)
+    )(x)
+    if use_bn:
+        x = layers.BatchNormalization()(x)
+    x = layers.Activation('relu')(x)
+
+    # Dropout for bottleneck layers
+    if dropout_bn > 0:
+        x = layers.Dropout(dropout_bn)(x)
+
+    # Second Conv Layer
+    x = layers.Conv2D(
+        filters, kernel_size=3, padding='same',
+        kernel_regularizer=regularizers.l2(l2)
+    )(x)
+    if use_bn:
+        x = layers.BatchNormalization()(x)
+
+    # Project shortcut if needed
+    if shortcut.shape[-1] != x.shape[-1]:
+        shortcut = tf.keras.layers.Conv2D(filters, (1, 1), padding='same')(shortcut)
+
+    x = tf.keras.layers.Add()([x, shortcut])
+    
     x = layers.Activation('relu')(x)
 
     # Dropout for encoder blocks
@@ -87,38 +125,38 @@ def build_model(num_detectors=62, num_elementIDs=201, base=64, use_bn=False, dro
         enc4 = backbone.get_layer('conv4_block6_out').output
         enc5 = backbone.get_layer('conv5_block3_out').output
     else:
-        enc1 = unet_block(x, filters[0], use_bn=use_bn)
+        enc1 = conv_block(x, filters[0], use_bn=use_bn)
         pool1 = layers.MaxPooling2D(pool_size=(2, 2))(enc1)
 
-        enc2 = unet_block(pool1, filters[1], use_bn=use_bn)
+        enc2 = conv_block(pool1, filters[1], use_bn=use_bn)
         pool2 = layers.MaxPooling2D(pool_size=(2, 2))(enc2)
 
-        enc3 = unet_block(pool2, filters[2], use_bn=use_bn)
+        enc3 = conv_block(pool2, filters[2], use_bn=use_bn)
         pool3 = layers.MaxPooling2D(pool_size=(2, 2))(enc3)
 
-        enc4 = unet_block(pool3, filters[3], use_bn=use_bn, dropout_enc=dropout_enc)
+        enc4 = conv_block(pool3, filters[3], use_bn=use_bn, dropout_enc=dropout_enc)
         pool4 = layers.MaxPooling2D(pool_size=(2, 2))(enc4)
 
         # Bottleneck
-        enc5 = unet_block(pool4, filters[4], use_bn=use_bn, dropout_bn=dropout_bn)
+        enc5 = conv_block(pool4, filters[4], use_bn=use_bn, dropout_bn=dropout_bn)
 
     # Decoder
     dec1 = layers.Conv2DTranspose(filters[3], kernel_size=3, strides=2, padding='same')(enc5) # padding same avoids cropping
     dec1 = layers.concatenate([dec1, enc4])    # skip connections
-    dec1 = unet_block(dec1, filters[3], use_bn=use_bn)
+    dec1 = conv_block(dec1, filters[3], use_bn=use_bn)
 
     dec2 = layers.Conv2DTranspose(filters[2], kernel_size=3, strides=2, padding='same')(dec1) # padding same avoids cropping
     dec2 = layers.concatenate([dec2, enc3])    # skip connections
-    dec2 = unet_block(dec2, filters[2], use_bn=use_bn)
+    dec2 = conv_block(dec2, filters[2], use_bn=use_bn)
 
     dec3 = layers.Conv2DTranspose(filters[1], kernel_size=3, strides=2, padding='same')(dec2) # padding same avoids cropping
     dec3 = layers.concatenate([dec3, enc2])    # skip connections
-    dec3 = unet_block(dec3, filters[1], use_bn=use_bn)
+    dec3 = conv_block(dec3, filters[1], use_bn=use_bn)
 
     dec4 = layers.Conv2DTranspose(filters[0], kernel_size=3, strides=2, padding='same')(dec3)
     dec4 = layers.concatenate([dec4, enc1])    # skip connections
     dec4 = layers.Cropping2D(cropping=padding)(dec4)   # Remove extra padding
-    dec4 = unet_block(dec4, filters[0], use_bn=use_bn)
+    dec4 = conv_block(dec4, filters[0], use_bn=use_bn)
 
     # Output layer
     x = layers.Conv2D(2, kernel_size=1)(dec4)
@@ -154,7 +192,7 @@ def train_model(args):
         use_bn=args.batch_norm, 
         dropout_bn=args.dropout_bn, 
         dropout_enc=args.dropout_enc, 
-        backbone=args.backbone
+        backbone=args.backbone,
     )
     model.summary()
 

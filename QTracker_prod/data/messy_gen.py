@@ -215,8 +215,9 @@ if __name__ == "__main__":
     parser.add_argument("file1", type=str, help="Path to the finder_training.root file (signal).")
     parser.add_argument("file2", type=str, help="Path to the background file.")
     parser.add_argument("--output", type=str, default="mc_events.root", help="Output ROOT file name.")
+    parser.add_argument("--num_tracks", type=int, default=NUM_TRACKS, help="Upper bound number of background tracks to inject.")
     parser.add_argument("--lower_bound", type=int, default=0, help="Lower bound number of background tracks to inject.")
     parser.add_argument("--uniform_tracks", type=int, default=1, help="Use uniform distribution for track injection: 1 for True, 0 for False.")
     args = parser.parse_args()
 
-    inject_tracks(args.file1, args.file2, args.output, NUM_TRACKS, lower_bound=args.lower_bound, uniform_tracks=bool(args.uniform_tracks))
+    inject_tracks(args.file1, args.file2, args.output, args.num_tracks, lower_bound=args.lower_bound, uniform_tracks=bool(args.uniform_tracks))

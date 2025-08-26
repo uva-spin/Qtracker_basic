@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import ROOT
 import tensorflow as tf
-from tensorflow.keras import layers, regularizers
+from tensorflow.keras import layers, regularizers, mixed_precision
+from tensorflow.keras.losses import sparse_categorical_crossentropy
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import AdamW
 from tensorflow.keras import mixed_precision
@@ -55,7 +56,24 @@ def load_data(root_file):
     return X, y_muPlus, y_muMinus
 
 
-def custom_loss(y_true, y_pred):
+def custom_loss(y_true, y_pred, focal=False):
+    def sparse_focal_crossentropy(y_true, y_pred, gamma=2.0, alpha=1.0):
+        """
+        y_true: (B, Det) int indices
+        y_pred: (B, Det, Elem) probabilities (softmax), float
+        returns: (B, Det) focal CE per detector
+        """
+        y_true = tf.cast(y_true, tf.int32)
+        y_pred = tf.cast(y_pred, tf.float32)
+
+        # p_t = prob of the true class
+        y_true_oh = tf.one_hot(y_true, depth=tf.shape(y_pred)[-1], dtype=tf.float32)  # (B,Det,Elem)
+        p_t = tf.reduce_sum(y_true_oh * y_pred, axis=-1)                              # (B,Det)
+        p_t = tf.clip_by_value(p_t, 1e-9, 1.0)
+
+        focal = -alpha * tf.pow(1.0 - p_t, gamma) * tf.math.log(p_t)                  # (B,Det)
+        return focal
+
     y_muPlus_true, y_muMinus_true = tf.split(y_true, num_or_size_splits=2, axis=1)
     y_muPlus_pred, y_muMinus_pred = tf.split(y_pred, num_or_size_splits=2, axis=1)
 
@@ -65,12 +83,18 @@ def custom_loss(y_true, y_pred):
     y_muPlus_pred = tf.cast(tf.squeeze(y_muPlus_pred, axis=1), tf.float32)
     y_muMinus_pred = tf.cast(tf.squeeze(y_muMinus_pred, axis=1), tf.float32)
 
-    loss_mup = tf.keras.losses.sparse_categorical_crossentropy(y_muPlus_true, y_muPlus_pred)
-    loss_mum = tf.keras.losses.sparse_categorical_crossentropy(y_muMinus_true, y_muMinus_pred)
+    if focal:
+        loss_mup = sparse_focal_crossentropy(y_muPlus_true, y_muPlus_pred)
+        loss_mum = sparse_focal_crossentropy(y_muMinus_true, y_muMinus_pred)
+    else:
+        loss_mup = sparse_categorical_crossentropy(y_muPlus_true, y_muPlus_pred)
+        loss_mum = sparse_categorical_crossentropy(y_muMinus_true, y_muMinus_pred)
 
     overlap_penalty = tf.reduce_sum(y_muPlus_pred * y_muMinus_pred, axis=-1)
+    overlap_penalty = tf.reduce_mean(overlap_penalty, axis=-1)
 
-    return tf.reduce_mean(loss_mup + loss_mum + 0.1 * overlap_penalty)
+    ce_loss = tf.reduce_mean(loss_mup + loss_mum, axis=-1)
+    return tf.reduce_mean(ce_loss + 0.1 * overlap_penalty)
 
 
 def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout=0.0):
@@ -205,9 +229,12 @@ def train_model(args):
         clipnorm=args.clipnorm,
     )
     num_outputs = len(model.outputs)
+    losses = [
+        lambda y_true, y_pred: custom_loss(y_true, y_pred, focal=True)
+    ] + [custom_loss] * (num_outputs - 1)
     model.compile(
         optimizer=optimizer, 
-        loss=[custom_loss] * num_outputs,
+        loss=losses,
         loss_weights=[1.0 / (2 ** i) for i in range(num_outputs)],   # exponential decay 
     )
 

@@ -3,8 +3,8 @@ import ROOT
 import numpy as np
 import tensorflow as tf
 import argparse
-from tensorflow.keras import regularizers
-from tensorflow.keras.layers import Layer
+from tensorflow.keras import regularizers, layers
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from sklearn.model_selection import train_test_split
 
 os.makedirs("checkpoints", exist_ok=True)
@@ -51,40 +51,26 @@ def custom_loss(y_true, y_pred):
     return tf.reduce_mean(loss_mup + loss_mum + 0.1 * overlap_penalty)
 
 
-class ChannelAvgPool(Layer):
-    def call(self, x):
-        return tf.reduce_mean(x, axis=[1, 2], keepdims=True)
-
-class ChannelMaxPool(Layer):
-    def call(self, x):
-        return tf.reduce_max(x, axis=[1, 2], keepdims=True)
-
-class SpatialAvgPool(Layer):
-    def call(self, x):
-        return tf.reduce_mean(x, axis=-1, keepdims=True)
-
-class SpatialMaxPool(Layer):
-    def call(self, x):
-        return tf.reduce_max(x, axis=-1, keepdims=True)
-
-
 def cbam_block(x, reduction_ratio=8):
-    # Channel Attention
-    avg_pool = ChannelAvgPool()(x)
-    max_pool = ChannelMaxPool()(x)
-    shared_dense = tf.keras.Sequential([
-        tf.keras.layers.Dense(x.shape[-1] // reduction_ratio, activation='relu', use_bias=False),
-        tf.keras.layers.Dense(x.shape[-1], use_bias=False)
-    ])
-    ca = tf.keras.layers.Activation('sigmoid')(shared_dense(avg_pool) + shared_dense(max_pool))
-    x = tf.keras.layers.Multiply()([x, ca])
+    ch = x.shape[-1]
 
-    # Spatial Attention
-    avg_pool = SpatialAvgPool()(x)
-    max_pool = SpatialMaxPool()(x)
-    sa = tf.keras.layers.Concatenate(axis=-1)([avg_pool, max_pool])
-    sa = tf.keras.layers.Conv2D(1, kernel_size=7, strides=1, padding='same', activation='sigmoid')(sa)
-    x = tf.keras.layers.Multiply()([x, sa])
+    # ----- Channel Attention -----
+    avg_pool = layers.GlobalAveragePooling2D(keepdims=True)(x)  # (B,1,1,C)
+    max_pool = layers.GlobalMaxPooling2D(keepdims=True)(x)      # (B,1,1,C)
+
+    shared_dense = tf.keras.Sequential([
+        layers.Dense(max(ch // reduction_ratio, 1), activation='relu', use_bias=False),
+        layers.Dense(ch, use_bias=False)
+    ])
+    ca = layers.Activation('sigmoid')(shared_dense(avg_pool) + shared_dense(max_pool))
+    x = layers.Multiply()([x, ca])
+
+    # ----- Spatial Attention -----
+    avg_pool = tf.reduce_mean(x, axis=-1, keepdims=True)  # (B,H,W,1)
+    max_pool = tf.reduce_max(x, axis=-1, keepdims=True)   # (B,H,W,1)
+    sa = layers.Concatenate(axis=-1)([avg_pool, max_pool])     # (B,H,W,2)
+    sa = layers.Conv2D(1, kernel_size=7, padding='same', activation='sigmoid')(sa)
+    x = layers.Multiply()([x, sa])
 
     return x
 
@@ -148,30 +134,49 @@ def build_model(num_detectors=62, num_elementIDs=201, learning_rate=0.00005):
     return model
 
 
-def train_model(root_file, output_model, learning_rate, epoch, batch_size, patience):
-    X, y_muPlus, y_muMinus = load_data(root_file)
-    if X is None:
+def train_model(args):
+    X_train, y_muPlus_train, y_muMinus_train = load_data(args.train_root_file)
+    if X_train is None:
         return
-    y = np.stack([y_muPlus, y_muMinus], axis=1)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    y_train = np.stack(
+        [y_muPlus_train, y_muMinus_train], axis=1
+    )  # Shape: (num_events, 2, 62)
 
-    early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=patience, restore_best_weights=True)
+    X_val, y_muPlus_val, y_muMinus_val = load_data(args.val_root_file)
+    if X_val is None:
+        return
+    y_val = np.stack(
+        [y_muPlus_val, y_muMinus_val], axis=1
+    )  # Shape: (num_events, 2, 62)
 
-    model = build_model(learning_rate=learning_rate)
-    model.fit(X_train, y_train, epochs=epoch, batch_size=batch_size, validation_data=(X_test, y_test), callbacks=[early_stopping])
-    model.save(output_model)
-    print(f"Model saved to {output_model}")
+    lr_scheduler = ReduceLROnPlateau(
+        monitor="val_loss", factor=0.3, patience=args.patience // 3, min_lr=1e-6
+    )
+    early_stopping = EarlyStopping(monitor="val_loss", patience=args.patience, restore_best_weights=True)
+
+    model = build_model(learning_rate=args.learning_rate)
+    model.summary()
+    model.fit(
+        X_train,
+        y_train,
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        validation_data=(X_val, y_val),
+        callbacks=[early_stopping, lr_scheduler],
+    )
+    model.save(args.output_model)
+    print(f"Model saved to {args.output_model}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a TensorFlow model to predict hit arrays from event hits.")
-    parser.add_argument("root_file", type=str, help="Path to the combined ROOT file.")
-    parser.add_argument("--output_model", type=str, default="checkpoints/track_finder_cbam.keras", help="Path to save the trained model.")
+    parser.add_argument("train_root_file", type=str, help="Path to the train ROOT file.")
+    parser.add_argument("val_root_file", type=str, help="Path to the validation ROOT file.")
+    parser.add_argument("--output_model", type=str, default="checkpoints/track_finder_cbam.h5", help="Path to save the trained model.")
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
-    parser.add_argument("--epoch", type=int, default=40, help="Training epoch count.")
+    parser.add_argument("--epochs", type=int, default=40, help="Training epoch count.")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size.")
     parser.add_argument("--patience", type=int, default=5, help="Patience for early stopping.")
     args = parser.parse_args()
 
-    train_model(args.root_file, args.output_model, args.learning_rate, args.epoch, args.batch_size, args.patience)
-    # TODO: try saving with .keras instead of .h5
+    train_model(args)
