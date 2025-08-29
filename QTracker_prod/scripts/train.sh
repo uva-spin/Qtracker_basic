@@ -1,24 +1,18 @@
 # If using Rivanna, train using train.slurm instead
 
-LEARNING_RATE=0.00005
+LEARNING_RATE=0.0003
 BATCH_NORM=1
 
-python models/TrackFinder_unetpp.py \
+# UNet-3+
+python3 models/TrackFinder_unet_3p.py \
  data/processed_files/mc_events_train.root \
  data/processed_files/mc_events_val.root \
- --output_model checkpoints/track_finder_unetpp.weights.h5 \
+ --output_model checkpoints/track_finder_unet_3p.h5 \
  --learning_rate $LEARNING_RATE \
+ --patience 12 \
  --batch_norm $BATCH_NORM \
- --dropout_bn 0.5 \
- --dropout_enc 0.3 \
- --deep_supervision 1
+ --base 64
 
-python evaluate.py \
+python3 evaluate.py \
  data/processed_files/mc_events_val.root \
- checkpoints/track_finder_unetpp.weights.h5 \
- --batch_norm $BATCH_NORM
-
-python evaluate.py \
- data/processed_files/mc_events_val_high.root \
- checkpoints/track_finder_unetpp.h5 \
- --batch_norm $BATCH_NORM
+ checkpoints/track_finder_unet_3p.h5
