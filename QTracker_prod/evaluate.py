@@ -71,9 +71,6 @@ def evaluate_model(root_file, model_path, use_bn=False, base=64, deep_supervisio
 
     y_pred = model.predict(X_test)  # shape: (num_events, 2, num_detectors, num_elementids)
 
-    softmax_mup = y_pred[:, 0, :, :]   # (num_events, num_detectors, num_elementids)
-    softmax_mum = y_pred[:, 1, :, :]   # (num_events, num_detectors, num_elementids)
-
     y_p_raw = tf.cast(
         tf.argmax(tf.squeeze(tf.split(y_pred,2,axis=1)[0],axis=1), axis=-1),
         tf.int32
@@ -99,16 +96,6 @@ def evaluate_model(root_file, model_path, use_bn=False, base=64, deep_supervisio
     dets_used = (np.where(mask)[0] + 1)
     plot_residuals(dets_used, raw_p_res[:,mask], raw_m_res[:,mask], model_path, 'raw')
 
-    acc_p = np.mean(np.abs(raw_p_res) == 0)
-    acc_m = np.mean(np.abs(raw_m_res) == 0)
-    print(f"\nRaw μ+ accuracy: {acc_p:.4f}")
-    print(f"Raw μ- accuracy: {acc_m:.4f}")
-
-    acc_p = np.mean(np.abs(raw_p_res) <= 2)
-    acc_m = np.mean(np.abs(raw_m_res) <= 2)
-    print(f"\nRaw μ+ distance-based accuracy: {acc_p:.4f}")
-    print(f"Raw μ- distance-based accuracy: {acc_m:.4f}")
-
     ref_p, ref_m = refine_hit_arrays(
         y_p_raw, y_m_raw, det_test, elem_test
     )
@@ -125,6 +112,16 @@ def evaluate_model(root_file, model_path, use_bn=False, base=64, deep_supervisio
     dets_used = (np.where(mask)[0] + 1)
     plot_residuals(dets_used, ref_p_res[:,mask], ref_m_res[:,mask], model_path, 'refined')
 
+    acc_p = np.mean(np.abs(raw_p_res) == 0)
+    acc_m = np.mean(np.abs(raw_m_res) == 0)
+    print(f"\nRaw μ+ accuracy: {acc_p:.4f}")
+    print(f"Raw μ- accuracy: {acc_m:.4f}")
+
+    acc_p = np.mean(np.abs(raw_p_res) <= 2)
+    acc_m = np.mean(np.abs(raw_m_res) <= 2)
+    print(f"\nRaw μ+ within-2 accuracy: {acc_p:.4f}")
+    print(f"Raw μ- within-2 accuracy: {acc_m:.4f}")
+
     acc_p = np.mean(np.abs(ref_p_res) == 0)
     acc_m = np.mean(np.abs(ref_m_res) == 0)
     print(f"\nRefined μ+ accuracy: {acc_p:.4f}")
@@ -132,8 +129,8 @@ def evaluate_model(root_file, model_path, use_bn=False, base=64, deep_supervisio
 
     acc_p = np.mean(np.abs(ref_p_res) <= 2)
     acc_m = np.mean(np.abs(ref_m_res) <= 2)
-    print(f"\nRefined μ+ distance-based accuracy: {acc_p:.4f}")
-    print(f"Refined μ- distance-based accuracy: {acc_m:.4f}")
+    print(f"\nRefined μ+ within-2 accuracy: {acc_p:.4f}")
+    print(f"Refined μ- within-2 accuracy: {acc_m:.4f}")
 
     print("\n--- Raw Absolute Residuals (Before Refinement) ---")
     print("μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
