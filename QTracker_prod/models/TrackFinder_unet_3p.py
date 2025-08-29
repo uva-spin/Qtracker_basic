@@ -7,13 +7,14 @@ import tensorflow as tf
 import argparse
 import math
 import matplotlib.pyplot as plt
-from tensorflow.keras import regularizers
+from tensorflow.keras import layers, mixed_precision
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
-from tensorflow.keras import layers
 from tensorflow.keras.optimizers import AdamW
 
 from data_loader import load_data
-from losses import custom_loss
+from losses import custom_loss_mp
+
+mixed_precision.set_global_policy("mixed_float16")
 
 # Ensure the checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
@@ -182,7 +183,7 @@ def train_model(args):
     optimizer = AdamW(learning_rate=args.learning_rate, weight_decay=args.weight_decay)
     model.compile(
         optimizer=optimizer, 
-        loss=custom_loss, 
+        loss=custom_loss_mp, 
         metrics=['accuracy']
     )
     
