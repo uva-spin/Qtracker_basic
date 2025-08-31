@@ -29,14 +29,37 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
      /mnt/code/data/processed_files/mc_events_val.root \
      --output_model /mnt/code/checkpoints/track_finder_unet_3p.h5 \
      --learning_rate $LEARNING_RATE \
-     --patience 12 \
+     --patience 10 \
      --batch_norm $BATCH_NORM \
      --base 64 \
+     --epochs 50 \
+     --batch_size 64 \
+     --dropout_bn 0.5 \
+     --dropout 0.4
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/evaluate.py \
      /mnt/code/data/processed_files/mc_events_val.root \
      /mnt/code/checkpoints/track_finder_unet_3p.h5
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/models/TrackFinder_unet_3p.py \
+     /mnt/code/data/processed_files/mc_events_train.root \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     --output_model /mnt/code/checkpoints/track_finder_unet_3p_small.h5 \
+     --learning_rate $LEARNING_RATE \
+     --patience 10 \
+     --batch_norm $BATCH_NORM \
+     --base 16 \
+     --epochs 50 \
+     --batch_size 64 \
+     --dropout_bn 0.5 \
+     --dropout 0.4
+
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/evaluate.py \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     /mnt/code/checkpoints/track_finder_unet_3p_small.h5
 
 # # --- Training and Evaluating Momentum Model ---
 # ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \

@@ -98,29 +98,40 @@ def custom_loss(y_true, y_pred, focal=False):
 
 
 def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout=0.0):
+    shortcut = x
+
     # First Conv Layer + Activation
     x = layers.Conv2D(
-        filters, kernel_size=3, padding="same", kernel_regularizer=regularizers.l2(l2)
+        filters, kernel_size=3, padding='same',
+        kernel_regularizer=regularizers.l2(l2)
     )(x)
     if use_bn:
         x = layers.BatchNormalization()(x)
-    x = layers.Activation("relu")(x)
+    x = layers.Activation('relu')(x)
 
-    # Dropout for bottleneck block
+    # Dropout for bottleneck layers
     if dropout_bn > 0:
-        x = layers.SpatialDropout2D(dropout_bn)(x)
+        x = layers.Dropout(dropout_bn)(x)
 
     # Second Conv Layer
     x = layers.Conv2D(
-        filters, kernel_size=3, padding="same", kernel_regularizer=regularizers.l2(l2)
+        filters, kernel_size=3, padding='same',
+        kernel_regularizer=regularizers.l2(l2)
     )(x)
     if use_bn:
         x = layers.BatchNormalization()(x)
-    x = layers.Activation("relu")(x)
 
-    # Dropout for encoder/decoder blocks
+    # Project shortcut if needed
+    if shortcut.shape[-1] != x.shape[-1]:
+        shortcut = tf.keras.layers.Conv2D(filters, (1, 1), padding='same')(shortcut)
+
+    x = tf.keras.layers.Add()([x, shortcut])
+    
+    x = layers.Activation('relu')(x)
+
+    # Dropout for encoder blocks
     if dropout > 0:
-        x = layers.SpatialDropout2D(dropout)(x)
+        x = layers.Dropout(dropout)(x)
     return x
 
 
@@ -227,6 +238,7 @@ def train_model(args):
         learning_rate=args.learning_rate,
         weight_decay=args.weight_decay,
         clipnorm=args.clipnorm,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
     )
     num_outputs = len(model.outputs)
     losses = [
@@ -278,7 +290,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_model",
         type=str,
-        default="checkpoints/track_finder_unetpp.weights.h5",
+        default="checkpoints/track_finder_unetpp_ds.weights.h5",
         help="Path to save the trained model.",
     )
     parser.add_argument(
@@ -337,6 +349,12 @@ if __name__ == "__main__":
         type=float,
         default=1.0,
         help="Hyperparameter for gradient clipping in AdamW.",
+    )
+    parser.add_argument(
+        "--gradient_accumulation_steps",
+        type=int,
+        default=None,
+        help="Gradient accumulation steps.",
     )
     args = parser.parse_args()
 

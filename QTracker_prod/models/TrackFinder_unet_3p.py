@@ -20,25 +20,44 @@ mixed_precision.set_global_policy("mixed_float16")
 os.makedirs("checkpoints", exist_ok=True)
 
 
-def conv_block(x, filters, use_bn=False):
+def conv_block(x, filters, use_bn=False, dropout=0.0):
+    shortcut = x
+
     # First Conv Layer + Activation
     x = layers.Conv2D(
         filters, kernel_size=3, padding='same'
     )(x)
     if use_bn:
         x = layers.BatchNormalization()(x)
+
+    # Project shortcut if needed
+    if shortcut.shape[-1] != x.shape[-1]:
+        shortcut = tf.keras.layers.Conv2D(filters, (1, 1), padding='same')(shortcut)
+
+    x = tf.keras.layers.Add()([x, shortcut])
+
     x = layers.Activation('relu')(x)
 
+    if dropout > 0:
+        x = layers.Dropout(dropout)(x)
+
     return x
 
 
-def enc_block(x, filters, use_bn=False):
+def enc_block(x, filters, use_bn=False, dropout=0.0):
     x = conv_block(x, filters, use_bn)
-    x = conv_block(x, filters, use_bn)
+    x = conv_block(x, filters, use_bn, dropout)
     return x
 
 
-def build_model(num_detectors=62, num_elementIDs=201, base=64, use_bn=False):
+def build_model(
+    num_detectors=62, 
+    num_elementIDs=201, 
+    base=64, 
+    use_bn=False,
+    dropout_bn=0.0,
+    dropout=0.0,
+):
     input_layer = layers.Input(shape=(num_detectors, num_elementIDs, 1))
 
     # Zero padding (aligns to closest 2^n -> preserves input shape)
@@ -66,11 +85,12 @@ def build_model(num_detectors=62, num_elementIDs=201, base=64, use_bn=False):
     enc3 = enc_block(pool2, filters[2], use_bn=use_bn)
     pool3 = layers.MaxPooling2D(pool_size=(2, 2))(enc3)
 
-    enc4 = enc_block(pool3, filters[3], use_bn=use_bn)
+    enc4 = enc_block(pool3, filters[3], use_bn=use_bn, dropout=dropout)
     pool4 = layers.MaxPooling2D(pool_size=(2, 2))(enc4)
 
     # Bottleneck
-    enc5 = enc_block(pool4, filters[4], use_bn=use_bn)
+    enc5 = conv_block(pool4, filters[4], use_bn=use_bn, dropout=dropout_bn)
+    enc5 = conv_block(enc5, filters[4], use_bn=use_bn)
 
     # Decoder 4
     enc1_dec4 = layers.MaxPooling2D((8, 8))(enc1)
@@ -177,17 +197,30 @@ def train_model(args):
     model = build_model(
         base=args.base, 
         use_bn=bool(args.batch_norm), 
+        dropout_bn=args.dropout_bn,
+        dropout=args.dropout,
     )
     model.summary()
 
-    optimizer = AdamW(learning_rate=args.learning_rate, weight_decay=args.weight_decay)
+    optimizer = AdamW(
+        learning_rate=args.learning_rate, 
+        weight_decay=args.weight_decay,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
+    )
     model.compile(
         optimizer=optimizer, 
         loss=custom_loss_mp, 
         metrics=['accuracy']
     )
     
-    history = model.fit(X_train, y_train, epochs=args.epochs, batch_size=args.batch_size, validation_data=(X_val, y_val), callbacks=[lr_scheduler, early_stopping])
+    history = model.fit(
+        X_train, 
+        y_train, 
+        epochs=args.epochs, 
+        batch_size=args.batch_size, 
+        validation_data=(X_val, y_val), 
+        callbacks=[lr_scheduler, early_stopping]
+    )
 
     # Plot train and val loss over epochs
     plt.figure(figsize=(8, 6))
@@ -212,28 +245,17 @@ if __name__ == "__main__":
     parser.add_argument("train_root_file", type=str, help="Path to the train ROOT file.")
     parser.add_argument("val_root_file", type=str, help="Path to the validation ROOT file.")
     parser.add_argument("--output_model", type=str, default="checkpoints/track_finder_unet.h5", help="Path to save the trained model.")
+
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
     parser.add_argument("--patience", type=int, default=5, help="Patience for EarlyStopping.")
+    parser.add_argument("--dropout_bn", type=float, default=0.0, help="Dropout rate for bottleneck layer.")
+    parser.add_argument("--dropout", type=float, default=0.0, help="Dropout rate for encoder blocks.")
     parser.add_argument("--base", type=int, default=64, help="Base number of channels in U-Net.")
     parser.add_argument("--batch_norm", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")
-    parser.add_argument(
-        "--epochs",
-        type=int,
-        default=40,
-        help="Number of epochs in training.",
-    )
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=32,
-        help="Batch size for mini-batch gradient descent.",
-    )
-    parser.add_argument(
-        "--weight_decay",
-        type=float,
-        default=1e-4,
-        help="Weight decay for AdamW optimizer.",
-    )
+    parser.add_argument("--epochs", type=int, default=40, help="Number of epochs in training.")
+    parser.add_argument("--batch_size", type=int, default=32, help="Batch size for mini-batch gradient descent.")
+    parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay for AdamW optimizer.")
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=None, help="Gradient accumulation steps.")
     args = parser.parse_args()
 
     train_model(args)

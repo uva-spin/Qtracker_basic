@@ -8,12 +8,14 @@ import ROOT
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-import pandas as pd
+from typing import Callable, Dict
 
 # core TrackFinder loaders / custom loss
 from models import data_loader
-from models import TrackFinder_unetpp
-from models.losses import custom_loss
+from models import (
+    TrackFinder_unetpp_ds,
+    # TrackFinder_unet_3p_ds,
+)
 import QTracker_prod
 from refine import refine_hit_arrays
 
@@ -40,36 +42,37 @@ def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
     plt.savefig(os.path.join(plot_dir, fname))
     plt.show()
 
-def evaluate_model(root_file, model_path, use_bn=False, base=64, deep_supervision=False):
-    X_test, y_muPlus_test, y_muMinus_test = data_loader.load_data(root_file)
+def evaluate_model(args):
+    X_test, y_muPlus_test, y_muMinus_test = data_loader.load_data(args.root_file)
     if X_test is None:
         return
 
     y_test = np.stack([y_muPlus_test, y_muMinus_test], axis=1)
-    det_test, elem_test, _, _, _ = QTracker_prod.load_detector_element_data(root_file)
-    N = QTracker_prod.NUM_DETECTORS
+    det_test, elem_test, _, _, _ = QTracker_prod.load_detector_element_data(args.root_file)
 
     mask = np.ones(62, dtype=bool)
     mask[6:12]   = False
     mask[54:62]  = False
 
-    custom_objects = {
-        "custom_loss": custom_loss,
-        "Adam": tf.keras.optimizers.legacy.Adam,
-        "AdamW": tf.keras.optimizers.AdamW
-    }
-    with tf.keras.utils.custom_object_scope(custom_objects):
-        if ".weights.h5" in model_path:
-            model = TrackFinder_unetpp.build_model(
-                use_bn=use_bn, 
-                base=base,
-                deep_supervision=deep_supervision
-            )
-            model.load_weights(model_path)
-        else:
-            model = tf.keras.models.load_model(model_path)
+    if ".weights.h5" in args.model_path:
+        model_map: Dict[str, Callable] = {
+            "TrackFinder_unetpp_ds": TrackFinder_unetpp_ds.build_model,
+            # "TrackFinder_unet_3p_ds": TrackFinder_unet_3p_ds.build_model,
+        }
+        build_model = model_map[args.model]
+        model = build_model(
+            use_bn=bool(args.batch_norm), 
+            base=args.base,
+        )
+        model.load_weights(args.model_path)
 
-    y_pred = model.predict(X_test)  # shape: (num_events, 2, num_detectors, num_elementids)
+        y_pred = model.predict(X_test)[0]
+    else:
+        model = tf.keras.models.load_model(
+            args.model_path, 
+            compile=False,
+        )
+        y_pred = model.predict(X_test)
 
     y_p_raw = tf.cast(
         tf.argmax(tf.squeeze(tf.split(y_pred,2,axis=1)[0],axis=1), axis=-1),
@@ -94,7 +97,7 @@ def evaluate_model(root_file, model_path, use_bn=False, base=64, deep_supervisio
         print(f"{det+1:3d} | {m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
 
     dets_used = (np.where(mask)[0] + 1)
-    plot_residuals(dets_used, raw_p_res[:,mask], raw_m_res[:,mask], model_path, 'raw')
+    plot_residuals(dets_used, raw_p_res[:,mask], raw_m_res[:,mask], args.model_path, 'raw')
 
     ref_p, ref_m = refine_hit_arrays(
         y_p_raw, y_m_raw, det_test, elem_test
@@ -110,7 +113,7 @@ def evaluate_model(root_file, model_path, use_bn=False, base=64, deep_supervisio
         print(f"{det+1:3d} | {m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
 
     dets_used = (np.where(mask)[0] + 1)
-    plot_residuals(dets_used, ref_p_res[:,mask], ref_m_res[:,mask], model_path, 'refined')
+    plot_residuals(dets_used, ref_p_res[:,mask], ref_m_res[:,mask], args.model_path, 'refined')
 
     acc_p = np.mean(np.abs(raw_p_res) == 0)
     acc_m = np.mean(np.abs(raw_m_res) == 0)
@@ -153,8 +156,8 @@ if __name__ == '__main__':
     parser.add_argument("model_path", type=str, help="Path to the saved model file (.h5 or .keras).")
     parser.add_argument("--batch_norm", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")
     parser.add_argument("--base", type=int, default=64, help="Flag to set batch normalization: [0 = False, 1 = True].")
-    parser.add_argument("--deep_supervision", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")
+    parser.add_argument("--model", type=str, default=None, help="Model name.")
     args = parser.parse_args()
 
     print(f"\nResults for {args.model_path}...")
-    evaluate_model(args.root_file, args.model_path, bool(args.batch_norm), args.base, bool(args.deep_supervision))
+    evaluate_model(args)
