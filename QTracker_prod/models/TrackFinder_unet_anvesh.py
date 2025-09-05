@@ -14,6 +14,23 @@ from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from tensorflow.keras.applications import ResNet50
 from tensorflow.keras import layers
 
+# Device selection for TensorFlow
+def set_tf_device():
+    physical_devices = tf.config.list_physical_devices('GPU')
+    if physical_devices:
+        try:
+            tf.config.experimental.set_memory_growth(physical_devices[0], True)
+            print("Using GPU:", physical_devices[0])
+        except Exception as e:
+            print("Could not set GPU memory growth:", e)
+    elif hasattr(tf.config, 'list_physical_devices') and tf.config.list_physical_devices('MPS'):
+        print("Using Apple Silicon MPS")
+        # TensorFlow will use MPS automatically if available
+    else:
+        print("Using CPU")
+
+set_tf_device()
+
 from data_loader import load_data,
 from losses import custom_loss
 import wandb
