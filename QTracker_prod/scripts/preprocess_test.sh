@@ -1,45 +1,45 @@
 # --- 0. Create train/val/test sets ---
-python Util/skim.py data/original_files/JPsi_Dump_1M.root \
+python Util/skim.py data/raw_files/JPsi_Dump_100K.root \
  --output_file data/raw_files/JPsi_Dump_Train.root \
- --max_events 370000
+ --max_events 80
 
-python Util/skim.py data/original_files/MUP_Dump_1M.root \
+python Util/skim.py data/raw_files/MUP_Dump_100K.root \
  --output_file data/raw_files/MUP_Dump_Train.root \
- --max_events 800000
+ --max_events 80
 
-python Util/skim.py data/original_files/MUM_Dump_1M.root \
+python Util/skim.py data/raw_files/MUM_Dump_100K.root \
  --output_file data/raw_files/MUM_Dump_Train.root \
- --max_events 800000
+ --max_events 80
 
-python Util/skim.py data/original_files/JPsi_Dump_1M.root \
+python Util/skim.py data/raw_files/JPsi_Dump_100K.root \
  --output_file data/raw_files/JPsi_Dump_Val.root \
- --max_events 100000 \
- --start 370000
+ --max_events 10 \
+ --start 100
 
-python Util/skim.py data/original_files/MUP_Dump_1M.root \
+python Util/skim.py data/raw_files/MUP_Dump_100K.root \
  --output_file data/raw_files/MUP_Dump_Val.root \
- --max_events 100000 \
- --start 800000
+ --max_events 10 \
+ --start 100
 
-python Util/skim.py data/original_files/MUM_Dump_1M.root \
+python Util/skim.py data/raw_files/MUM_Dump_100K.root \
  --output_file data/raw_files/MUM_Dump_Val.root \
- --max_events 100000 \
- --start 800000
+ --max_events 10 \
+ --start 100
 
-python Util/skim.py data/original_files/JPsi_Dump_1M.root \
+python Util/skim.py data/raw_files/JPsi_Dump_100K.root \
  --output_file data/raw_files/JPsi_Dump_Test.root \
- --max_events 100000 \
- --start 470000
+ --max_events 10 \
+ --start 200
 
-python Util/skim.py data/original_files/MUP_Dump_1M.root \
+python Util/skim.py data/raw_files/MUP_Dump_100K.root \
  --output_file data/raw_files/MUP_Dump_Test.root \
- --max_events 100000 \
- --start 900000
+ --max_events 10 \
+ --start 200
 
-python Util/skim.py data/original_files/MUM_Dump_1M.root \
+python Util/skim.py data/raw_files/MUM_Dump_100K.root \
  --output_file data/raw_files/MUM_Dump_Test.root \
- --max_events 100000 \
- --start 900000
+ --max_events 10 \
+ --start 200
 
 # --- 1. Split signal ROOT file into μ⁺ and μ⁻ tracks ---
 python data/separate.py data/raw_files/JPsi_Dump_Train.root
@@ -50,15 +50,15 @@ python data/separate.py data/raw_files/JPsi_Dump_Test.root
 # --- 2. Merge two single-muon ROOT files ---
 python data/combine.py data/raw_files/MUP_Dump_Train.root data/raw_files/MUM_Dump_Train.root \
  --output data/processed_files/single_muons_train.root \
- --max_output_events 800000
+ --max_output_events 80
 
 python data/combine.py data/raw_files/MUP_Dump_Val.root data/raw_files/MUM_Dump_Val.root \
  --output data/processed_files/single_muons_val.root \
- --max_output_events 100000
+ --max_output_events 10
 
 python data/combine.py data/raw_files/MUP_Dump_Test.root data/raw_files/MUM_Dump_Test.root \
  --output data/processed_files/single_muons_test.root \
- --max_output_events 100000
+ --max_output_events 10
 
 # --- 3. Generate training data by combining μ⁺ and μ⁻ signal tracks ---
 python data/gen_training.py \
@@ -115,14 +115,3 @@ python data/messy_gen.py \
  data/processed_files/finder_training_val.root \
  data/processed_files/single_muons_val.root \
  --output data/processed_files/mc_events_val.root
-
-# # --- 5. Inject randomly generated noise hits into file from 4 ---
-# P_ELECTRONIC_NOISE=0.01
-# P_CLUSTER_NOISE=0.05
-# CLUSTER_LENGTH_RANGE="(2,4)"
-
-# python data/noisy_gen.py data/mc_events.root \
-#  --output data/noisy_output.root \
-#  --p_electronic_noise $P_ELECTRONIC_NOISE \
-#  --p_cluster_noise $P_CLUSTER_NOISE \
-#  --cluster_length_range $CLUSTER_LENGTH_RANGE

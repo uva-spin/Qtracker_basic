@@ -3,6 +3,7 @@
 import argparse
 import math
 import os
+import gc
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -184,11 +185,11 @@ def build_model(
 
 
 def train_model(args):
-    X_train, y_muPlus_train, y_muMinus_train = load_data(args.train_root_file)
-    if X_train is None:
+    X_train_low, y_muPlus_train_low, y_muMinus_train_low = load_data(args.train_root_file_low)
+    if X_train_low is None:
         return
-    y_train = np.stack(
-        [y_muPlus_train, y_muMinus_train], axis=1
+    y_train_low = np.stack(
+        [y_muPlus_train_low, y_muMinus_train_low], axis=1
     )  # Shape: (num_events, 2, 62)
 
     X_val, y_muPlus_val, y_muMinus_val = load_data(args.val_root_file)
@@ -218,28 +219,57 @@ def train_model(args):
     )
     model.compile(optimizer=optimizer, loss=custom_loss, metrics=["accuracy"])
 
-    history = model.fit(
-        X_train,
-        y_train,
-        epochs=args.epochs,
+    epochs_low = int(args.epochs * 0.5)
+    epochs_med = int(args.epochs * 0.8)
+    epochs_high = args.epochs
+
+    model.fit(
+        X_train_low,
+        y_train_low,
+        initial_epoch=0,
+        epochs=epochs_low,
         batch_size=args.batch_size,
         validation_data=(X_val, y_val),
         callbacks=[lr_scheduler, early_stopping],
     )
+    del X_train_low, y_train_low
+    gc.collect()
 
-    # Plot train and val loss over epochs
-    plt.figure(figsize=(8, 6))
-    plt.plot(history.history["loss"], label="Train Loss")
-    plt.plot(history.history["val_loss"], label="Validation Loss")
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.legend()
-    plt.title("Training and Val Loss Over Epochs")
+    X_train_med, y_muPlus_train_med, y_muMinus_train_med = load_data(args.train_root_file_med)
+    if X_train_med is None:
+        return
+    y_train_med = np.stack(
+        [y_muPlus_train_med, y_muMinus_train_med], axis=1
+    )  # Shape: (num_events, 2, 62)
+    model.fit(
+        X_train_med,
+        y_train_med,
+        initial_epoch=epochs_low,
+        epochs=epochs_med,
+        batch_size=args.batch_size,
+        validation_data=(X_val, y_val),
+        callbacks=[lr_scheduler, early_stopping],
+    )
+    del X_train_med, y_train_med
+    gc.collect()
 
-    plot_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "plots")
-    os.makedirs(plot_dir, exist_ok=True)
-    plt.savefig(os.path.join(plot_dir, "losses.png"))
-    plt.show()
+    X_train_high, y_muPlus_train_high, y_muMinus_train_high = load_data(args.train_root_file_high)
+    if X_train_high is None:
+        return
+    y_train_high = np.stack(
+        [y_muPlus_train_high, y_muMinus_train_high], axis=1
+    )  # Shape: (num_events, 2, 62)
+    model.fit(
+        X_train_high,
+        y_train_high,
+        initial_epoch=epochs_med,
+        epochs=epochs_high,
+        batch_size=args.batch_size,
+        validation_data=(X_val, y_val),
+        callbacks=[lr_scheduler, early_stopping],
+    )
+    del X_train_high, y_train_high
+    gc.collect()
 
     model.save(args.output_model)
     print(f"Model saved to {args.output_model}")
@@ -250,7 +280,13 @@ if __name__ == "__main__":
         description="Train a TensorFlow model to predict hit arrays from event hits."
     )
     parser.add_argument(
-        "train_root_file", type=str, help="Path to the train ROOT file."
+        "train_root_file_low", type=str, help="Path to the train ROOT file."
+    )
+    parser.add_argument(
+        "train_root_file_med", type=str, help="Path to the train ROOT file."
+    )
+    parser.add_argument(
+        "train_root_file_high", type=str, help="Path to the train ROOT file."
     )
     parser.add_argument(
         "val_root_file", type=str, help="Path to the validation ROOT file."
