@@ -230,7 +230,7 @@ def train_model(args):
         epochs=epochs_low,
         batch_size=args.batch_size,
         validation_data=(X_val, y_val),
-        callbacks=[lr_scheduler, early_stopping],
+        callbacks=[lr_scheduler],
     )
     del X_train_low, y_train_low
     gc.collect()
@@ -248,7 +248,7 @@ def train_model(args):
         epochs=epochs_med,
         batch_size=args.batch_size,
         validation_data=(X_val, y_val),
-        callbacks=[lr_scheduler, early_stopping],
+        callbacks=[lr_scheduler],
     )
     del X_train_med, y_train_med
     gc.collect()
