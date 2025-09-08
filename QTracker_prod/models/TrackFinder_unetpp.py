@@ -1,4 +1,4 @@
-"""Custom U-Net for particle track reconstruction"""
+""" U-Net++ model with curriculum learning """
 
 import argparse
 import math
@@ -219,8 +219,8 @@ def train_model(args):
     )
     model.compile(optimizer=optimizer, loss=custom_loss, metrics=["accuracy"])
 
-    epochs_low = int(args.epochs * 0.5)
-    epochs_med = int(args.epochs * 0.8)
+    epochs_low = int(args.epochs * args.low_ratio)
+    epochs_med = int(args.epochs * args.med_ratio)
     epochs_high = args.epochs
 
     model.fit(
@@ -353,6 +353,18 @@ if __name__ == "__main__":
         type=float,
         default=1.0,
         help="Hyperparameter for gradient clipping in AdamW.",
+    )
+    parser.add_argument(
+        "--low_ratio",
+        type=float,
+        default=0.5,
+        help="Fraction of epochs for low complexity data.",
+    )
+    parser.add_argument(
+        "--med_ratio",
+        type=float,
+        default=0.8,
+        help="Fraction of epochs for medium complexity data.",
     )
     args = parser.parse_args()
 

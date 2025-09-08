@@ -1,4 +1,4 @@
-""" U-Net++ with weighted deep supervision (exponential decay; used in original paper) """
+""" Vanilla U-Net++ (no deep supervision or curriculum learning) """
 
 import argparse
 import math
@@ -8,93 +8,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 import ROOT
 import tensorflow as tf
-from tensorflow.keras import layers, regularizers, mixed_precision
-from tensorflow.keras.losses import sparse_categorical_crossentropy
+from tensorflow.keras import layers, regularizers
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import AdamW
 from tensorflow.keras import mixed_precision
+
+from data_loader import load_data
+from losses import custom_loss
 
 mixed_precision.set_global_policy("mixed_float16")
 
 # Ensure the checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
 
-
-def load_data(root_file):
-    f = ROOT.TFile.Open(root_file, "READ")
-    tree = f.Get("tree")
-
-    if not tree:
-        print("Error: Tree not found in file.")
-        return None, None, None
-
-    num_detectors = 62
-    num_elementIDs = 201
-
-    X = []
-    y_muPlus = []
-    y_muMinus = []
-
-    for event in tree:
-        event_hits_matrix = np.zeros((num_detectors, num_elementIDs), dtype=np.float32)
-
-        for det_id, elem_id in zip(event.detectorID, event.elementID):
-            if 0 <= det_id < num_detectors and 0 <= elem_id < num_elementIDs:
-                event_hits_matrix[det_id, elem_id] = 1
-
-        mu_plus_array = np.array(event.HitArray_mup, dtype=np.int32)
-        mu_minus_array = np.array(event.HitArray_mum, dtype=np.int32)
-
-        X.append(event_hits_matrix)
-        y_muPlus.append(mu_plus_array)
-        y_muMinus.append(mu_minus_array)
-
-    X = np.array(X)[..., np.newaxis]  # Shape: (num_events, 62, 201, 1)
-    y_muPlus = np.array(y_muPlus)
-    y_muMinus = np.array(y_muMinus)
-
-    return X, y_muPlus, y_muMinus
-
-
-def custom_loss(y_true, y_pred, focal=False):
-    def sparse_focal_crossentropy(y_true, y_pred, gamma=2.0, alpha=1.0):
-        """
-        y_true: (B, Det) int indices
-        y_pred: (B, Det, Elem) probabilities (softmax), float
-        returns: (B, Det) focal CE per detector
-        """
-        y_true = tf.cast(y_true, tf.int32)
-        y_pred = tf.cast(y_pred, tf.float32)
-
-        # p_t = prob of the true class
-        y_true_oh = tf.one_hot(y_true, depth=tf.shape(y_pred)[-1], dtype=tf.float32)  # (B,Det,Elem)
-        p_t = tf.reduce_sum(y_true_oh * y_pred, axis=-1)                              # (B,Det)
-        p_t = tf.clip_by_value(p_t, 1e-9, 1.0)
-
-        focal = -alpha * tf.pow(1.0 - p_t, gamma) * tf.math.log(p_t)                  # (B,Det)
-        return focal
-
-    y_muPlus_true, y_muMinus_true = tf.split(y_true, num_or_size_splits=2, axis=1)
-    y_muPlus_pred, y_muMinus_pred = tf.split(y_pred, num_or_size_splits=2, axis=1)
-
-    y_muPlus_true = tf.squeeze(y_muPlus_true, axis=1)
-    y_muMinus_true = tf.squeeze(y_muMinus_true, axis=1)
-
-    y_muPlus_pred = tf.cast(tf.squeeze(y_muPlus_pred, axis=1), tf.float32)
-    y_muMinus_pred = tf.cast(tf.squeeze(y_muMinus_pred, axis=1), tf.float32)
-
-    if focal:
-        loss_mup = sparse_focal_crossentropy(y_muPlus_true, y_muPlus_pred)
-        loss_mum = sparse_focal_crossentropy(y_muMinus_true, y_muMinus_pred)
-    else:
-        loss_mup = sparse_categorical_crossentropy(y_muPlus_true, y_muPlus_pred)
-        loss_mum = sparse_categorical_crossentropy(y_muMinus_true, y_muMinus_pred)
-
-    overlap_penalty = tf.reduce_sum(y_muPlus_pred * y_muMinus_pred, axis=-1)
-    overlap_penalty = tf.reduce_mean(overlap_penalty, axis=-1)
-
-    ce_loss = tf.reduce_mean(loss_mup + loss_mum, axis=-1)
-    return tf.reduce_mean(ce_loss + 0.1 * overlap_penalty)
+NUM_DETECTORS = 62
+NUM_ELEMENT_IDS = 201
 
 
 def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout=0.0):
@@ -140,15 +68,6 @@ def upsample(x):
     return x
 
 
-def head(feature, padding, name):
-    x = layers.Cropping2D(cropping=padding)(feature)
-    x = layers.Conv2D(2, kernel_size=1, name=name)(x)
-    x = layers.Softmax(axis=2)(x)  # softmax over elementID
-    return layers.Permute((3, 1, 2))(
-        x
-    )  # permute to match shape required by loss: (batch, 2, det, elem)
-
-
 def build_model(
     num_detectors=62,
     num_elementIDs=201,
@@ -161,8 +80,7 @@ def build_model(
 
     # Zero padding (aligns to closest 2^n -> preserves input shape)
     filters = [base, base*2, base*4, base*8, base*16]
-    depth = len(filters) - 1    
-    num_pool = 2 ** depth
+    num_pool = 2**(len(filters) - 1)  # 2 ^ n, n = number of max pooling
     closest_even_det = num_pool * math.ceil(num_detectors / num_pool)
     closest_even_elem = num_pool * math.ceil(num_elementIDs / num_pool)
     det_diff = closest_even_det - num_detectors
@@ -198,8 +116,12 @@ def build_model(
             X[i][j] = conv_block(layers.Concatenate()(concat_parts), filters[i], use_bn=use_bn)
 
     # Logits
-    x = [head(X[0][j], padding, name=f'logits_{j}') for j in range(1, len(filters))]
-    output = list(reversed(x))
+    x = layers.Cropping2D(cropping=padding)(X[0][j])
+    x = layers.Conv2D(2, kernel_size=1)(x)
+
+    # Softmax + permute to match shape required by loss: (batch, 2, det, elem)
+    x = layers.Softmax(axis=2)(x)  # softmax over elementID
+    output = layers.Permute((3, 1, 2))(x)
 
     # Initialize model
     model = tf.keras.Model(inputs=input_layer, outputs=output)
@@ -229,8 +151,12 @@ def train_model(args):
     )
 
     model = build_model(
-        use_bn=args.batch_norm, dropout_bn=args.dropout_bn, 
-        dropout_enc=args.dropout_enc, base=args.base
+        num_detectors=NUM_DETECTORS,
+        num_elementIDs=NUM_ELEMENT_IDS, 
+        use_bn=args.batch_norm, 
+        dropout_bn=args.dropout_bn, 
+        dropout_enc=args.dropout_enc, 
+        base=args.base,
     )
     model.summary()
 
@@ -238,24 +164,15 @@ def train_model(args):
         learning_rate=args.learning_rate,
         weight_decay=args.weight_decay,
         clipnorm=args.clipnorm,
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
     )
-    num_outputs = len(model.outputs)
-    losses = [
-        lambda y_true, y_pred: custom_loss(y_true, y_pred, focal=True)
-    ] + [custom_loss] * (num_outputs - 1)
-    model.compile(
-        optimizer=optimizer, 
-        loss=losses,
-        loss_weights=[1.0 / (2 ** i) for i in range(num_outputs)],   # exponential decay 
-    )
+    model.compile(optimizer=optimizer, loss=custom_loss, metrics=["accuracy"])
 
     history = model.fit(
         X_train,
-        [y_train] * num_outputs,
+        y_train,
         epochs=args.epochs,
         batch_size=args.batch_size,
-        validation_data=(X_val, [y_val] * num_outputs),
+        validation_data=(X_val, y_val),
         callbacks=[lr_scheduler, early_stopping],
     )
 
@@ -273,7 +190,7 @@ def train_model(args):
     plt.savefig(os.path.join(plot_dir, "losses.png"))
     plt.show()
 
-    model.save_weights(args.output_model)
+    model.save(args.output_model)
     print(f"Model saved to {args.output_model}")
 
 
@@ -290,7 +207,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_model",
         type=str,
-        default="checkpoints/track_finder_unetpp_ds.weights.h5",
+        default="checkpoints/track_finder_unetpp.h5",
         help="Path to save the trained model.",
     )
     parser.add_argument(
@@ -349,12 +266,6 @@ if __name__ == "__main__":
         type=float,
         default=1.0,
         help="Hyperparameter for gradient clipping in AdamW.",
-    )
-    parser.add_argument(
-        "--gradient_accumulation_steps",
-        type=int,
-        default=None,
-        help="Gradient accumulation steps.",
     )
     args = parser.parse_args()
 

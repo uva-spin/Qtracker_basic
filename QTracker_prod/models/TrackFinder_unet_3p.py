@@ -1,4 +1,4 @@
-""" Custom U-Net for particle track reconstruction """
+""" Custom UNet 3+ for particle track reconstruction """
 
 import os
 import ROOT

@@ -1,4 +1,5 @@
 *.root
+*.sif
 checkpoints/
 Slurm_Files/
 local/
