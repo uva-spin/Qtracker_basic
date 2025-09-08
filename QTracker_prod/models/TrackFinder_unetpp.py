@@ -200,7 +200,7 @@ def train_model(args):
     )  # Shape: (num_events, 2, 62)
 
     lr_scheduler = ReduceLROnPlateau(
-        monitor="val_loss", factor=0.3, patience=args.patience // 3, min_lr=1e-6
+        monitor="val_loss", factor=args.factor, patience=args.patience // 3, min_lr=args.min_lr
     )
     early_stopping = EarlyStopping(
         monitor="val_loss", patience=args.patience, restore_best_weights=True
@@ -302,6 +302,18 @@ if __name__ == "__main__":
         type=float,
         default=0.00005,
         help="Learning rate for training.",
+    )
+    parser.add_argument(
+        "--factor",
+        type=float,
+        default=0.3,
+        help="Factor for reducing learning rate.",
+    )
+    parser.add_argument(
+        "--min_lr",
+        type=float,
+        default=1e-6,
+        help="Minimum learning rate.",
     )
     parser.add_argument(
         "--patience", type=int, default=5, help="Patience for EarlyStopping."

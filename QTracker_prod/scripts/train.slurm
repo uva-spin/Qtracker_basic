@@ -29,9 +29,11 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
      /mnt/code/data/processed_files/mc_events_train_med.root \
      /mnt/code/data/processed_files/mc_events_train_high.root \
      /mnt/code/data/processed_files/mc_events_val.root \
-     --output_model /mnt/code/checkpoints/track_finder_unetpp1.h5 \
+     --output_model /mnt/code/checkpoints/track_finder_unetpp.h5 \
      --learning_rate $LEARNING_RATE \
-     --patience 7 \
+     --factor 0.5 \
+     --min_lr 0.000005 \
+     --patience 12 \
      --batch_norm $BATCH_NORM \
      --base 64 \
      --epochs 60 \
@@ -44,30 +46,7 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/evaluate.py \
      /mnt/code/data/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/track_finder_unetpp1.h5
-
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/models/TrackFinder_unetpp.py \
-     /mnt/code/data/processed_files/mc_events_train_low.root \
-     /mnt/code/data/processed_files/mc_events_train_med.root \
-     /mnt/code/data/processed_files/mc_events_train_high.root \
-     /mnt/code/data/processed_files/mc_events_val.root \
-     --output_model /mnt/code/checkpoints/track_finder_unetpp2.h5 \
-     --learning_rate $LEARNING_RATE \
-     --patience 7 \
-     --batch_norm $BATCH_NORM \
-     --base 64 \
-     --epochs 60 \
-     --batch_size 64 \
-     --dropout_bn 0.5 \
-     --dropout_enc 0.4 \
-     --low_ratio 0.4 \
-     --med_ratio 0.75
-
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/evaluate.py \
-     /mnt/code/data/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/track_finder_unetpp2.h5
+     /mnt/code/checkpoints/track_finder_unetpp.h5
 
 # # --- Training and Evaluating Momentum Model ---
 # ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
