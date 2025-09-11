@@ -1,18 +1,22 @@
 """ Custom U-Net for particle track reconstruction """
 
 import os
-import ROOT
 import numpy as np
 import tensorflow as tf
+from tensorflow import keras
+from keras import regularizers
 import argparse
 import math
 import sklearn
-from sklearn.model_selection import Kfold
+from sklearn.model_selection import KFold
 import matplotlib.pyplot as plt
-from tensorflow.keras import regularizers
-from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
-from tensorflow.keras.applications import ResNet50
-from tensorflow.keras import layers
+from keras.callbacks import ReduceLROnPlateau, EarlyStopping
+from keras.applications import ResNet50
+from keras import layers
+#from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
+#from tensorflow.keras.applications import ResNet50
+from typing import Optional
+
 
 # Device selection for TensorFlow
 def set_tf_device():
@@ -29,9 +33,17 @@ def set_tf_device():
     else:
         print("Using CPU")
 
+try:
+    import wandb
+    _WANDB = True
+    print('Using W&B')
+except ImportError:
+    _WANDB = False
+    print("Not Using W&B")
+
 set_tf_device()
 
-from data_loader import load_data,
+from data_loader import load_data
 from losses import custom_loss
 import wandb
 # Ensure the checkpoints directory exists
@@ -155,10 +167,10 @@ def train_model(
             backbone=backbone, k_folds=k_folds, epochs=epochs, batch_size=batch_size
         )
         if extra_wandb_config: cfg.update(extra_wandb_config)
-        run = wandb.init(
-            project=wandb_project, entity=wandb_entity, name=wandb_run_name,
-            group=wandb_group, tags=wandb_tags, mode=wandb_mode, config=cfg, reinit=True
-        )
+        run =  wandb.init(
+             project=wandb_project, entity=wandb_entity, name=wandb_run_name,
+             group=wandb_group, tags=wandb_tags, mode=wandb_mode, config=cfg
+         )
 
     # Data
     X_train, y_muPlus_train, y_muMinus_train = load_data(train_root_file)
@@ -261,21 +273,21 @@ def train_model(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a TensorFlow model to predict hit arrays from event hits.")
-    parser.add_argument("train_root_file", type=str, help="Path to the train ROOT file.")
-    parser.add_argument("val_root_file", type=str, help="Path to the validation ROOT file.")
+    parser.add_argument("train_root_file",default="/Users/anvesh/Documents/research_position/TrackFinder Files/mc_events_train.root" ,type=str, help="Path to the train ROOT file.")
+    parser.add_argument("val_root_file", default = "/Users/anvesh/Documents/research_position/TrackFinder Files/test_val" , type=str, help="Path to the validation ROOT file.")
     parser.add_argument("--output_model", type=str, default="checkpoints/track_finder.h5", help="Path to save the trained model.")
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
     parser.add_argument("--patience", type=int, default=5, help="Patience for EarlyStopping.")
     parser.add_argument("--batch_norm", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")
     parser.add_argument("--dropout_bn", type=float, default=0.0, help="Dropout rate for bottleneck layer.")
     parser.add_argument("--dropout_enc", type=float, default=0.0, help="Dropout rate for encoder blocks.")
-    parser.add_argument("--backbone", type=str, default=None, help="Backbone encoder. Available: [None, 'resnet50'].")
-    parser.add_argument("--k_folds", type=str, default=None, help="Number of folds for Cross validation. If not set cross-validation will not be used")
+    parser.add_argument("--backbone", type=str, default='resnet50', help="Backbone encoder. Available: [None, 'resnet50'].")
+    parser.add_argument("--k_folds", type=str, default=10, help="Number of folds for Cross validation. If not set cross-validation will not be used")
     # W&B
     parser.add_argument("--use_wandb", type=int, default=1, help="Enable Weights & Biases logging: [0 = False, 1 = True].")
-    parser.add_argument("--wandb_project", type=str, default="my-project", help="W&B project name.")
-    parser.add_argument("--wandb_entity", type=str, default=None, help="W&B entity (user or team).")
-    parser.add_argument("--wandb_run_name", type=str, default=None, help="W&B run name.")
+    parser.add_argument("--wandb_project", type=str, default="WandB-Test", help="W&B project name.")
+    parser.add_argument("--wandb_entity", type=str, default='anvesh-my', help="W&B entity (user or team).")
+    parser.add_argument("--wandb_run_name", type=str, default='test_run', help="W&B run name.")
     parser.add_argument("--wandb_group", type=str, default=None, help="W&B group (useful for k-folds).")
     parser.add_argument("--wandb_tags", type=str, default=None, help="Comma-separated W&B tags, e.g. 'unet,bn,resnet50'.")
     parser.add_argument("--wandb_mode", type=str, default=None, help="W&B mode: 'online', 'offline', or 'disabled'.")
@@ -283,7 +295,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     use_bn = bool(args.batch_norm)
-    k_folds = int(args.k_folds) if (args.k_folds and args.k_folds.isdigit() and int(args.k_folds) >= 2) else None
+    k_folds = args.k_folds if (args.k_folds is not None and args.k_folds >= 2) else None
     use_wandb = bool(args.use_wandb)
     wandb_tags = args.wandb_tags.split(",") if args.wandb_tags else None
 
