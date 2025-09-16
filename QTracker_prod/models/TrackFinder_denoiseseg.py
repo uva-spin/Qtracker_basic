@@ -135,7 +135,7 @@ def train_model(args):
     X_train, X_clean_train, y_muPlus_train, y_muMinus_train = load_data_denoise(
         args.train_root_file
     )
-    if not X_train or not X_clean_train:
+    if X_train is None or X_clean_train is None:
         return
     y_train = np.stack(
         [y_muPlus_train, y_muMinus_train], axis=1
