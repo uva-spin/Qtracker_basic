@@ -22,31 +22,53 @@ IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 LEARNING_RATE=0.0003
 BATCH_NORM=1
 
-# U-Net++
+# DenoiseSeg with U-Net++ backbone
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/models/TrackFinder_unetpp.py \
-     /mnt/code/data/processed_files/mc_events_train_low.root \
-     /mnt/code/data/processed_files/mc_events_train_med.root \
-     /mnt/code/data/processed_files/mc_events_train_high.root \
+    python3 /mnt/code/models/TrackFinder_denoiseseg.py \
+     /mnt/code/data/processed_files/mc_events_train.root \
      /mnt/code/data/processed_files/mc_events_val.root \
-     --output_model /mnt/code/checkpoints/track_finder_unetpp.h5 \
+     --output_model /mnt/code/checkpoints/track_finder_denoiseseg.h5 \
      --learning_rate $LEARNING_RATE \
-     --factor 0.5 \
-     --min_lr 0.000005 \
      --patience 12 \
      --batch_norm $BATCH_NORM \
      --base 64 \
-     --epochs 60 \
+     --epochs 50 \
      --batch_size 64 \
      --dropout_bn 0.5 \
-     --dropout_enc 0.4 \
-     --low_ratio 0.5 \
-     --med_ratio 0.8
+     --dropout_enc 0.4
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/evaluate.py \
      /mnt/code/data/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/track_finder_unetpp.h5
+     /mnt/code/checkpoints/track_finder_denoiseseg.h5
+
+# Might need to change loss weights (denoiser can dominate; segmentation loss should dominate)
+
+# +) Also test different learning rates for each curriculum stage,
+#    cosine annealing LR (with and without warmup)
+
+    
+## Best Performing ##
+# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+#     python3 /mnt/code/models/TrackFinder_unetpp.py \
+#      /mnt/code/data/processed_files/mc_events_train_low.root \
+#      /mnt/code/data/processed_files/mc_events_train_med.root \
+#      /mnt/code/data/processed_files/mc_events_train_high.root \
+#      /mnt/code/data/processed_files/mc_events_val.root \
+#      --output_model /mnt/code/checkpoints/track_finder_unetpp1.h5 \
+#      --learning_rate $LEARNING_RATE \
+#      --factor 0.3 \
+#      --min_lr 0.000001 \
+#      --patience 12 \
+#      --batch_norm $BATCH_NORM \
+#      --base 64 \
+#      --epochs 60 \
+#      --batch_size 64 \
+#      --dropout_bn 0.5 \
+#      --dropout_enc 0.4 \
+#      --low_ratio 0.5 \
+#      --med_ratio 0.8
+
 
 # # --- Training and Evaluating Momentum Model ---
 # ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \

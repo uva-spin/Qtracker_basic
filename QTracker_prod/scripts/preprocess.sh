@@ -87,34 +87,40 @@
 
 
 # --- 4. Inject background muon tracks to signal file from 3 ---
-python data/messy_gen.py \
+# python data/messy_gen.py \
+#  data/processed_files/finder_training_train.root \
+#  data/processed_files/single_muons_train.root \
+#  --output data/processed_files/mc_events_train_low.root \
+#  --uniform_tracks 0 \
+#  --num_tracks 10 \
+#  --lower_bound 0
+
+# python data/messy_gen.py \
+#  data/processed_files/finder_training_train.root \
+#  data/processed_files/single_muons_train.root \
+#  --output data/processed_files/mc_events_train_med.root \
+#  --uniform_tracks 0 \
+#  --num_tracks 20 \
+#  --lower_bound 11
+
+# python data/messy_gen.py \
+#  data/processed_files/finder_training_train.root \
+#  data/processed_files/single_muons_train.root \
+#  --output data/processed_files/mc_events_train_high.root \
+#  --uniform_tracks 0 \
+#  --num_tracks 30 \
+#  --lower_bound 21
+
+python data/messy_gen_v4.py \
  data/processed_files/finder_training_train.root \
  data/processed_files/single_muons_train.root \
- --output data/processed_files/mc_events_train_low.root \
- --uniform_tracks 1 \
- --num_tracks 10 \
- --lower_bound 0
+ --output data/processed_files/mc_events_train.root \
+ --uniform_tracks 0
 
-python data/messy_gen.py \
- data/processed_files/finder_training_train.root \
- data/processed_files/single_muons_train.root \
- --output data/processed_files/mc_events_train_med.root \
- --uniform_tracks 1 \
- --num_tracks 20 \
- --lower_bound 11
-
-python data/messy_gen.py \
- data/processed_files/finder_training_train.root \
- data/processed_files/single_muons_train.root \
- --output data/processed_files/mc_events_train_high.root \
- --uniform_tracks 1 \
- --num_tracks 30 \
- --lower_bound 21
-
-python data/messy_gen.py \
- data/processed_files/finder_training_val.root \
- data/processed_files/single_muons_val.root \
- --output data/processed_files/mc_events_val.root
+# python data/messy_gen.py \
+#  data/processed_files/finder_training_val.root \
+#  data/processed_files/single_muons_val.root \
+#  --output data/processed_files/mc_events_val.root
 
 # # --- 5. Inject randomly generated noise hits into file from 4 ---
 # P_ELECTRONIC_NOISE=0.01
