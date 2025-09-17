@@ -295,4 +295,79 @@ def train_model(
             verbose=0   # tqdm handles display
         )
 
-        # rest of your plotting & saving code unchanged ...
+        # Plot train and val loss over epochs
+        try:
+            base_dir = os.path.dirname(os.path.dirname(__file__))
+        except NameError:
+            base_dir = os.getcwd()
+        plot_dir = os.path.join(base_dir, "plots")
+        os.makedirs(plot_dir, exist_ok=True)
+
+        plt.figure(figsize=(8, 6))
+        plt.plot(history.history['loss'], label='Train Loss')
+        plt.plot(history.history['val_loss'], label='Validation Loss')
+        plt.xlabel('Epochs'); plt.ylabel('Loss'); plt.legend()
+        plt.title('Training and Val Loss Over Epochs')
+        plt.savefig(os.path.join(plot_dir, "losses.png"), bbox_inches='tight')
+        plt.close()
+
+        # Save best checkpoint as final output
+        best_path = "checkpoints/best_single_split.keras"
+        if os.path.exists(best_path):
+            tf.keras.models.load_model(best_path).save(output_model)
+        else:
+            model.save(output_model)
+        print(f"Model saved to {output_model}")
+
+    if run:
+        run.finish()
+
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train a TensorFlow model to predict hit arrays from event hits.")
+    parser.add_argument("--train_root_file",default="/Users/anvesh/Documents/research_position/TrackFinder Files/mc_events_train.root" ,type=str, help="Path to the train ROOT file.")
+    parser.add_argument("--val_root_file", default = '/Users/anvesh/Documents/research_position/TrackFinder Files/mc_events_train.root', type=str, help="Path to the validation ROOT file.")
+    parser.add_argument("--output_model", type=str, default="checkpoints/track_finder.h5", help="Path to save the trained model.")
+    parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
+    parser.add_argument("--patience", type=int, default=5, help="Patience for EarlyStopping.")
+    parser.add_argument("--batch_norm", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")
+    parser.add_argument("--dropout_bn", type=float, default=0.0, help="Dropout rate for bottleneck layer.")
+    parser.add_argument("--dropout_enc", type=float, default=0.0, help="Dropout rate for encoder blocks.")
+    parser.add_argument("--backbone", type=str, default='resnet50', help="Backbone encoder. Available: [None, 'resnet50'].")
+    parser.add_argument("--k_folds", type=str, default=10, help="Number of folds for Cross validation. If not set cross-validation will not be used")
+    # W&B
+    parser.add_argument("--use_wandb", type=int, default=1, help="Enable Weights & Biases logging: [0 = False, 1 = True].")
+    parser.add_argument("--wandb_project", type=str, default="WandB-Test", help="W&B project name.")
+    parser.add_argument("--wandb_entity", type=str, default=None, help="W&B entity (user or team).")
+    parser.add_argument("--wandb_run_name", type=str, default='test_run', help="W&B run name.")
+    parser.add_argument("--wandb_group", type=str, default=None, help="W&B group (useful for k-folds).")
+    parser.add_argument("--wandb_tags", type=str, default=None, help="Comma-separated W&B tags, e.g. 'unet,bn,resnet50'.")
+    parser.add_argument("--wandb_mode", type=str, default=None, help="W&B mode: 'online', 'offline', or 'disabled'.")
+
+    args = parser.parse_args()
+
+    use_bn = bool(args.batch_norm)
+    k_folds = args.k_folds if (args.k_folds is not None and args.k_folds >= 2) else None
+    use_wandb = bool(args.use_wandb)
+    wandb_tags = args.wandb_tags.split(",") if args.wandb_tags else None
+
+    train_model(
+        args.train_root_file,
+        args.val_root_file,
+        args.output_model,
+        args.learning_rate,
+        patience=args.patience,
+        use_bn=use_bn,
+        dropout_bn=args.dropout_bn,
+        dropout_enc=args.dropout_enc,
+        backbone=args.backbone,
+        k_folds=k_folds,
+        use_wandb=use_wandb,
+        wandb_project=args.wandb_project,
+        wandb_entity=args.wandb_entity,
+        wandb_run_name=args.wandb_run_name,
+        wandb_group=args.wandb_group,
+        wandb_tags=wandb_tags,
+        wandb_mode=args.wandb_mode,
+    )
