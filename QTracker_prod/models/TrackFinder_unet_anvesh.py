@@ -184,6 +184,9 @@ def train_model(
     batch_size=32,
     random_state=42
 ):
+    import matplotlib.pyplot as plt
+    from tqdm.keras import TqdmCallback
+
     lr_scheduler = ReduceLROnPlateau(
         monitor='val_loss',
         factor=0.3,
@@ -200,19 +203,23 @@ def train_model(
             use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc,
             backbone=backbone, k_folds=k_folds, epochs=epochs, batch_size=batch_size
         )
-        if extra_wandb_config: cfg.update(extra_wandb_config)
-        run =  wandb.init(
-             project=wandb_project, entity=wandb_entity, name=wandb_run_name,
-             group=wandb_group, tags=wandb_tags, mode=wandb_mode, config=cfg
-         )
+        if extra_wandb_config: 
+            cfg.update(extra_wandb_config)
+        run = wandb.init(
+            project=wandb_project, entity=wandb_entity, name=wandb_run_name,
+            group=wandb_group, tags=wandb_tags, mode=wandb_mode, config=cfg
+        )
 
     # Data
     X_train, y_muPlus_train, y_muMinus_train = load_data(train_root_file)
     X_val, y_muPlus_val, y_muMinus_val = load_data(val_root_file)
     if X_train is None or X_val is None:
         print("No data found.")
-        if run: run.finish()
+        if run: 
+            run.finish()
         return
+
+    histories = []
 
     if k_folds:
         # Concatenate and run K-Fold
@@ -231,12 +238,12 @@ def train_model(
         for fold, (tr, va) in enumerate(kf.split(X), start=1):
             print(f"[KFold] Fold {fold}/{k_folds}")
             model = build_model(
-            use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc, backbone=backbone
+                use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc, backbone=backbone
             )
             optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
             model.compile(optimizer=optimizer, loss=custom_loss, metrics=['accuracy'])
 
-            cbs = [lr_scheduler, early_stopping, TqdmCallback(verbose=1)]   # tqdm added
+            cbs = [lr_scheduler, early_stopping, TqdmCallback(verbose=1)]
             if use_wandb and _WANDB:
                 cbs.append(WandbCallback(save_model=False))
 
@@ -246,10 +253,12 @@ def train_model(
                 batch_size=batch_size,
                 validation_data=(X[va], y[va]),
                 callbacks=cbs,
-                verbose=0   # let tqdm handle display
+                verbose=0
             )
+            histories.append(history)
+
             # Predict on validation set for this fold
-            y_pred = model.predict(X[va], batch_size=batch_size, verbose=1)  # show progress
+            y_pred = model.predict(X[va], batch_size=batch_size, verbose=1)
             fold_loss = custom_loss(tf.convert_to_tensor(y[va]), tf.convert_to_tensor(y_pred)).numpy()
             fold_val_losses.append(fold_loss)
             fold_models.append(model)
@@ -282,7 +291,7 @@ def train_model(
             lr_scheduler,
             early_stopping,
             ModelCheckpoint("checkpoints/best_single_split.keras", monitor="val_loss", save_best_only=True),
-            TqdmCallback(verbose=1)   # tqdm added
+            TqdmCallback(verbose=1)
         ]
         if use_wandb and _WANDB:
             cbs.append(WandbCallback(save_model=False))
@@ -292,24 +301,9 @@ def train_model(
             epochs=epochs, batch_size=batch_size,
             validation_data=(X_val, y_val),
             callbacks=cbs,
-            verbose=0   # tqdm handles display
+            verbose=0
         )
-
-        # Plot train and val loss over epochs
-        try:
-            base_dir = os.path.dirname(os.path.dirname(__file__))
-        except NameError:
-            base_dir = os.getcwd()
-        plot_dir = os.path.join(base_dir, "plots")
-        os.makedirs(plot_dir, exist_ok=True)
-
-        plt.figure(figsize=(8, 6))
-        plt.plot(history.history['loss'], label='Train Loss')
-        plt.plot(history.history['val_loss'], label='Validation Loss')
-        plt.xlabel('Epochs'); plt.ylabel('Loss'); plt.legend()
-        plt.title('Training and Val Loss Over Epochs')
-        plt.savefig(os.path.join(plot_dir, "losses.png"), bbox_inches='tight')
-        plt.close()
+        histories.append(history)
 
         # Save best checkpoint as final output
         best_path = "checkpoints/best_single_split.keras"
@@ -318,6 +312,48 @@ def train_model(
         else:
             model.save(output_model)
         print(f"Model saved to {output_model}")
+
+    # Plot training and validation losses
+    try:
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+    except NameError:
+        base_dir = os.getcwd()
+    plot_dir = os.path.join(base_dir, "plots")
+    os.makedirs(plot_dir, exist_ok=True)
+
+    if k_folds:
+        all_train = [h.history['loss'] for h in histories]
+        all_val = [h.history['val_loss'] for h in histories]
+        max_epochs = max(len(l) for l in all_train)
+        train_matrix = np.array([np.pad(l, (0, max_epochs - len(l)), constant_values=np.nan) for l in all_train])
+        val_matrix = np.array([np.pad(l, (0, max_epochs - len(l)), constant_values=np.nan) for l in all_val])
+        mean_train = np.nanmean(train_matrix, axis=0)
+        mean_val = np.nanmean(val_matrix, axis=0)
+        std_train = np.nanstd(train_matrix, axis=0)
+        std_val = np.nanstd(val_matrix, axis=0)
+
+        plt.figure(figsize=(8, 6))
+        plt.plot(mean_train, label='Train Loss (mean)')
+        plt.fill_between(range(max_epochs), mean_train - std_train, mean_train + std_train, alpha=0.2)
+        plt.plot(mean_val, label='Val Loss (mean)')
+        plt.fill_between(range(max_epochs), mean_val - std_val, mean_val + std_val, alpha=0.2)
+        plt.xlabel("Epochs")
+        plt.ylabel("Loss")
+        plt.title(f"Cross-validation Loss Curves ({k_folds} folds)")
+        plt.legend()
+        plt.savefig(os.path.join(plot_dir, "cv_losses.png"), bbox_inches='tight')
+        plt.close()
+    else:
+        history = histories[0]
+        plt.figure(figsize=(8, 6))
+        plt.plot(history.history['loss'], label='Train Loss')
+        plt.plot(history.history['val_loss'], label='Validation Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.title('Training and Val Loss Over Epochs')
+        plt.savefig(os.path.join(plot_dir, "losses.png"), bbox_inches='tight')
+        plt.close()
 
     if run:
         run.finish()
