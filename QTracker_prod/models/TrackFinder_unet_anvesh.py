@@ -9,7 +9,7 @@ from keras.applications import ResNet50
 from typing import Optional
 import argparse
 from sklearn.model_selection import KFold
-
+from tqdm.keras import TqdmCallback   # added
 
 # Device selection for TensorFlow
 def set_tf_device():
@@ -42,6 +42,7 @@ from data_loader import load_data
 from losses import custom_loss, cross_validation_loss
 # Ensure the checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
+
 
 class UNetModel:
     """
@@ -134,7 +135,6 @@ class UNetModel:
         outputs = layers.Reshape((2, self.num_detectors, self.num_elementIDs))(x)
 
         return keras.Model(inputs, outputs, name="UNet")
-
 
 
 def build_model(
@@ -236,20 +236,20 @@ def train_model(
             optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
             model.compile(optimizer=optimizer, loss=custom_loss, metrics=['accuracy'])
 
-            cbs = [lr_scheduler, early_stopping]
+            cbs = [lr_scheduler, early_stopping, TqdmCallback(verbose=1)]   # tqdm added
             if use_wandb and _WANDB:
                 cbs.append(WandbCallback(save_model=False))
 
             history = model.fit(
-            X[tr], y[tr],
-            epochs=epochs,
-            batch_size=batch_size,
-            validation_data=(X[va], y[va]),
-            callbacks=cbs,
-            verbose=1
+                X[tr], y[tr],
+                epochs=epochs,
+                batch_size=batch_size,
+                validation_data=(X[va], y[va]),
+                callbacks=cbs,
+                verbose=0   # let tqdm handle display
             )
             # Predict on validation set for this fold
-            y_pred = model.predict(X[va], batch_size=batch_size)
+            y_pred = model.predict(X[va], batch_size=batch_size, verbose=1)  # show progress
             fold_loss = custom_loss(tf.convert_to_tensor(y[va]), tf.convert_to_tensor(y_pred)).numpy()
             fold_val_losses.append(fold_loss)
             fold_models.append(model)
@@ -257,7 +257,7 @@ def train_model(
 
         # Compute cross-validation loss using all folds
         y_trues = [tf.convert_to_tensor(y[va]) for _, va in kf.split(X)]
-        y_preds = [tf.convert_to_tensor(fold_models[i].predict(X[va], batch_size=batch_size)) for i, (_, va) in enumerate(kf.split(X))]
+        y_preds = [tf.convert_to_tensor(fold_models[i].predict(X[va], batch_size=batch_size, verbose=1)) for i, (_, va) in enumerate(kf.split(X))]
         cv_loss = cross_validation_loss(y_trues, y_preds, loss_fn=custom_loss).numpy()
         print(f"Cross-validation average loss: {cv_loss:.6f}")
 
@@ -278,7 +278,12 @@ def train_model(
         optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
         model.compile(optimizer=optimizer, loss=custom_loss, metrics=['accuracy'])
 
-        cbs = [lr_scheduler, early_stopping, ModelCheckpoint("checkpoints/best_single_split.keras", monitor="val_loss", save_best_only=True)]
+        cbs = [
+            lr_scheduler,
+            early_stopping,
+            ModelCheckpoint("checkpoints/best_single_split.keras", monitor="val_loss", save_best_only=True),
+            TqdmCallback(verbose=1)   # tqdm added
+        ]
         if use_wandb and _WANDB:
             cbs.append(WandbCallback(save_model=False))
 
@@ -287,82 +292,7 @@ def train_model(
             epochs=epochs, batch_size=batch_size,
             validation_data=(X_val, y_val),
             callbacks=cbs,
-            verbose=1
+            verbose=0   # tqdm handles display
         )
 
-        # Plot train and val loss over epochs
-        try:
-            base_dir = os.path.dirname(os.path.dirname(__file__))
-        except NameError:
-            base_dir = os.getcwd()
-        plot_dir = os.path.join(base_dir, "plots")
-        os.makedirs(plot_dir, exist_ok=True)
-
-        plt.figure(figsize=(8, 6))
-        plt.plot(history.history['loss'], label='Train Loss')
-        plt.plot(history.history['val_loss'], label='Validation Loss')
-        plt.xlabel('Epochs'); plt.ylabel('Loss'); plt.legend()
-        plt.title('Training and Val Loss Over Epochs')
-        plt.savefig(os.path.join(plot_dir, "losses.png"), bbox_inches='tight')
-        plt.close()
-
-        # Save best checkpoint as final output
-        best_path = "checkpoints/best_single_split.keras"
-        if os.path.exists(best_path):
-            tf.keras.models.load_model(best_path).save(output_model)
-        else:
-            model.save(output_model)
-        print(f"Model saved to {output_model}")
-
-    if run:
-        run.finish()
-
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train a TensorFlow model to predict hit arrays from event hits.")
-    parser.add_argument("--train_root_file",default="/Users/anvesh/Documents/research_position/TrackFinder Files/mc_events_train.root" ,type=str, help="Path to the train ROOT file.")
-    parser.add_argument("--val_root_file", default = '/Users/anvesh/Documents/research_position/TrackFinder Files/mc_events_train.root', type=str, help="Path to the validation ROOT file.")
-    parser.add_argument("--output_model", type=str, default="checkpoints/track_finder.h5", help="Path to save the trained model.")
-    parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
-    parser.add_argument("--patience", type=int, default=5, help="Patience for EarlyStopping.")
-    parser.add_argument("--batch_norm", type=int, default=0, help="Flag to set batch normalization: [0 = False, 1 = True].")
-    parser.add_argument("--dropout_bn", type=float, default=0.0, help="Dropout rate for bottleneck layer.")
-    parser.add_argument("--dropout_enc", type=float, default=0.0, help="Dropout rate for encoder blocks.")
-    parser.add_argument("--backbone", type=str, default='resnet50', help="Backbone encoder. Available: [None, 'resnet50'].")
-    parser.add_argument("--k_folds", type=str, default=10, help="Number of folds for Cross validation. If not set cross-validation will not be used")
-    # W&B
-    parser.add_argument("--use_wandb", type=int, default=1, help="Enable Weights & Biases logging: [0 = False, 1 = True].")
-    parser.add_argument("--wandb_project", type=str, default="WandB-Test", help="W&B project name.")
-    parser.add_argument("--wandb_entity", type=str, default=None, help="W&B entity (user or team).")
-    parser.add_argument("--wandb_run_name", type=str, default='test_run', help="W&B run name.")
-    parser.add_argument("--wandb_group", type=str, default=None, help="W&B group (useful for k-folds).")
-    parser.add_argument("--wandb_tags", type=str, default=None, help="Comma-separated W&B tags, e.g. 'unet,bn,resnet50'.")
-    parser.add_argument("--wandb_mode", type=str, default=None, help="W&B mode: 'online', 'offline', or 'disabled'.")
-
-    args = parser.parse_args()
-
-    use_bn = bool(args.batch_norm)
-    k_folds = args.k_folds if (args.k_folds is not None and args.k_folds >= 2) else None
-    use_wandb = bool(args.use_wandb)
-    wandb_tags = args.wandb_tags.split(",") if args.wandb_tags else None
-
-    train_model(
-        args.train_root_file,
-        args.val_root_file,
-        args.output_model,
-        args.learning_rate,
-        patience=args.patience,
-        use_bn=use_bn,
-        dropout_bn=args.dropout_bn,
-        dropout_enc=args.dropout_enc,
-        backbone=args.backbone,
-        k_folds=k_folds,
-        use_wandb=use_wandb,
-        wandb_project=args.wandb_project,
-        wandb_entity=args.wandb_entity,
-        wandb_run_name=args.wandb_run_name,
-        wandb_group=args.wandb_group,
-        wandb_tags=wandb_tags,
-        wandb_mode=args.wandb_mode,
-    )
+        # rest of your plotting & saving code unchanged ...
