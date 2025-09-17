@@ -10,6 +10,7 @@ from typing import Optional
 import argparse
 from sklearn.model_selection import KFold
 from tqdm.keras import TqdmCallback   # added
+from Util import skim
 
 # Device selection for TensorFlow
 def set_tf_device():
@@ -86,55 +87,113 @@ class UNetModel:
             return skip_tensor[:, crop_top:sh - crop_bottom, crop_left:sw - crop_right, :]
         return layers.Lambda(crop)([skip, up])
 
+    def unet_block(self, x, filters):
+        """Basic U-Net block with Conv2D + BatchNorm + ReLU"""
+        # First Conv Layer + Activation
+        x = layers.Conv2D(
+            filters, kernel_size=3, padding='same',
+            kernel_regularizer=regularizers.l2(self.l2_reg)
+        )(x)
+        if self.use_bn:
+            x = layers.BatchNormalization()(x)
+        x = layers.Activation('relu')(x)
+
+        # Dropout for bottleneck layers
+        if self.dropout_bn > 0:
+            x = layers.Dropout(self.dropout_bn)(x)
+
+        # Second Conv Layer
+        x = layers.Conv2D(
+            filters, kernel_size=3, padding='same',
+            kernel_regularizer=regularizers.l2(self.l2_reg)
+        )(x)
+        if self.use_bn:
+            x = layers.BatchNormalization()(x)
+        x = layers.Activation('relu')(x)
+
+        # Dropout for encoder blocks
+        if self.dropout_enc > 0:
+            x = layers.Dropout(self.dropout_enc)(x)
+        return x
+
     def build(self):
-        inputs = keras.Input(shape=(self.num_detectors, self.num_elementIDs, 1))
+        inputs = layers.Input(shape=(self.num_detectors, self.num_elementIDs, 1))
 
-        # Encoder
-        c1 = layers.Conv2D(64, (3, 3), activation="relu", padding="same")(inputs)
-        p1 = layers.MaxPooling2D((2, 2))(c1)
+        # Zero padding (aligns to closest 2^n -> preserves input shape)
+        n = 5 if self.backbone == 'resnet50' else 4
+        num_pool = 2 ** n   # 2 ^ n, n = number of max pooling
+        closest_even_det = num_pool * tf.math.ceil(self.num_detectors / num_pool)
+        closest_even_elem = num_pool * tf.math.ceil(self.num_elementIDs / num_pool)
+        det_diff = closest_even_det - self.num_detectors
+        elem_diff = closest_even_elem - self.num_elementIDs
+        padding = (
+            (det_diff // 2, det_diff - det_diff // 2),
+            (elem_diff // 2, elem_diff - elem_diff // 2)
+        )
 
-        c2 = layers.Conv2D(128, (3, 3), activation="relu", padding="same")(p1)
-        p2 = layers.MaxPooling2D((2, 2))(c2)
+        # Apply padding to input layer
+        x = layers.ZeroPadding2D(padding=padding)(inputs)
 
-        c3 = layers.Conv2D(256, (3, 3), activation="relu", padding="same")(p2)
-        p3 = layers.MaxPooling2D((2, 2))(c3)
+        # Encoder (using unet_block)
+        if self.backbone == 'resnet50':
+            x = layers.Concatenate()([x, x, x])  # Convert 1 channel to 3 for ResNet50 compatibility
+            backbone = ResNet50(include_top=False, input_tensor=x)
 
-        c4 = layers.Conv2D(512, (3, 3), activation="relu", padding="same")(p3)
-        p4 = layers.MaxPooling2D((2, 2))(c4)
+            # Partially freeze backbone and alter stride for compatibility with U-Net decoder
+            backbone.trainable = False
+            for layer in backbone.layers:
+                if layer.name == 'conv1_conv':
+                    layer.strides = (1, 1)
+                if layer.name.startswith('conv5_') or layer.name.startswith('conv4_'):
+                    layer.trainable = True
 
-        b = layers.Conv2D(1024, (3, 3), activation="relu", padding="same")(p4)
+            enc1 = backbone.get_layer('conv1_relu').output
+            enc2 = backbone.get_layer('conv2_block3_out').output
+            enc3 = backbone.get_layer('conv3_block4_out').output
+            enc4 = backbone.get_layer('conv4_block6_out').output
+            enc5 = backbone.get_layer('conv5_block3_out').output
+        else:
+            enc1 = self.unet_block(x, 64)
+            pool1 = layers.MaxPooling2D(pool_size=(2, 2))(enc1)
 
-        # Decoder with cropping
-        u4 = layers.Conv2DTranspose(512, (2, 2), strides=(2, 2), padding="same")(b)
-        c4_crop = UNetModel.crop_to_match(c4, u4)
-        u4 = layers.Concatenate()([u4, c4_crop])
+            enc2 = self.unet_block(pool1, 128)
+            pool2 = layers.MaxPooling2D(pool_size=(2, 2))(enc2)
 
-        u3 = layers.Conv2DTranspose(256, (2, 2), strides=(2, 2), padding="same")(u4)
-        c3_crop = UNetModel.crop_to_match(c3, u3)
-        u3 = layers.Concatenate()([u3, c3_crop])
+            enc3 = self.unet_block(pool2, 256)
+            pool3 = layers.MaxPooling2D(pool_size=(2, 2))(enc3)
 
-        u2 = layers.Conv2DTranspose(128, (2, 2), strides=(2, 2), padding="same")(u3)
-        c2_crop = UNetModel.crop_to_match(c2, u2)
-        u2 = layers.Concatenate()([u2, c2_crop])
+            enc4 = self.unet_block(pool3, 512)
+            pool4 = layers.MaxPooling2D(pool_size=(2, 2))(enc4)
 
-        u1 = layers.Conv2DTranspose(64, (2, 2), strides=(2, 2), padding="same")(u2)
-        c1_crop = UNetModel.crop_to_match(c1, u1)
-        u1 = layers.Concatenate()([u1, c1_crop])
+            # Bottleneck
+            enc5 = self.unet_block(pool4, 1024)
 
-        x = layers.Conv2D(64, (3, 3), activation="relu", padding="same")(u1)
+        # Decoder
+        dec1 = layers.Conv2DTranspose(512, kernel_size=3, strides=2, padding='same')(enc5)
+        dec1 = layers.concatenate([dec1, enc4])
+        dec1 = self.unet_block(dec1, 512)
 
-        # Dense classifier head
-        x = layers.Flatten()(x)
-        x = layers.Dense(4096, activation="relu")(x)
-        x = layers.Dropout(0.3)(x)
-        x = layers.Dense(2048, activation="relu")(x)
-        x = layers.Dropout(0.3)(x)
+        dec2 = layers.Conv2DTranspose(256, kernel_size=3, strides=2, padding='same')(dec1)
+        dec2 = layers.concatenate([dec2, enc3])
+        dec2 = self.unet_block(dec2, 256)
 
-        # Output shape: (2, num_detectors, num_elementIDs)
-        x = layers.Dense(2 * self.num_detectors * self.num_elementIDs, activation="softmax")(x)
-        outputs = layers.Reshape((2, self.num_detectors, self.num_elementIDs))(x)
+        dec3 = layers.Conv2DTranspose(128, kernel_size=3, strides=2, padding='same')(dec2)
+        dec3 = layers.concatenate([dec3, enc2])
+        dec3 = self.unet_block(dec3, 128)
 
-        return keras.Model(inputs, outputs, name="UNet")
+        dec4 = layers.Conv2DTranspose(64, kernel_size=3, strides=2, padding='same')(dec3)
+        dec4 = layers.concatenate([dec4, enc1])
+        dec4 = layers.Cropping2D(cropping=padding)(dec4)
+        dec4 = self.unet_block(dec4, 64)
+
+        # Output layer
+        x = layers.Conv2D(2, kernel_size=1)(dec4)  # Output 2 classes
+        x = layers.Softmax(axis=2)(x)  # Softmax over elementIDs
+        output = layers.Permute((3, 1, 2))(x)  # Reshape to (batch, 2, det, elem)
+
+        # Initialize model
+        model = tf.keras.Model(inputs=inputs, outputs=output, name="UNet")
+        return model
 
 
 def build_model(
@@ -203,7 +262,7 @@ def train_model(
             use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc,
             backbone=backbone, k_folds=k_folds, epochs=epochs, batch_size=batch_size
         )
-        if extra_wandb_config: 
+        if extra_wandb_config:
             cfg.update(extra_wandb_config)
         run = wandb.init(
             project=wandb_project, entity=wandb_entity, name=wandb_run_name,
@@ -215,7 +274,7 @@ def train_model(
     X_val, y_muPlus_val, y_muMinus_val = load_data(val_root_file)
     if X_train is None or X_val is None:
         print("No data found.")
-        if run: 
+        if run:
             run.finish()
         return
 
@@ -371,7 +430,7 @@ if __name__ == "__main__":
     parser.add_argument("--dropout_bn", type=float, default=0.0, help="Dropout rate for bottleneck layer.")
     parser.add_argument("--dropout_enc", type=float, default=0.0, help="Dropout rate for encoder blocks.")
     parser.add_argument("--backbone", type=str, default='resnet50', help="Backbone encoder. Available: [None, 'resnet50'].")
-    parser.add_argument("--k_folds", type=str, default=10, help="Number of folds for Cross validation. If not set cross-validation will not be used")
+    parser.add_argument("--k_folds", type=str, default=5, help="Number of folds for Cross validation. If not set cross-validation will not be used")
     # W&B
     parser.add_argument("--use_wandb", type=int, default=1, help="Enable Weights & Biases logging: [0 = False, 1 = True].")
     parser.add_argument("--wandb_project", type=str, default="WandB-Test", help="W&B project name.")
