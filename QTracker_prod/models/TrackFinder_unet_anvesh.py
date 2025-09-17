@@ -25,20 +25,21 @@ def set_tf_device():
         # TensorFlow will use MPS automatically if available
     else:
         print("Using CPU")
-
+tf.config.list_physical_devices('MPS')
 try:
     import wandb
-    from wandb.integration.keras import WandbCallback
     _WANDB = True
     print('Using W&B')
 except ImportError:
     _WANDB = False
     print("Not Using W&B")
 
+from wandb.integration.keras import WandbCallback
+_WANDB = False
 set_tf_device()
 
 from data_loader import load_data
-from losses import custom_loss
+from losses import custom_loss, cross_validation_loss
 # Ensure the checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
 
@@ -47,6 +48,7 @@ class UNetModel:
     Builds a U-Net-like model for (det, element) grids with 2-class output (mu+, mu-).
     Responsible ONLY for architecture; training/compiling is done by Trainer.
     """
+
     def __init__(
         self,
         num_detectors: int = 62,
@@ -54,9 +56,9 @@ class UNetModel:
         use_bn: bool = False,
         dropout_bn: float = 0.0,
         dropout_enc: float = 0.0,
-        backbone: Optional[str] = None,  # "resnet50" or None
+        backbone: Optional[str] = None,
         l2_reg: float = 1e-4,
-        backbone_weights: Optional[str] = None,  # "imagenet" or None
+        backbone_weights: Optional[str] = None,
     ):
         self.num_detectors = num_detectors
         self.num_elementIDs = num_elementIDs
@@ -67,81 +69,69 @@ class UNetModel:
         self.l2_reg = l2_reg
         self.backbone_weights = backbone_weights
 
-    def unet_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout_enc=0.0):
-    # First Conv Layer + Activation
-        x = layers.Conv2D(
-            filters, kernel_size=3, padding='same',
-        kernel_regularizer=regularizers.l2(l2)
-    )(x)
-        if use_bn:
-            x = layers.BatchNormalization()(x)
-        x = layers.Activation('relu')(x)
+    @staticmethod
+    def crop_to_match(skip, up):
+        """Crop skip connection to match the size of upsampled tensor."""
+        def crop(inputs):
+            skip_tensor, up_tensor = inputs
+            sh, sw = tf.shape(skip_tensor)[1], tf.shape(skip_tensor)[2]
+            uh, uw = tf.shape(up_tensor)[1], tf.shape(up_tensor)[2]
+            crop_h = sh - uh
+            crop_w = sw - uw
+            crop_top = crop_h // 2
+            crop_bottom = crop_h - crop_top
+            crop_left = crop_w // 2
+            crop_right = crop_w - crop_left
+            return skip_tensor[:, crop_top:sh - crop_bottom, crop_left:sw - crop_right, :]
+        return layers.Lambda(crop)([skip, up])
 
-    # Dropout for bottleneck layers
-        if dropout_bn > 0:
-            x = layers.Dropout(dropout_bn)(x)
-
-    # Second Conv Layer
-        x = layers.Conv2D(
-            filters, kernel_size=3, padding='same',
-            kernel_regularizer=regularizers.l2(l2)
-    )(x)
-        if use_bn:
-            x = layers.BatchNormalization()(x)
-        x = layers.Activation('relu')(x)
-
-    # Dropout for encoder blocks
-        if dropout_enc > 0:
-            x = layers.Dropout(dropout_enc)(x)
-        return x
-    
     def build(self):
         inputs = keras.Input(shape=(self.num_detectors, self.num_elementIDs, 1))
 
         # Encoder
-        c1 = UNetModel.unet_block(inputs, 32, l2=self.l2_reg,
-                                  use_bn=self.use_bn,
-                                  dropout_bn=self.dropout_bn,
-                                  dropout_enc=self.dropout_enc)
+        c1 = layers.Conv2D(64, (3, 3), activation="relu", padding="same")(inputs)
         p1 = layers.MaxPooling2D((2, 2))(c1)
 
-        c2 = UNetModel.unet_block(p1, 64, l2=self.l2_reg,
-                                  use_bn=self.use_bn,
-                                  dropout_bn=self.dropout_bn,
-                                  dropout_enc=self.dropout_enc)
+        c2 = layers.Conv2D(128, (3, 3), activation="relu", padding="same")(p1)
         p2 = layers.MaxPooling2D((2, 2))(c2)
 
-        # Bottleneck
-        bn = UNetModel.unet_block(p2, 128, l2=self.l2_reg,
-                                  use_bn=self.use_bn,
-                                  dropout_bn=self.dropout_bn,
-                                  dropout_enc=self.dropout_enc)
+        c3 = layers.Conv2D(256, (3, 3), activation="relu", padding="same")(p2)
+        p3 = layers.MaxPooling2D((2, 2))(c3)
 
-        # Decoder
-        u1 = layers.UpSampling2D((2, 2))(bn)
+        c4 = layers.Conv2D(512, (3, 3), activation="relu", padding="same")(p3)
+        p4 = layers.MaxPooling2D((2, 2))(c4)
 
-        # --- resize c2 to match u1 ---
-        c2 = layers.Resizing(height=u1.shape[1], width=u1.shape[2])(c2)
+        b = layers.Conv2D(1024, (3, 3), activation="relu", padding="same")(p4)
 
-        u1 = layers.Concatenate()([u1, c2])
-        c3 = UNetModel.unet_block(u1, 64, l2=self.l2_reg,
-                                  use_bn=self.use_bn,
-                                  dropout_bn=self.dropout_bn,
-                                  dropout_enc=self.dropout_enc)
+        # Decoder with cropping
+        u4 = layers.Conv2DTranspose(512, (2, 2), strides=(2, 2), padding="same")(b)
+        c4_crop = UNetModel.crop_to_match(c4, u4)
+        u4 = layers.Concatenate()([u4, c4_crop])
 
-        u2 = layers.UpSampling2D((2, 2))(c3)
+        u3 = layers.Conv2DTranspose(256, (2, 2), strides=(2, 2), padding="same")(u4)
+        c3_crop = UNetModel.crop_to_match(c3, u3)
+        u3 = layers.Concatenate()([u3, c3_crop])
 
-        # --- resize c1 to match u2 ---
-        c1 = layers.Resizing(height=u2.shape[1], width=u2.shape[2])(c1)
+        u2 = layers.Conv2DTranspose(128, (2, 2), strides=(2, 2), padding="same")(u3)
+        c2_crop = UNetModel.crop_to_match(c2, u2)
+        u2 = layers.Concatenate()([u2, c2_crop])
 
-        u2 = layers.Concatenate()([u2, c1])
-        c4 = UNetModel.unet_block(u2, 32, l2=self.l2_reg,
-                                  use_bn=self.use_bn,
-                                  dropout_bn=self.dropout_bn,
-                                  dropout_enc=self.dropout_enc)
+        u1 = layers.Conv2DTranspose(64, (2, 2), strides=(2, 2), padding="same")(u2)
+        c1_crop = UNetModel.crop_to_match(c1, u1)
+        u1 = layers.Concatenate()([u1, c1_crop])
 
-        # Output (2-class softmax)
-        outputs = layers.Conv2D(2, (1, 1), activation="softmax")(c4)
+        x = layers.Conv2D(64, (3, 3), activation="relu", padding="same")(u1)
+
+        # Dense classifier head
+        x = layers.Flatten()(x)
+        x = layers.Dense(4096, activation="relu")(x)
+        x = layers.Dropout(0.3)(x)
+        x = layers.Dense(2048, activation="relu")(x)
+        x = layers.Dropout(0.3)(x)
+
+        # Output shape: (2, num_detectors, num_elementIDs)
+        x = layers.Dense(2 * self.num_detectors * self.num_elementIDs, activation="softmax")(x)
+        outputs = layers.Reshape((2, self.num_detectors, self.num_elementIDs))(x)
 
         return keras.Model(inputs, outputs, name="UNet")
 
@@ -235,10 +225,13 @@ def train_model(
         best_val = np.inf
         best_model_path = os.path.join("checkpoints", "best_of_folds.keras")
 
+        fold_val_losses = []
+        fold_models = []
+
         for fold, (tr, va) in enumerate(kf.split(X), start=1):
             print(f"[KFold] Fold {fold}/{k_folds}")
             model = build_model(
-                use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc, backbone=backbone
+            use_bn=use_bn, dropout_bn=dropout_bn, dropout_enc=dropout_enc, backbone=backbone
             )
             optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
             model.compile(optimizer=optimizer, loss=custom_loss, metrics=['accuracy'])
@@ -248,18 +241,29 @@ def train_model(
                 cbs.append(WandbCallback(save_model=False))
 
             history = model.fit(
-                X[tr], y[tr],
-                epochs=epochs,
-                batch_size=batch_size,
-                validation_data=(X[va], y[va]),
-                callbacks=cbs,
-                verbose=1
+            X[tr], y[tr],
+            epochs=epochs,
+            batch_size=batch_size,
+            validation_data=(X[va], y[va]),
+            callbacks=cbs,
+            verbose=1
             )
-            fold_best = float(np.min(history.history.get("val_loss", [np.inf])))
-            print(f"Fold {fold} best val_loss: {fold_best:.6f}")
-            if fold_best < best_val:
-                best_val = fold_best
-                model.save(best_model_path)
+            # Predict on validation set for this fold
+            y_pred = model.predict(X[va], batch_size=batch_size)
+            fold_loss = custom_loss(tf.convert_to_tensor(y[va]), tf.convert_to_tensor(y_pred)).numpy()
+            fold_val_losses.append(fold_loss)
+            fold_models.append(model)
+            print(f"Fold {fold} custom_loss: {fold_loss:.6f}")
+
+        # Compute cross-validation loss using all folds
+        y_trues = [tf.convert_to_tensor(y[va]) for _, va in kf.split(X)]
+        y_preds = [tf.convert_to_tensor(fold_models[i].predict(X[va], batch_size=batch_size)) for i, (_, va) in enumerate(kf.split(X))]
+        cv_loss = cross_validation_loss(y_trues, y_preds, loss_fn=custom_loss).numpy()
+        print(f"Cross-validation average loss: {cv_loss:.6f}")
+
+        # Save the model from the fold with the lowest validation loss
+        best_fold_idx = int(np.argmin(fold_val_losses))
+        fold_models[best_fold_idx].save(best_model_path)
 
         # Save best-of-folds to requested output path
         tf.keras.models.load_model(best_model_path).save(output_model)
