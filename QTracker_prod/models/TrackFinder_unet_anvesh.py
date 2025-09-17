@@ -1,21 +1,14 @@
 """ Custom U-Net for particle track reconstruction """
-
 import os
 import numpy as np
-import tensorflow as tf
-from tensorflow import keras
-from keras import regularizers
-import argparse
-import math
-import sklearn
-from sklearn.model_selection import KFold
-import matplotlib.pyplot as plt
-from keras.callbacks import ReduceLROnPlateau, EarlyStopping
+import tensorflow as tf  # still needed for backend ops
+import keras
+from keras import layers, regularizers
+from keras.callbacks import ReduceLROnPlateau, EarlyStopping, ModelCheckpoint
 from keras.applications import ResNet50
-from keras import layers
-#from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
-#from tensorflow.keras.applications import ResNet50
 from typing import Optional
+import argparse
+from sklearn.model_selection import KFold
 
 
 # Device selection for TensorFlow
@@ -35,6 +28,7 @@ def set_tf_device():
 
 try:
     import wandb
+    from wandb.integration.keras import WandbCallback
     _WANDB = True
     print('Using W&B')
 except ImportError:
@@ -45,7 +39,6 @@ set_tf_device()
 
 from data_loader import load_data
 from losses import custom_loss
-import wandb
 # Ensure the checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
 
@@ -101,6 +94,57 @@ class UNetModel:
         if dropout_enc > 0:
             x = layers.Dropout(dropout_enc)(x)
         return x
+    
+    def build(self):
+        inputs = keras.Input(shape=(self.num_detectors, self.num_elementIDs, 1))
+
+        # Encoder
+        c1 = UNetModel.unet_block(inputs, 32, l2=self.l2_reg,
+                                  use_bn=self.use_bn,
+                                  dropout_bn=self.dropout_bn,
+                                  dropout_enc=self.dropout_enc)
+        p1 = layers.MaxPooling2D((2, 2))(c1)
+
+        c2 = UNetModel.unet_block(p1, 64, l2=self.l2_reg,
+                                  use_bn=self.use_bn,
+                                  dropout_bn=self.dropout_bn,
+                                  dropout_enc=self.dropout_enc)
+        p2 = layers.MaxPooling2D((2, 2))(c2)
+
+        # Bottleneck
+        bn = UNetModel.unet_block(p2, 128, l2=self.l2_reg,
+                                  use_bn=self.use_bn,
+                                  dropout_bn=self.dropout_bn,
+                                  dropout_enc=self.dropout_enc)
+
+        # Decoder
+        u1 = layers.UpSampling2D((2, 2))(bn)
+
+        # --- resize c2 to match u1 ---
+        c2 = layers.Resizing(height=u1.shape[1], width=u1.shape[2])(c2)
+
+        u1 = layers.Concatenate()([u1, c2])
+        c3 = UNetModel.unet_block(u1, 64, l2=self.l2_reg,
+                                  use_bn=self.use_bn,
+                                  dropout_bn=self.dropout_bn,
+                                  dropout_enc=self.dropout_enc)
+
+        u2 = layers.UpSampling2D((2, 2))(c3)
+
+        # --- resize c1 to match u2 ---
+        c1 = layers.Resizing(height=u2.shape[1], width=u2.shape[2])(c1)
+
+        u2 = layers.Concatenate()([u2, c1])
+        c4 = UNetModel.unet_block(u2, 32, l2=self.l2_reg,
+                                  use_bn=self.use_bn,
+                                  dropout_bn=self.dropout_bn,
+                                  dropout_enc=self.dropout_enc)
+
+        # Output (2-class softmax)
+        outputs = layers.Conv2D(2, (1, 1), activation="softmax")(c4)
+
+        return keras.Model(inputs, outputs, name="UNet")
+
 
 
 def build_model(
@@ -273,8 +317,8 @@ def train_model(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a TensorFlow model to predict hit arrays from event hits.")
-    parser.add_argument("train_root_file",default="/Users/anvesh/Documents/research_position/TrackFinder Files/mc_events_train.root" ,type=str, help="Path to the train ROOT file.")
-    parser.add_argument("val_root_file", default = "/Users/anvesh/Documents/research_position/TrackFinder Files/test_val" , type=str, help="Path to the validation ROOT file.")
+    parser.add_argument("--train_root_file",default="/Users/anvesh/Documents/research_position/TrackFinder Files/mc_events_train.root" ,type=str, help="Path to the train ROOT file.")
+    parser.add_argument("--val_root_file", default = '/Users/anvesh/Documents/research_position/TrackFinder Files/mc_events_train.root', type=str, help="Path to the validation ROOT file.")
     parser.add_argument("--output_model", type=str, default="checkpoints/track_finder.h5", help="Path to save the trained model.")
     parser.add_argument("--learning_rate", type=float, default=0.00005, help="Learning rate for training.")
     parser.add_argument("--patience", type=int, default=5, help="Patience for EarlyStopping.")
@@ -286,7 +330,7 @@ if __name__ == "__main__":
     # W&B
     parser.add_argument("--use_wandb", type=int, default=1, help="Enable Weights & Biases logging: [0 = False, 1 = True].")
     parser.add_argument("--wandb_project", type=str, default="WandB-Test", help="W&B project name.")
-    parser.add_argument("--wandb_entity", type=str, default='anvesh-my', help="W&B entity (user or team).")
+    parser.add_argument("--wandb_entity", type=str, default=None, help="W&B entity (user or team).")
     parser.add_argument("--wandb_run_name", type=str, default='test_run', help="W&B run name.")
     parser.add_argument("--wandb_group", type=str, default=None, help="W&B group (useful for k-folds).")
     parser.add_argument("--wandb_tags", type=str, default=None, help="Comma-separated W&B tags, e.g. 'unet,bn,resnet50'.")
