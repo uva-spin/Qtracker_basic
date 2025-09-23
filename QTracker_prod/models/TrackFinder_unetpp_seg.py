@@ -11,12 +11,12 @@ import tensorflow as tf
 from tensorflow.keras import layers, regularizers
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import AdamW
-from tensorflow.keras import mixed_precision
+# from tensorflow.keras import mixed_precision
 
-from data_loader import load_data, load_data_denoise
+from data_loader import load_data
 from losses import custom_loss
 
-mixed_precision.set_global_policy("mixed_float16")
+# mixed_precision.set_global_policy("mixed_float16")
 
 # Ensure the checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
@@ -119,23 +119,18 @@ def build_model(
     x = layers.Cropping2D(cropping=padding)(X[0][j])
     x = layers.Conv2D(2, kernel_size=1)(x)
 
-    # Denoise Head
-    denoise_out = layers.Conv2D(1, kernel_size=1, name="denoise")(x)
-
-    # Segmentation Head
-    seg_out = layers.Softmax(axis=2)(x)  # softmax over elementID
-    seg_out = layers.Permute((3, 1, 2), name="segmentation")(seg_out)
+    # Softmax + permute to match shape required by loss: (batch, 2, det, elem)
+    x = layers.Softmax(axis=2)(x)  # softmax over elementID
+    output = layers.Permute((3, 1, 2))(x)
 
     # Initialize model
-    model = tf.keras.Model(inputs=input_layer, outputs=[denoise_out, seg_out])
+    model = tf.keras.Model(inputs=input_layer, outputs=output)
     return model
 
 
 def train_model(args):
-    X_train, X_clean_train, y_muPlus_train, y_muMinus_train = load_data_denoise(
-        args.train_root_file
-    )
-    if X_train is None or X_clean_train is None:
+    X_train, y_muPlus_train, y_muMinus_train = load_data(args.train_root_file)
+    if X_train is None:
         return
     y_train = np.stack(
         [y_muPlus_train, y_muMinus_train], axis=1
@@ -147,6 +142,15 @@ def train_model(args):
     y_val = np.stack(
         [y_muPlus_val, y_muMinus_val], axis=1
     )  # Shape: (num_events, 2, 62)
+
+    if args.denoise_model_path:
+        denoise_model = tf.keras.models.load_model(
+            args.denoise_model_path, compile=False
+        )
+        X_train = denoise_model.predict(X_train)
+        X_train = (X_train > 0.5).astype(np.float32)  # Binarize
+        X_val = denoise_model.predict(X_val)
+        X_val = (X_val > 0.5).astype(np.float32)  # Binarize
 
     lr_scheduler = ReduceLROnPlateau(
         monitor="val_loss", factor=0.3, patience=args.patience // 3, min_lr=1e-6
@@ -170,27 +174,11 @@ def train_model(args):
         weight_decay=args.weight_decay,
         clipnorm=args.clipnorm,
     )
-    losses = {
-        "denoise": "mse",
-        "segmentation": custom_loss,
-    }
-    loss_weights = {
-        "denoise": 1.0,
-        "segmentation": 1.0,
-    }
-    model.compile(
-        optimizer=optimizer,
-        loss=losses,
-        loss_weights=loss_weights,
-        metrics={"segmentation": "accuracy"},
-    )
+    model.compile(optimizer=optimizer, loss=custom_loss, metrics=["accuracy"])
 
     history = model.fit(
         X_train,
-        {
-            "denoise": X_clean_train,
-            "segmentation": y_train,
-        },
+        y_train,
         epochs=args.epochs,
         batch_size=args.batch_size,
         validation_data=(X_val, y_val),
@@ -287,6 +275,12 @@ if __name__ == "__main__":
         type=float,
         default=1.0,
         help="Hyperparameter for gradient clipping in AdamW.",
+    )
+    parser.add_argument(
+        "--denoise_model_path",
+        type=str,
+        default=None,
+        help="Path to the saved denoiser model file (.h5 or .keras).",
     )
     args = parser.parse_args()
 

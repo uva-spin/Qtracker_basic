@@ -11,12 +11,13 @@ import tensorflow as tf
 from tensorflow.keras import layers, regularizers
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import AdamW
-from tensorflow.keras import mixed_precision
+from tensorflow.keras.metrics import Precision, Recall
+# from tensorflow.keras import mixed_precision
 
-from data_loader import load_data
-from losses import custom_loss
+from data_loader import load_data_denoise
+from losses import custom_loss, weighted_bce
 
-mixed_precision.set_global_policy("mixed_float16")
+# mixed_precision.set_global_policy("mixed_float16")
 
 # Ensure the checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
@@ -115,33 +116,29 @@ def build_model(
             concat_parts = [X[i][k] for k in range(j)] + [upsample(X[i+1][j-1])]
             X[i][j] = conv_block(layers.Concatenate()(concat_parts), filters[i], use_bn=use_bn)
 
-    # Logits
+    # Cropping to match input shape
     x = layers.Cropping2D(cropping=padding)(X[0][j])
-    x = layers.Conv2D(2, kernel_size=1)(x)
 
-    # Softmax + permute to match shape required by loss: (batch, 2, det, elem)
-    x = layers.Softmax(axis=2)(x)  # softmax over elementID
-    output = layers.Permute((3, 1, 2))(x)
+    # Denoise Head
+    denoise_out = layers.Conv2D(1, kernel_size=1, activation="sigmoid", name="denoise")(x)
 
     # Initialize model
-    model = tf.keras.Model(inputs=input_layer, outputs=output)
+    model = tf.keras.Model(inputs=input_layer, outputs=denoise_out)
     return model
 
 
 def train_model(args):
-    X_train, y_muPlus_train, y_muMinus_train = load_data(args.train_root_file)
-    if X_train is None:
+    X_train, X_clean_train, y_muPlus_train, y_muMinus_train = load_data_denoise(
+        args.train_root_file
+    )
+    if X_train is None or X_clean_train is None:
         return
-    y_train = np.stack(
-        [y_muPlus_train, y_muMinus_train], axis=1
-    )  # Shape: (num_events, 2, 62)
 
-    X_val, y_muPlus_val, y_muMinus_val = load_data(args.val_root_file)
-    if X_val is None:
+    X_val, X_clean_val, y_muPlus_val, y_muMinus_val = load_data_denoise(
+        args.val_root_file
+    )
+    if X_val is None or X_clean_val is None:
         return
-    y_val = np.stack(
-        [y_muPlus_val, y_muMinus_val], axis=1
-    )  # Shape: (num_events, 2, 62)
 
     lr_scheduler = ReduceLROnPlateau(
         monitor="val_loss", factor=0.3, patience=args.patience // 3, min_lr=1e-6
@@ -165,14 +162,18 @@ def train_model(args):
         weight_decay=args.weight_decay,
         clipnorm=args.clipnorm,
     )
-    model.compile(optimizer=optimizer, loss=custom_loss, metrics=["accuracy"])
+    model.compile(
+        optimizer=optimizer,
+        loss=weighted_bce(pos_weight=args.pos_weight),
+        metrics=[Precision(name='precision'), Recall(name='recall')],
+    )
 
     history = model.fit(
         X_train,
-        y_train,
+        X_clean_train,
         epochs=args.epochs,
         batch_size=args.batch_size,
-        validation_data=(X_val, y_val),
+        validation_data=(X_val, X_clean_val),
         callbacks=[lr_scheduler, early_stopping],
     )
 
@@ -266,6 +267,12 @@ if __name__ == "__main__":
         type=float,
         default=1.0,
         help="Hyperparameter for gradient clipping in AdamW.",
+    )
+    parser.add_argument(
+        "--pos_weight",
+        type=float,
+        default=1.0,
+        help="Positive class weight for weighted BCE.",
     )
     args = parser.parse_args()
 

@@ -22,6 +22,14 @@ def custom_loss(y_true, y_pred):
     return tf.reduce_mean(loss_mup + loss_mum + OVERLAP_LAMBDA * overlap_penalty)
 
 
+def weighted_bce(pos_weight=1.0):
+    def loss(y_true, y_pred):
+        bce = tf.keras.losses.BinaryCrossentropy()
+        weights = 1 + (pos_weight - 1) * y_true
+        return bce(y_true, y_pred, sample_weight=weights)
+    return loss
+
+
 def custom_loss_mp(y_true, y_pred):
     """ Custom loss with mixed precision support """
     y_muPlus_true, y_muMinus_true = tf.split(y_true, num_or_size_splits=2, axis=1)

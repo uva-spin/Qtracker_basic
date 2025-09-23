@@ -1,8 +1,9 @@
-""" Vanilla U-Net++ (no deep supervision or curriculum learning) """
+""" U-Net++ model with curriculum learning """
 
 import argparse
 import math
 import os
+import gc
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,16 +14,64 @@ from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import AdamW
 from tensorflow.keras import mixed_precision
 
-from data_loader import load_data
-from losses import custom_loss_mp
-
 mixed_precision.set_global_policy("mixed_float16")
 
 # Ensure the checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
 
-NUM_DETECTORS = 62
-NUM_ELEMENT_IDS = 201
+
+def load_data(root_file):
+    f = ROOT.TFile.Open(root_file, "READ")
+    tree = f.Get("tree")
+
+    if not tree:
+        print("Error: Tree not found in file.")
+        return None, None, None
+
+    num_detectors = 62
+    num_elementIDs = 201
+
+    X = []
+    y_muPlus = []
+    y_muMinus = []
+
+    for event in tree:
+        event_hits_matrix = np.zeros((num_detectors, num_elementIDs), dtype=np.float32)
+
+        for det_id, elem_id in zip(event.detectorID, event.elementID):
+            if 0 <= det_id < num_detectors and 0 <= elem_id < num_elementIDs:
+                event_hits_matrix[det_id, elem_id] = 1
+
+        mu_plus_array = np.array(event.HitArray_mup, dtype=np.int32)
+        mu_minus_array = np.array(event.HitArray_mum, dtype=np.int32)
+
+        X.append(event_hits_matrix)
+        y_muPlus.append(mu_plus_array)
+        y_muMinus.append(mu_minus_array)
+
+    X = np.array(X)[..., np.newaxis]  # Shape: (num_events, 62, 201, 1)
+    y_muPlus = np.array(y_muPlus)
+    y_muMinus = np.array(y_muMinus)
+
+    return X, y_muPlus, y_muMinus
+
+
+def custom_loss(y_true, y_pred):
+    y_muPlus_true, y_muMinus_true = tf.split(y_true, num_or_size_splits=2, axis=1)
+    y_muPlus_pred, y_muMinus_pred = tf.split(y_pred, num_or_size_splits=2, axis=1)
+
+    y_muPlus_true = tf.squeeze(y_muPlus_true, axis=1)
+    y_muMinus_true = tf.squeeze(y_muMinus_true, axis=1)
+
+    y_muPlus_pred = tf.cast(tf.squeeze(y_muPlus_pred, axis=1), tf.float32)
+    y_muMinus_pred = tf.cast(tf.squeeze(y_muMinus_pred, axis=1), tf.float32)
+
+    loss_mup = tf.keras.losses.sparse_categorical_crossentropy(y_muPlus_true, y_muPlus_pred)
+    loss_mum = tf.keras.losses.sparse_categorical_crossentropy(y_muMinus_true, y_muMinus_pred)
+
+    overlap_penalty = tf.reduce_sum(y_muPlus_pred * y_muMinus_pred, axis=-1)
+
+    return tf.reduce_mean(loss_mup + loss_mum + 0.1 * overlap_penalty)
 
 
 def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout=0.0):
@@ -66,6 +115,11 @@ def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout=0.0):
 def upsample(x):
     x = layers.UpSampling2D(interpolation="bilinear")(x)
     return x
+
+
+def head(feature, padding, name):
+    x = layers.Cropping2D(cropping=padding)(feature)
+    return layers.Conv2D(2, kernel_size=1, name=name)(x)
 
 
 def build_model(
@@ -116,12 +170,14 @@ def build_model(
             X[i][j] = conv_block(layers.Concatenate()(concat_parts), filters[i], use_bn=use_bn)
 
     # Logits
-    x = layers.Cropping2D(cropping=padding)(X[0][j])
-    x = layers.Conv2D(2, kernel_size=1)(x)
+    j = len(filters)-1
+    x = head(X[0][j], padding, name=f'logits_{j}')
 
-    # Softmax + permute to match shape required by loss: (batch, 2, det, elem)
+    # Output layer
     x = layers.Softmax(axis=2)(x)  # softmax over elementID
-    output = layers.Permute((3, 1, 2))(x)
+    output = layers.Permute((3, 1, 2))(
+        x
+    )  # permute to match shape required by loss: (batch, 2, det, elem)
 
     # Initialize model
     model = tf.keras.Model(inputs=input_layer, outputs=output)
@@ -129,11 +185,11 @@ def build_model(
 
 
 def train_model(args):
-    X_train, y_muPlus_train, y_muMinus_train = load_data(args.train_root_file)
-    if X_train is None:
+    X_train_low, y_muPlus_train_low, y_muMinus_train_low = load_data(args.train_root_file_low)
+    if X_train_low is None:
         return
-    y_train = np.stack(
-        [y_muPlus_train, y_muMinus_train], axis=1
+    y_train_low = np.stack(
+        [y_muPlus_train_low, y_muMinus_train_low], axis=1
     )  # Shape: (num_events, 2, 62)
 
     X_val, y_muPlus_val, y_muMinus_val = load_data(args.val_root_file)
@@ -144,19 +200,15 @@ def train_model(args):
     )  # Shape: (num_events, 2, 62)
 
     lr_scheduler = ReduceLROnPlateau(
-        monitor="val_loss", factor=0.3, patience=args.patience // 3, min_lr=1e-6
+        monitor="val_loss", factor=args.factor, patience=args.patience // 3, min_lr=args.min_lr
     )
     early_stopping = EarlyStopping(
         monitor="val_loss", patience=args.patience, restore_best_weights=True
     )
 
     model = build_model(
-        num_detectors=NUM_DETECTORS,
-        num_elementIDs=NUM_ELEMENT_IDS, 
-        use_bn=args.batch_norm, 
-        dropout_bn=args.dropout_bn, 
-        dropout_enc=args.dropout_enc, 
-        base=args.base,
+        use_bn=args.batch_norm, dropout_bn=args.dropout_bn, 
+        dropout_enc=args.dropout_enc, base=args.base
     )
     model.summary()
 
@@ -165,30 +217,59 @@ def train_model(args):
         weight_decay=args.weight_decay,
         clipnorm=args.clipnorm,
     )
-    model.compile(optimizer=optimizer, loss=custom_loss_mp, metrics=["accuracy"])
+    model.compile(optimizer=optimizer, loss=custom_loss, metrics=["accuracy"])
 
-    history = model.fit(
-        X_train,
-        y_train,
-        epochs=args.epochs,
+    epochs_low = int(args.epochs * args.low_ratio)
+    epochs_med = int(args.epochs * args.med_ratio)
+    epochs_high = args.epochs
+
+    model.fit(
+        X_train_low,
+        y_train_low,
+        initial_epoch=0,
+        epochs=epochs_low,
+        batch_size=args.batch_size,
+        validation_data=(X_val, y_val),
+        callbacks=[lr_scheduler],
+    )
+    del X_train_low, y_train_low
+    gc.collect()
+
+    X_train_med, y_muPlus_train_med, y_muMinus_train_med = load_data(args.train_root_file_med)
+    if X_train_med is None:
+        return
+    y_train_med = np.stack(
+        [y_muPlus_train_med, y_muMinus_train_med], axis=1
+    )  # Shape: (num_events, 2, 62)
+    model.fit(
+        X_train_med,
+        y_train_med,
+        initial_epoch=epochs_low,
+        epochs=epochs_med,
+        batch_size=args.batch_size,
+        validation_data=(X_val, y_val),
+        callbacks=[lr_scheduler],
+    )
+    del X_train_med, y_train_med
+    gc.collect()
+
+    X_train_high, y_muPlus_train_high, y_muMinus_train_high = load_data(args.train_root_file_high)
+    if X_train_high is None:
+        return
+    y_train_high = np.stack(
+        [y_muPlus_train_high, y_muMinus_train_high], axis=1
+    )  # Shape: (num_events, 2, 62)
+    model.fit(
+        X_train_high,
+        y_train_high,
+        initial_epoch=epochs_med,
+        epochs=epochs_high,
         batch_size=args.batch_size,
         validation_data=(X_val, y_val),
         callbacks=[lr_scheduler, early_stopping],
     )
-
-    # Plot train and val loss over epochs
-    plt.figure(figsize=(8, 6))
-    plt.plot(history.history["loss"], label="Train Loss")
-    plt.plot(history.history["val_loss"], label="Validation Loss")
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.legend()
-    plt.title("Training and Val Loss Over Epochs")
-
-    plot_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "plots")
-    os.makedirs(plot_dir, exist_ok=True)
-    plt.savefig(os.path.join(plot_dir, "losses.png"))
-    plt.show()
+    del X_train_high, y_train_high
+    gc.collect()
 
     model.save(args.output_model)
     print(f"Model saved to {args.output_model}")
@@ -199,7 +280,13 @@ if __name__ == "__main__":
         description="Train a TensorFlow model to predict hit arrays from event hits."
     )
     parser.add_argument(
-        "train_root_file", type=str, help="Path to the train ROOT file."
+        "train_root_file_low", type=str, help="Path to the train ROOT file."
+    )
+    parser.add_argument(
+        "train_root_file_med", type=str, help="Path to the train ROOT file."
+    )
+    parser.add_argument(
+        "train_root_file_high", type=str, help="Path to the train ROOT file."
     )
     parser.add_argument(
         "val_root_file", type=str, help="Path to the validation ROOT file."
@@ -215,6 +302,18 @@ if __name__ == "__main__":
         type=float,
         default=0.00005,
         help="Learning rate for training.",
+    )
+    parser.add_argument(
+        "--factor",
+        type=float,
+        default=0.3,
+        help="Factor for reducing learning rate.",
+    )
+    parser.add_argument(
+        "--min_lr",
+        type=float,
+        default=1e-6,
+        help="Minimum learning rate.",
     )
     parser.add_argument(
         "--patience", type=int, default=5, help="Patience for EarlyStopping."
@@ -266,6 +365,18 @@ if __name__ == "__main__":
         type=float,
         default=1.0,
         help="Hyperparameter for gradient clipping in AdamW.",
+    )
+    parser.add_argument(
+        "--low_ratio",
+        type=float,
+        default=0.5,
+        help="Fraction of epochs for low complexity data.",
+    )
+    parser.add_argument(
+        "--med_ratio",
+        type=float,
+        default=0.8,
+        help="Fraction of epochs for medium complexity data.",
     )
     args = parser.parse_args()
 
