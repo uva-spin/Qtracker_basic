@@ -1,0 +1,23 @@
+# Denoiser
+val_loss: 0.0186 - val_precision: 0.5466 - val_recall: 0.9819
+
+# Segmenter (no curriculum)
+Raw μ+ accuracy: 0.9252
+Raw μ- accuracy: 0.9249
+
+Raw μ+ within-2 accuracy: 0.9670
+Raw μ- within-2 accuracy: 0.9688
+
+Refined μ+ accuracy: 0.9259
+Refined μ- accuracy: 0.9288
+
+Refined μ+ within-2 accuracy: 0.9671
+Refined μ- within-2 accuracy: 0.9690
+
+--- Raw Absolute Residuals (Before Refinement) ---
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.498 |    4.733 |    0.338 |    2.139
+
+--- Refined Absolute Residuals (After Refinement) ---
+μ+ mean  |  μ+ std   |  μ- mean  |  μ- std
+   0.497 |    4.732 |    0.334 |    2.148

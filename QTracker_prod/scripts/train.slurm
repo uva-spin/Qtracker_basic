@@ -22,27 +22,52 @@ IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 LEARNING_RATE=0.0003
 BATCH_NORM=1
 
-# DenoiseSeg with U-Net++ backbone
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/models/TrackFinder_denoiseseg.py \
-     /mnt/code/data/processed_files/mc_events_train.root \
-     /mnt/code/data/processed_files/mc_events_val.root \
-     --output_model /mnt/code/checkpoints/track_finder_denoiseseg.h5 \
-     --learning_rate $LEARNING_RATE \
-     --patience 12 \
-     --batch_norm $BATCH_NORM \
-     --base 64 \
-     --epochs 50 \
-     --batch_size 64 \
-     --dropout_bn 0.5 \
-     --dropout_enc 0.4
+# # Denoiser - best performing (pos_weight 15.0)
+# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+#     python3 /mnt/code/models/TrackFinder_denoise.py \
+#      /mnt/code/data/processed_files/mc_events_train_denoise_low.root \
+#      /mnt/code/data/processed_files/mc_events_train_denoise_med.root \
+#      /mnt/code/data/processed_files/mc_events_train_denoise_high.root \
+#      /mnt/code/data/processed_files/mc_events_val_denoise.root \
+#      --output_model /mnt/code/checkpoints/track_finder_denoise.h5 \
+#      --learning_rate $LEARNING_RATE \
+#      --patience 12 \
+#      --batch_norm $BATCH_NORM \
+#      --base 64 \
+#      --epochs 60 \
+#      --batch_size 64 \
+#      --dropout_bn 0.5 \
+#      --dropout_enc 0.4 \
+#      --pos_weight 15.0
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/evaluate.py \
-     /mnt/code/data/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/track_finder_denoiseseg.h5
+    python3 /mnt/code/evaluate_denoise.py
 
-# Might need to change loss weights (denoiser can dominate; segmentation loss should dominate)
+# # Segmenter
+# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+#     python3 /mnt/code/models/TrackFinder_unetpp_seg.py \
+#      /mnt/code/data/processed_files/mc_events_train_denoise_low.root \
+#      /mnt/code/data/processed_files/mc_events_train_denoise_med.root \
+#      /mnt/code/data/processed_files/mc_events_train_denoise_high.root \
+#      /mnt/code/data/processed_files/mc_events_val_seg.root \
+#      --output_model /mnt/code/checkpoints/track_finder_seg.h5 \
+#      --learning_rate $LEARNING_RATE \
+#      --patience 12 \
+#      --batch_norm $BATCH_NORM \
+#      --base 64 \
+#      --epochs 60 \
+#      --batch_size 64 \
+#      --dropout_bn 0.5 \
+#      --dropout_enc 0.4 \
+#      --denoise_model_path /mnt/code/checkpoints/track_finder_denoise.h5
+
+# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+#     python3 /mnt/code/evaluate_v2.py \
+#      /mnt/code/data/processed_files/mc_events_val_denoise.root \
+#      /mnt/code/checkpoints/track_finder_denoise.h5 \
+#      /mnt/code/checkpoints/track_finder_seg.h5
+
+# Curriculum learning in denoiser
 
 # +) Also test different learning rates for each curriculum stage,
 #    cosine annealing LR (with and without warmup)

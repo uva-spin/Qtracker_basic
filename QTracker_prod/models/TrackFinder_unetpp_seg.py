@@ -148,8 +148,8 @@ def train_model(args):
         denoise_model = tf.keras.models.load_model(
             args.denoise_model_path, compile=False
         )
-        X_train = denoise_model.predict(X_train)
-        X_train = (X_train > 0.5).astype(np.float32)  # Binarize
+        X_train_low = denoise_model.predict(X_train_low)
+        X_train_low = (X_train_low > 0.5).astype(np.float32)  # Binarize
         X_val = denoise_model.predict(X_val)
         X_val = (X_val > 0.5).astype(np.float32)  # Binarize
 
@@ -196,6 +196,12 @@ def train_model(args):
     X_train_med, y_muPlus_train_med, y_muMinus_train_med = load_data(args.train_root_file_med)
     if X_train_med is None:
         return
+    if args.denoise_model_path:
+        denoise_model = tf.keras.models.load_model(
+            args.denoise_model_path, compile=False
+        )
+        X_train_med = denoise_model.predict(X_train_med)
+        X_train_med = (X_train_med > 0.5).astype(np.float32)  # Binarize
     y_train_med = np.stack(
         [y_muPlus_train_med, y_muMinus_train_med], axis=1
     )  # Shape: (num_events, 2, 62)
@@ -214,6 +220,12 @@ def train_model(args):
     X_train_high, y_muPlus_train_high, y_muMinus_train_high = load_data(args.train_root_file_high)
     if X_train_high is None:
         return
+    if args.denoise_model_path:
+        denoise_model = tf.keras.models.load_model(
+            args.denoise_model_path, compile=False
+        )
+        X_train_high = denoise_model.predict(X_train_high)
+        X_train_high = (X_train_high > 0.5).astype(np.float32)  # Binarize
     y_train_high = np.stack(
         [y_muPlus_train_high, y_muMinus_train_high], axis=1
     )  # Shape: (num_events, 2, 62)
