@@ -87,45 +87,34 @@
 
 
 # --- 4. Inject background muon tracks to signal file from 3 ---
-# python data/messy_gen_v4.py \
-#  data/processed_files/finder_training_train.root \
-#  data/processed_files/single_muons_train.root \
-#  --output data/processed_files/mc_events_train_denoise_low.root \
-#  --uniform_tracks 0 \
-#  --lower_bound 0 \
-#  --num_tracks 10
-
-# python data/messy_gen_v4.py \
-#  data/processed_files/finder_training_train.root \
-#  data/processed_files/single_muons_train.root \
-#  --output data/processed_files/mc_events_train_denoise_med.root \
-#  --uniform_tracks 0 \
-#  --lower_bound 10 \
-#  --num_tracks 20
-
-# python data/messy_gen_v4.py \
-#  data/processed_files/finder_training_train.root \
-#  data/processed_files/single_muons_train.root \
-#  --output data/processed_files/mc_events_train_denoise_high.root \
-#  --uniform_tracks 0 \
-#  --lower_bound 20 \
-#  --num_tracks 30
-
-python data/messy_gen.py \
+python data/messy_gen_v4.py \
  data/processed_files/finder_training_train.root \
  data/processed_files/single_muons_train.root \
- --output data/processed_files/mc_events_train_seg_skewed.root \
- --uniform_tracks 0
+ --output data/processed_files/mc_events_train_low.root \
+ --uniform_tracks 0 \
+ --lower_bound 0 \
+ --num_tracks 16
 
-# python data/messy_gen_v4.py \
-#  data/processed_files/finder_training_val.root \
-#  data/processed_files/single_muons_val.root \
-#  --output data/processed_files/mc_events_val_denoise.root
+python data/messy_gen_v4.py \
+ data/processed_files/finder_training_train.root \
+ data/processed_files/single_muons_train.root \
+ --output data/processed_files/mc_events_train_med.root \
+ --uniform_tracks 0 \
+ --lower_bound 17 \
+ --num_tracks 33
 
-# python data/messy_gen.py \
-#  data/processed_files/finder_training_val.root \
-#  data/processed_files/single_muons_val.root \
-#  --output data/processed_files/mc_events_val_seg.root
+python data/messy_gen_v4.py \
+ data/processed_files/finder_training_train.root \
+ data/processed_files/single_muons_train.root \
+ --output data/processed_files/mc_events_train_high.root \
+ --uniform_tracks 0 \
+ --lower_bound 34 \
+ --num_tracks 50
+
+python data/messy_gen_v4.py \
+ data/processed_files/finder_training_val.root \
+ data/processed_files/single_muons_val.root \
+ --output data/processed_files/mc_events_val.root
 
 # # --- 5. Inject randomly generated noise hits into file from 4 ---
 # P_ELECTRONIC_NOISE=0.01

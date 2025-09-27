@@ -10,6 +10,7 @@ import numpy as np
 import ROOT
 import tensorflow as tf
 from tensorflow.keras import layers, regularizers
+import tensorflow.keras.backend as K
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import AdamW
 # from tensorflow.keras import mixed_precision
@@ -153,13 +154,6 @@ def train_model(args):
         X_val = denoise_model.predict(X_val)
         X_val = (X_val > 0.5).astype(np.float32)  # Binarize
 
-    lr_scheduler = ReduceLROnPlateau(
-        monitor="val_loss", factor=0.3, patience=args.patience // 3, min_lr=1e-6
-    )
-    early_stopping = EarlyStopping(
-        monitor="val_loss", patience=args.patience, restore_best_weights=True
-    )
-
     model = build_model(
         num_detectors=NUM_DETECTORS,
         num_elementIDs=NUM_ELEMENT_IDS, 
@@ -171,7 +165,7 @@ def train_model(args):
     model.summary()
 
     optimizer = AdamW(
-        learning_rate=args.learning_rate,
+        learning_rate=args.lr_low,
         weight_decay=args.weight_decay,
         clipnorm=args.clipnorm,
     )
@@ -181,6 +175,14 @@ def train_model(args):
     epochs_med = int(args.epochs * args.med_ratio)
     epochs_high = args.epochs
 
+    # Low complexity training
+    lr_scheduler = ReduceLROnPlateau(
+        monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
+    )
+    early_stopping = EarlyStopping(
+        monitor="val_loss", patience=args.patience, restore_best_weights=False
+    )
+
     model.fit(
         X_train_low,
         y_train_low,
@@ -188,11 +190,12 @@ def train_model(args):
         epochs=epochs_low,
         batch_size=args.batch_size,
         validation_data=(X_val, y_val),
-        callbacks=[lr_scheduler],
+        callbacks=[lr_scheduler, early_stopping],
     )
     del X_train_low, y_train_low
     gc.collect()
 
+    # Medium complexity training
     X_train_med, y_muPlus_train_med, y_muMinus_train_med = load_data(args.train_root_file_med)
     if X_train_med is None:
         return
@@ -205,6 +208,15 @@ def train_model(args):
     y_train_med = np.stack(
         [y_muPlus_train_med, y_muMinus_train_med], axis=1
     )  # Shape: (num_events, 2, 62)
+
+    K.set_value(model.optimizer.learning_rate, args.lr_med)
+    lr_scheduler = ReduceLROnPlateau(
+        monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
+    )
+    early_stopping = EarlyStopping(
+        monitor="val_loss", patience=args.patience, restore_best_weights=False
+    )
+
     model.fit(
         X_train_med,
         y_train_med,
@@ -212,11 +224,12 @@ def train_model(args):
         epochs=epochs_med,
         batch_size=args.batch_size,
         validation_data=(X_val, y_val),
-        callbacks=[lr_scheduler],
+        callbacks=[lr_scheduler, early_stopping],
     )
     del X_train_med, y_train_med
     gc.collect()
 
+    # High complexity training
     X_train_high, y_muPlus_train_high, y_muMinus_train_high = load_data(args.train_root_file_high)
     if X_train_high is None:
         return
@@ -229,6 +242,15 @@ def train_model(args):
     y_train_high = np.stack(
         [y_muPlus_train_high, y_muMinus_train_high], axis=1
     )  # Shape: (num_events, 2, 62)
+
+    K.set_value(model.optimizer.learning_rate, args.lr_high)
+    lr_scheduler = ReduceLROnPlateau(
+        monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
+    )
+    early_stopping = EarlyStopping(
+        monitor="val_loss", patience=args.patience, restore_best_weights=True
+    )
+
     model.fit(
         X_train_high,
         y_train_high,
@@ -268,30 +290,45 @@ if __name__ == "__main__":
         help="Path to save the trained model.",
     )
     parser.add_argument(
-        "--learning_rate",
+        "--lr_low",
         type=float,
-        default=0.00005,
-        help="Learning rate for training.",
+        default=0.0003,
+        help="Learning rate for low complexity data.",
     )
     parser.add_argument(
-        "--patience", type=int, default=5, help="Patience for EarlyStopping."
+        "--lr_med",
+        type=float,
+        default=0.0001,
+        help="Learning rate for medium complexity data.",
+    )
+    parser.add_argument(
+        "--lr_high",
+        type=float,
+        default=0.00003,
+        help="Learning rate for high complexity data.",
+    )
+    parser.add_argument(
+        "--patience", type=int, default=12, help="Patience for EarlyStopping."
+    )
+    parser.add_argument(
+        "--lr_patience", type=int, default=4, help="Patience for learning rate scheduler."
     )
     parser.add_argument(
         "--batch_norm",
         type=int,
-        default=0,
+        default=1,
         help="Flag to set batch normalization: [0 = False, 1 = True].",
     )
     parser.add_argument(
         "--dropout_bn",
         type=float,
-        default=0.0,
+        default=0.5,
         help="Dropout rate for bottleneck layer.",
     )
     parser.add_argument(
         "--dropout_enc",
         type=float,
-        default=0.0,
+        default=0.4,
         help="Dropout rate for encoder blocks.",
     )
     parser.add_argument(
@@ -303,13 +340,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--epochs",
         type=int,
-        default=40,
+        default=60,
         help="Number of epochs in training.",
     )
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=32,
+        default=64,
         help="Batch size for mini-batch gradient descent.",
     )
     parser.add_argument(
@@ -329,6 +366,12 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help="Path to the saved denoiser model file (.h5 or .keras).",
+    )
+    parser.add_argument(
+        "--factor",
+        type=float,
+        default=0.3,
+        help="Factor for ReduceLROnPlateau.",
     )
     parser.add_argument(
         "--low_ratio",

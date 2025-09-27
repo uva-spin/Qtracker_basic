@@ -22,13 +22,13 @@ IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 LEARNING_RATE=0.0003
 BATCH_NORM=1
 
-# # Denoiser - best performing (pos_weight 15.0)
+# # Denoiser - best performing (pos_weight 20.0)
 # ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
 #     python3 /mnt/code/models/TrackFinder_denoise.py \
-#      /mnt/code/data/processed_files/mc_events_train_denoise_low.root \
-#      /mnt/code/data/processed_files/mc_events_train_denoise_med.root \
-#      /mnt/code/data/processed_files/mc_events_train_denoise_high.root \
-#      /mnt/code/data/processed_files/mc_events_val_denoise.root \
+#      /mnt/code/data/processed_files/mc_events_train_low.root \
+#      /mnt/code/data/processed_files/mc_events_train_med.root \
+#      /mnt/code/data/processed_files/mc_events_train_high.root \
+#      /mnt/code/data/processed_files/mc_events_val.root \
 #      --output_model /mnt/code/checkpoints/track_finder_denoise.h5 \
 #      --learning_rate $LEARNING_RATE \
 #      --patience 12 \
@@ -38,62 +38,43 @@ BATCH_NORM=1
 #      --batch_size 64 \
 #      --dropout_bn 0.5 \
 #      --dropout_enc 0.4 \
-#      --pos_weight 15.0
+#      --pos_weight 20.0
+
+# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+#     python3 /mnt/code/evaluate_denoise.py \
+#      --val_file_path /mnt/code/data/processed_files/mc_events_val.root \
+#      --model_path /mnt/code/checkpoints/track_finder_denoise.h5
+
+# Segmenter
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/models/TrackFinder_unetpp_seg.py \
+     /mnt/code/data/processed_files/mc_events_train_low.root \
+     /mnt/code/data/processed_files/mc_events_train_med.root \
+     /mnt/code/data/processed_files/mc_events_train_high.root \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     --output_model /mnt/code/checkpoints/track_finder_seg.h5 \
+     --lr_low 0.0003 \
+     --lr_med 0.0001 \
+     --lr_high 0.00003 \
+     --patience 10 \
+     --lr_patience 3 \
+     --batch_norm $BATCH_NORM \
+     --base 64 \
+     --epochs 60 \
+     --batch_size 64 \
+     --dropout_bn 0.5 \
+     --dropout_enc 0.4 \
+     --denoise_model_path /mnt/code/checkpoints/track_finder_denoise.h5 \
+     --factor 0.3
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/evaluate_denoise.py
-
-# # Segmenter
-# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 /mnt/code/models/TrackFinder_unetpp_seg.py \
-#      /mnt/code/data/processed_files/mc_events_train_denoise_low.root \
-#      /mnt/code/data/processed_files/mc_events_train_denoise_med.root \
-#      /mnt/code/data/processed_files/mc_events_train_denoise_high.root \
-#      /mnt/code/data/processed_files/mc_events_val_seg.root \
-#      --output_model /mnt/code/checkpoints/track_finder_seg.h5 \
-#      --learning_rate $LEARNING_RATE \
-#      --patience 12 \
-#      --batch_norm $BATCH_NORM \
-#      --base 64 \
-#      --epochs 60 \
-#      --batch_size 64 \
-#      --dropout_bn 0.5 \
-#      --dropout_enc 0.4 \
-#      --denoise_model_path /mnt/code/checkpoints/track_finder_denoise.h5
-
-# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 /mnt/code/evaluate_v2.py \
-#      /mnt/code/data/processed_files/mc_events_val_denoise.root \
-#      /mnt/code/checkpoints/track_finder_denoise.h5 \
-#      /mnt/code/checkpoints/track_finder_seg.h5
-
-# Curriculum learning in denoiser
+    python3 /mnt/code/evaluate_v2.py \
+     /mnt/code/data/processed_files/mc_events_val.root \
+     /mnt/code/checkpoints/track_finder_denoise.h5 \
+     /mnt/code/checkpoints/track_finder_seg.h5
 
 # +) Also test different learning rates for each curriculum stage,
 #    cosine annealing LR (with and without warmup)
-
-    
-## Best Performing ##
-# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 /mnt/code/models/TrackFinder_unetpp.py \
-#      /mnt/code/data/processed_files/mc_events_train_low.root \
-#      /mnt/code/data/processed_files/mc_events_train_med.root \
-#      /mnt/code/data/processed_files/mc_events_train_high.root \
-#      /mnt/code/data/processed_files/mc_events_val.root \
-#      --output_model /mnt/code/checkpoints/track_finder_unetpp1.h5 \
-#      --learning_rate $LEARNING_RATE \
-#      --factor 0.3 \
-#      --min_lr 0.000001 \
-#      --patience 12 \
-#      --batch_norm $BATCH_NORM \
-#      --base 64 \
-#      --epochs 60 \
-#      --batch_size 64 \
-#      --dropout_bn 0.5 \
-#      --dropout_enc 0.4 \
-#      --low_ratio 0.5 \
-#      --med_ratio 0.8
-
 
 # # --- Training and Evaluating Momentum Model ---
 # ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \

@@ -4,7 +4,7 @@ from array import array
 import random
 
 # Detector efficiency probability
-NUM_TRACKS = 30
+NUM_TRACKS = 50
 PROB_MEAN = 0.9
 PROB_WIDTH = 0.1
 

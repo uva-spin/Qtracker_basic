@@ -4,9 +4,9 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH -c 4
 #SBATCH -t 72:00:00
-#SBATCH -J tunertest
-#SBATCH -o Slurm_Files/tuner.out
-#SBATCH -e Slurm_Files/tuner.err
+#SBATCH -J plottest
+#SBATCH -o Slurm_Files/plot.out
+#SBATCH -e Slurm_Files/plot.err
 #SBATCH --mem=256000
 
 module purge
@@ -18,10 +18,7 @@ CODEDIR="/home/gcs3ja/home/Qtracker_basic/QTracker_prod"
 
 
 ### Main Body ###
-# --- Training and Evaluating Track Finder ---
-LEARNING_RATE=0.0003
-BATCH_NORM=1
-
-# Denoiser
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/plot.py
+    python3 /mnt/code/evaluate_denoise.py \
+     --val_file_path /mnt/code/data/processed_files/mc_events_val.root \
+     --model_path /mnt/code/checkpoints/track_finder_denoise.h5
