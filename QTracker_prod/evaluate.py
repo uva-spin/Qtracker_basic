@@ -16,6 +16,7 @@ from models import (
     TrackFinder_unetpp_ds,
     # TrackFinder_unet_3p_ds,
 )
+from models.layers import AxialAttention
 import QTracker_prod
 from refine import refine_hit_arrays
 
@@ -67,6 +68,16 @@ def evaluate_model(args):
         model.load_weights(args.model_path)
 
         y_pred = model.predict(X_test)[0]
+    elif "joint" in args.model_path:
+        custom_objects = {
+            "AxialAttention": AxialAttention
+        }
+        model = tf.keras.models.load_model(
+            args.model_path, 
+            compile=False,
+            custom_objects=custom_objects,
+        )
+        y_pred = model.predict(tf.cast(X_test, tf.float32))[1]
     else:
         model = tf.keras.models.load_model(
             args.model_path, 
@@ -74,6 +85,7 @@ def evaluate_model(args):
         )
         y_pred = model.predict(X_test)
 
+    print(y_pred.shape)
     y_p_raw = tf.cast(
         tf.argmax(tf.squeeze(tf.split(y_pred,2,axis=1)[0],axis=1), axis=-1),
         tf.int32

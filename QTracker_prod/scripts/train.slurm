@@ -21,57 +21,39 @@ IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 # --- Training and Evaluating Track Finder ---
 LEARNING_RATE=0.0003
 BATCH_NORM=1
+USE_ATTENTION=1
 
-# # Denoiser - best performing (pos_weight 20.0)
-# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 /mnt/code/models/TrackFinder_denoise.py \
-#      /mnt/code/data/processed_files/mc_events_train_low.root \
-#      /mnt/code/data/processed_files/mc_events_train_med.root \
-#      /mnt/code/data/processed_files/mc_events_train_high.root \
-#      /mnt/code/data/processed_files/mc_events_val.root \
-#      --output_model /mnt/code/checkpoints/track_finder_denoise.h5 \
-#      --learning_rate $LEARNING_RATE \
-#      --patience 12 \
-#      --batch_norm $BATCH_NORM \
-#      --base 64 \
-#      --epochs 60 \
-#      --batch_size 64 \
-#      --dropout_bn 0.5 \
-#      --dropout_enc 0.4 \
-#      --pos_weight 20.0
-
-# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 /mnt/code/evaluate_denoise.py \
-#      --val_file_path /mnt/code/data/processed_files/mc_events_val.root \
-#      --model_path /mnt/code/checkpoints/track_finder_denoise.h5
-
-# Segmenter
+# Denoise-base 16 and 32 are not too different in performance
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/models/TrackFinder_unetpp_seg.py \
+    python3 /mnt/code/models/TrackFinder_joint.py \
      /mnt/code/data/processed_files/mc_events_train_low.root \
      /mnt/code/data/processed_files/mc_events_train_med.root \
      /mnt/code/data/processed_files/mc_events_train_high.root \
      /mnt/code/data/processed_files/mc_events_val.root \
-     --output_model /mnt/code/checkpoints/track_finder_seg.h5 \
+     --output_model /mnt/code/checkpoints/track_finder_joint.keras \
      --lr_low 0.0003 \
      --lr_med 0.0001 \
      --lr_high 0.00003 \
      --patience 10 \
      --lr_patience 3 \
      --batch_norm $BATCH_NORM \
+     --use_attn 1 \
+     --use_attn_ffn 1 \
+     --attn_location 'decoder' \
+     --denoise_base 32 \
      --base 64 \
      --epochs 60 \
-     --batch_size 64 \
+     --batch_size 32 \
      --dropout_bn 0.5 \
      --dropout_enc 0.4 \
-     --denoise_model_path /mnt/code/checkpoints/track_finder_denoise.h5 \
-     --factor 0.3
+     --dropout_attn 0.1 \
+     --factor 0.3 \
+     --pos_weight 20.0
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/evaluate_v2.py \
+    python3 /mnt/code/evaluate.py \
      /mnt/code/data/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/track_finder_denoise.h5 \
-     /mnt/code/checkpoints/track_finder_seg.h5
+     /mnt/code/checkpoints/track_finder_joint.keras
 
 # +) Also test different learning rates for each curriculum stage,
 #    cosine annealing LR (with and without warmup)
