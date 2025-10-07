@@ -98,7 +98,6 @@ def unetpp_backbone(
     use_attn=False,
     use_attn_ffn=True,
     dropout_attn=0.0,
-    attn_location='bottleneck',
 ):
     # Zero padding (aligns to closest 2^n -> preserves input shape)
     filters = [base, base*2, base*4, base*8, base*16]
@@ -123,16 +122,6 @@ def unetpp_backbone(
     X[1][0] = conv_block(pool1, filters[1], use_bn=use_bn, dropout=dropout_enc / 2)
     pool2 = layers.MaxPooling2D(pool_size=(2, 2))(X[1][0])
 
-    if use_attn and attn_location == 'encoder':
-        X[1][0] = AxialAttention(
-            embed_dim=filters[1], axis='height',
-            dropout=dropout_attn, use_ffn=use_attn_ffn
-        )(X[1][0])
-        X[1][0] = AxialAttention(
-            embed_dim=filters[1], axis='width',
-            dropout=dropout_attn, use_ffn=use_attn_ffn
-        )(X[1][0])
-        
     X[2][0] = conv_block(pool2, filters[2], use_bn=use_bn, dropout=dropout_enc)
     pool3 = layers.MaxPooling2D(pool_size=(2, 2))(X[2][0])
 
@@ -140,16 +129,6 @@ def unetpp_backbone(
     pool4 = layers.MaxPooling2D(pool_size=(2, 2))(X[3][0])
 
     X[4][0] = conv_block(pool4, filters[4], use_bn=use_bn, dropout_bn=dropout_bn)
-
-    if use_attn and attn_location == 'bottleneck':
-        X[4][0] = AxialAttention(
-            embed_dim=filters[4], axis='height',
-            dropout=dropout_attn, use_ffn=use_attn_ffn
-        )(X[4][0])
-        X[4][0] = AxialAttention(
-            embed_dim=filters[4], axis='width',
-            dropout=dropout_attn, use_ffn=use_attn_ffn
-        )(X[4][0])
 
     # Column j=1
     for j in range(1, len(filters)):
@@ -160,7 +139,7 @@ def unetpp_backbone(
     # Cropping to match input shape
     x = layers.Cropping2D(cropping=padding)(X[0][len(filters)-1])
 
-    if use_attn and attn_location == 'decoder':
+    if use_attn:
         x = AxialAttention(
             embed_dim=filters[0], axis='height',
             dropout=dropout_attn, use_ffn=use_attn_ffn

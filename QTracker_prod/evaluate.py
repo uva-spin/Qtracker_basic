@@ -85,7 +85,6 @@ def evaluate_model(args):
         )
         y_pred = model.predict(X_test)
 
-    print(y_pred.shape)
     y_p_raw = tf.cast(
         tf.argmax(tf.squeeze(tf.split(y_pred,2,axis=1)[0],axis=1), axis=-1),
         tf.int32

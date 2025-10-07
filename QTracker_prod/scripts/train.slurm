@@ -19,9 +19,9 @@ IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 
 ### Main Body ###
 # --- Training and Evaluating Track Finder ---
-LEARNING_RATE=0.0003
 BATCH_NORM=1
 USE_ATTENTION=1
+USE_ATTENTION_FFN=0
 
 # Denoise-base 16 and 32 are not too different in performance
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
@@ -37,9 +37,8 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
      --patience 10 \
      --lr_patience 3 \
      --batch_norm $BATCH_NORM \
-     --use_attn 1 \
-     --use_attn_ffn 1 \
-     --attn_location 'decoder' \
+     --use_attn $USE_ATTENTION \
+     --use_attn_ffn $USE_ATTENTION_FFN \
      --denoise_base 32 \
      --base 64 \
      --epochs 60 \
@@ -54,9 +53,6 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/evaluate.py \
      /mnt/code/data/processed_files/mc_events_val.root \
      /mnt/code/checkpoints/track_finder_joint.keras
-
-# +) Also test different learning rates for each curriculum stage,
-#    cosine annealing LR (with and without warmup)
 
 # # --- Training and Evaluating Momentum Model ---
 # ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \

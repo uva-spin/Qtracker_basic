@@ -37,7 +37,6 @@ def build_model(
     use_attn=False,
     use_attn_ffn=True,
     dropout_attn=0.0,
-    attn_location='bottleneck',
 ):
     input_layer = layers.Input(shape=(num_detectors, num_elementIDs, 1))
 
@@ -66,7 +65,6 @@ def build_model(
         use_attn,
         use_attn_ffn,
         dropout_attn,
-        attn_location,
     )
 
     # Segmentation Head
@@ -116,7 +114,6 @@ def train_model(args):
         use_attn=args.use_attn,
         use_attn_ffn=args.use_attn_ffn,
         dropout_attn=args.dropout_attn,
-        attn_location=args.attn_location,
     )
     model.summary()
 
@@ -287,12 +284,6 @@ if __name__ == "__main__":
         type=int,
         default=1,
         help="Flag to set feed-forward layers in attention: [0 = False, 1 = True].",
-    )
-    parser.add_argument(
-        "--attn_location",
-        type=str,
-        default="bottleneck",
-        help="Location to apply attention: ['encoder', 'bottleneck', 'decoder'].",
     )
     parser.add_argument(
         "--dropout_bn",
