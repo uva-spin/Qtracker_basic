@@ -43,6 +43,18 @@ def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
     plt.savefig(os.path.join(plot_dir, fname))
     plt.show()
 
+def chi_squared(y_true, y_pred):
+    # y_true.shape = (num_events, 62)
+    # y_pred.shape = (num_events, 62)
+    residuals = y_true - y_pred
+    sigma = np.std(y_true, axis=0) + 1e-6  # Prevent division by zero
+
+    res_norm = residuals / sigma
+
+    chi2 = np.sum((res_norm ** 2), axis=1)  # Chi-squared per event
+    chi2_mean = np.mean(chi2)  # Mean chi-squared over all events
+    return chi2_mean
+
 def evaluate_model(args):
     X_test, y_muPlus_test, y_muMinus_test = data_loader.load_data(args.root_file)
     if X_test is None:
@@ -97,8 +109,8 @@ def evaluate_model(args):
     y_p_true = y_test[:,0,:].astype(np.int32)
     y_m_true = y_test[:,1,:].astype(np.int32)
 
-    raw_p_res = y_p_raw - y_p_true
-    raw_m_res = y_m_raw - y_m_true
+    raw_p_res = y_p_true - y_p_raw
+    raw_m_res = y_m_true - y_m_raw
 
     print("\n--- Raw Residuals (Before Refinement, all events) ---")
     print("Det |  μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
@@ -113,8 +125,8 @@ def evaluate_model(args):
     ref_p, ref_m = refine_hit_arrays(
         y_p_raw, y_m_raw, det_test, elem_test
     )
-    ref_p_res = ref_p - y_p_true
-    ref_m_res = ref_m - y_m_true
+    ref_p_res = y_p_true - ref_p
+    ref_m_res = y_m_true - ref_m
 
     print("\n--- Refined Residuals (After Refinement, all events) ---")
     print("Det |  μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
@@ -126,6 +138,7 @@ def evaluate_model(args):
     dets_used = (np.where(mask)[0] + 1)
     plot_residuals(dets_used, ref_p_res[:,mask], ref_m_res[:,mask], args.model_path, 'refined')
 
+    # Calculate accuracy and chi-squared prior to refinement
     acc_p = np.mean(np.abs(raw_p_res) == 0)
     acc_m = np.mean(np.abs(raw_m_res) == 0)
     print(f"\nRaw μ+ accuracy: {acc_p:.4f}")
@@ -136,6 +149,12 @@ def evaluate_model(args):
     print(f"\nRaw μ+ within-2 accuracy: {acc_p:.4f}")
     print(f"Raw μ- within-2 accuracy: {acc_m:.4f}")
 
+    chi2_p = chi_squared(y_p_true, y_p_raw)
+    chi2_m = chi_squared(y_m_true, y_m_raw)
+    print(f"\nRaw μ+ Chi-squared: {chi2_p:.3f}")
+    print(f"Raw μ- Chi-squared: {chi2_m:.3f}")
+
+    # Calculate accuracy and chi-squared after refinement
     acc_p = np.mean(np.abs(ref_p_res) == 0)
     acc_m = np.mean(np.abs(ref_m_res) == 0)
     print(f"\nRefined μ+ accuracy: {acc_p:.4f}")
@@ -145,6 +164,11 @@ def evaluate_model(args):
     acc_m = np.mean(np.abs(ref_m_res) <= 2)
     print(f"\nRefined μ+ within-2 accuracy: {acc_p:.4f}")
     print(f"Refined μ- within-2 accuracy: {acc_m:.4f}")
+
+    chi2_p = chi_squared(y_p_true, ref_p)
+    chi2_m = chi_squared(y_m_true, ref_m)
+    print(f"\nRefined μ+ Chi-squared: {chi2_p:.3f}")
+    print(f"Refined μ- Chi-squared: {chi2_m:.3f}")
 
     print("\n--- Raw Absolute Residuals (Before Refinement) ---")
     print("μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
