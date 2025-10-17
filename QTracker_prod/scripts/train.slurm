@@ -1,12 +1,14 @@
 #!/bin/bash
 #SBATCH -A spinquest_standard
 #SBATCH -p gpu
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:a100:2
+#SBATCH --ntasks-per-node=1
+#SBATCH -C gpupod
 #SBATCH -c 4
 #SBATCH -t 72:00:00
-#SBATCH -J tunertest
-#SBATCH -o Slurm_Files/tuner.out
-#SBATCH -e Slurm_Files/tuner.err
+#SBATCH -J distributedtest
+#SBATCH -o Slurm_Files/distribute.out
+#SBATCH -e Slurm_Files/distribute.err
 #SBATCH --mem=256000
 #SBATCH --export=CODEDIR
 
@@ -23,17 +25,21 @@ BATCH_NORM=1
 USE_ATTENTION=1
 USE_ATTENTION_FFN=0
 
-# Denoise-base 16 and 32 are not too different in performance
+# GPU validation
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    echo $CUDA_VISIBLE_DEVICES
+
+# Denoise-base 16 and 32 are not too different in performance
+${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/models/TrackFinder_joint.py \
      /mnt/code/data/processed_files/mc_events_train_low.root \
      /mnt/code/data/processed_files/mc_events_train_med.root \
      /mnt/code/data/processed_files/mc_events_train_high.root \
      /mnt/code/data/processed_files/mc_events_val.root \
      --output_model /mnt/code/checkpoints/track_finder_joint.keras \
-     --lr_low 0.0003 \
-     --lr_med 0.0001 \
-     --lr_high 0.00003 \
+     --lr_low 0.0005 \
+     --lr_med 0.0002 \
+     --lr_high 0.00005 \
      --patience 10 \
      --lr_patience 3 \
      --batch_norm $BATCH_NORM \
@@ -42,7 +48,7 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
      --denoise_base 32 \
      --base 64 \
      --epochs 60 \
-     --batch_size 32 \
+     --batch_size 64 \
      --dropout_bn 0.5 \
      --dropout_enc 0.4 \
      --dropout_attn 0.1 \

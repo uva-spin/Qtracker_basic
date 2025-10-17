@@ -78,6 +78,11 @@ def build_model(
 
 
 def train_model(args):
+    # Distributed Training
+    strategy = tf.distribute.MirroredStrategy()
+    print(f"GPUs available: {tf.config.list_physical_devices('GPU')}")
+    print(f"Number of devices: {strategy.num_replicas_in_sync}")
+
     X_train_low, X_clean_train_low, y_muPlus_train_low, y_muMinus_train_low = load_data_denoise(
         args.train_root_file_low
     )
@@ -96,52 +101,52 @@ def train_model(args):
         [y_muPlus_val, y_muMinus_val], axis=1
     )  # Shape: (num_events, 2, 62)
 
+    with strategy.scope():
+        model = build_model(
+            num_detectors=NUM_DETECTORS,
+            num_elementIDs=NUM_ELEMENT_IDS, 
+            use_bn=args.batch_norm, 
+            dropout_bn=args.dropout_bn, 
+            dropout_enc=args.dropout_enc, 
+            denoise_base=args.denoise_base,
+            base=args.base,
+            use_attn=args.use_attn,
+            use_attn_ffn=args.use_attn_ffn,
+            dropout_attn=args.dropout_attn,
+        )
+        model.summary()
+
+        optimizer = AdamW(
+            learning_rate=args.lr_low,
+            weight_decay=args.weight_decay,
+            clipnorm=args.clipnorm,
+        )
+        model.compile(
+            optimizer=optimizer,
+            loss={
+                "denoise": weighted_bce(pos_weight=args.pos_weight),
+                "segment": custom_loss,
+            },
+            loss_weights={
+                "denoise": 10.0,
+                "segment": 1.0,
+            },
+            metrics={
+                "denoise": [Precision(name='precision'), Recall(name='recall')],
+                "segment": ["accuracy"],
+            }
+        )
+
+    epochs_low = int(args.epochs * args.low_ratio)
+    epochs_med = int(args.epochs * args.med_ratio)
+    epochs_high = args.epochs
+
     lr_scheduler = ReduceLROnPlateau(
         monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
     )
     early_stopping = EarlyStopping(
         monitor="val_loss", patience=args.patience, restore_best_weights=False
     )
-
-    model = build_model(
-        num_detectors=NUM_DETECTORS,
-        num_elementIDs=NUM_ELEMENT_IDS, 
-        use_bn=args.batch_norm, 
-        dropout_bn=args.dropout_bn, 
-        dropout_enc=args.dropout_enc, 
-        denoise_base=args.denoise_base,
-        base=args.base,
-        use_attn=args.use_attn,
-        use_attn_ffn=args.use_attn_ffn,
-        dropout_attn=args.dropout_attn,
-    )
-    model.summary()
-
-    optimizer = AdamW(
-        learning_rate=args.lr_low,
-        weight_decay=args.weight_decay,
-        clipnorm=args.clipnorm,
-    )
-    model.compile(
-        optimizer=optimizer,
-        loss={
-            "denoise": weighted_bce(pos_weight=args.pos_weight),
-            "segment": custom_loss,
-        },
-        loss_weights={
-            "denoise": 10.0,
-            "segment": 1.0,
-        },
-        metrics={
-            "denoise": [Precision(name='precision'), Recall(name='recall')],
-            "segment": ["accuracy"],
-        }
-    )
-
-    epochs_low = int(args.epochs * args.low_ratio)
-    epochs_med = int(args.epochs * args.med_ratio)
-    epochs_high = args.epochs
-
     model.fit(
         X_train_low,
         {"denoise": X_clean_train_low, "segment": y_train_low},

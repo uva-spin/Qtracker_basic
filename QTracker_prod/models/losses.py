@@ -24,9 +24,12 @@ def custom_loss(y_true, y_pred):
 
 def weighted_bce(pos_weight=1.0):
     def loss(y_true, y_pred):
-        bce = tf.keras.losses.BinaryCrossentropy()
+        bce = tf.keras.losses.BinaryCrossentropy(
+            reduction=tf.keras.losses.Reduction.NONE
+        )
         weights = 1 + (pos_weight - 1) * y_true
-        return bce(y_true, y_pred, sample_weight=weights)
+        bce_loss = bce(y_true, y_pred, sample_weight=weights)
+        return tf.reduce_mean(bce_loss)
     return loss
 
 
