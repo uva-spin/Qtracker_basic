@@ -1,14 +1,14 @@
 #!/bin/bash
 #SBATCH -A spinquest_standard
 #SBATCH -p gpu
-#SBATCH --gres=gpu:a100:2
+#SBATCH --gres=gpu:a100:4
 #SBATCH --ntasks-per-node=1
 #SBATCH -C gpupod
 #SBATCH -c 4
 #SBATCH -t 72:00:00
-#SBATCH -J distributedtest
-#SBATCH -o Slurm_Files/distribute.out
-#SBATCH -e Slurm_Files/distribute.err
+#SBATCH -J distributedtest3
+#SBATCH -o Slurm_Files/distribute3.out
+#SBATCH -e Slurm_Files/distribute3.err
 #SBATCH --mem=256000
 #SBATCH --export=CODEDIR
 
@@ -37,9 +37,9 @@ ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind $
      /mnt/code/data/processed_files/mc_events_train_high.root \
      /mnt/code/data/processed_files/mc_events_val.root \
      --output_model /mnt/code/checkpoints/track_finder_joint.keras \
-     --lr_low 0.0005 \
-     --lr_med 0.0002 \
-     --lr_high 0.00005 \
+     --lr_low 0.0003 \
+     --lr_med 0.0001 \
+     --lr_high 0.00003 \
      --patience 10 \
      --lr_patience 3 \
      --batch_norm $BATCH_NORM \
