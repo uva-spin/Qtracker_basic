@@ -5,6 +5,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
 
+NUM_DETECTORS_IDS = 62
+NUM_ELEMENT_IDS = 201
+
 def calculate_chi2(qpx, qpy, qpz, gpx, gpy, gpz):
     """
     Calculate the chi^2 value based on the scalar momentum difference.
@@ -19,6 +22,7 @@ def load_root_file(root_file):
     tree = f.Get("tree")
     
     chi2_values, hit_arrays, momentum_vectors = [], [], []
+    occupancies = []
     for event in tree:
         # Reconstructed momentum components
         qpx = event.qpx  # Array of size 2: [mu+, mu-]
@@ -29,6 +33,12 @@ def load_root_file(root_file):
         gpx = event.gpx  # Array of size 2: [mu+, mu-]
         gpy = event.gpy  # Array of size 2: [mu+, mu-]
         gpz = event.gpz  # Array of size 2: [mu+, mu-]
+
+        # Calculate occupancy (mirror TrackFinder data loading logic)
+        occupancy = 0
+        for det_id, elem_id in zip(event.detectorID, event.elementID):
+            if 0 <= det_id < NUM_DETECTORS_IDS and 0 <= elem_id < NUM_ELEMENT_IDS:
+                occupancy += 1
         
         # Hit arrays
         hit_array_mup = np.array(event.qHitArray_mup, dtype=np.float32)  # Hit array for mu+
@@ -42,12 +52,20 @@ def load_root_file(root_file):
         chi2_values.extend([chi2_mup, chi2_mum])
         hit_arrays.extend([hit_array_mup, hit_array_mum])
         momentum_vectors.extend([[qpx[0], qpy[0], qpz[0]], [qpx[1], qpy[1], qpz[1]]])
+
+        # Append occupancy - keep same occupancy for both tracks
+        occupancies.extend([[occupancy], [occupancy]])
     
     f.Close()
     
-    return np.array(chi2_values), np.array(hit_arrays), np.array(momentum_vectors)
+    return (
+        np.array(chi2_values), 
+        np.array(hit_arrays), 
+        np.array(momentum_vectors), 
+        np.array(occupancies)
+    )
 
-def train_chi2_model(chi2_values, hit_arrays, momentum_vectors):
+def train_chi2_model(chi2_values, hit_arrays, momentum_vectors, occupancies=None):
     # Normalize input data
     scaler_hits = StandardScaler()
     hit_arrays_normalized = scaler_hits.fit_transform(hit_arrays)
@@ -57,6 +75,12 @@ def train_chi2_model(chi2_values, hit_arrays, momentum_vectors):
     
     # Combine hit arrays and momentum vectors into a single input array
     X = np.hstack((hit_arrays_normalized, momentum_vectors_normalized))
+
+    # Include occupancies if provided
+    if occupancies is not None:
+        scaler_occupancy = StandardScaler()
+        occupancies = scaler_occupancy.fit_transform(occupancies)
+        X = np.hstack((X, occupancies))
     
     # Split data into training and testing sets (shuffling is applied here)
     X_train, X_test, y_train, y_test = train_test_split(
@@ -74,7 +98,7 @@ def train_chi2_model(chi2_values, hit_arrays, momentum_vectors):
         monitor='val_loss', patience=1000, restore_best_weights=True
     )
     
-    history = model.fit(
+    model.fit(
         X_train, y_train,
         validation_data=(X_test, y_test),
         epochs=1000,
@@ -108,11 +132,11 @@ def main(root_file):
     Main function to calculate chi^2, train a model, and save it.
     """
     # Load data from ROOT file
-    chi2_values, hit_arrays, momentum_vectors = load_root_file(root_file)
+    chi2_values, hit_arrays, momentum_vectors, occupancies = load_root_file(root_file)
     
     # Train a model to predict chi^2
-    model = train_chi2_model(chi2_values, hit_arrays, momentum_vectors)
-    
+    model = train_chi2_model(chi2_values, hit_arrays, momentum_vectors, occupancies)
+
     # Save the trained model
     model.save("chi2_predictor_model.h5")
     print("Chi^2 predictor model saved as 'chi2_predictor_model.h5'.")
