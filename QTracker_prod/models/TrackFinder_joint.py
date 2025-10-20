@@ -80,7 +80,6 @@ def build_model(
 def train_model(args):
     # Distributed Training
     strategy = tf.distribute.MirroredStrategy()
-    print(f"GPUs available: {tf.config.list_physical_devices('GPU')}")
     print(f"Number of devices: {strategy.num_replicas_in_sync}")
 
     X_train_low, X_clean_train_low, y_muPlus_train_low, y_muMinus_train_low = load_data_denoise(
