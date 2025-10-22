@@ -2,9 +2,10 @@
 import uproot
 import numpy as np
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, BatchNormalization, Dropout, Concatenate, Flatten
-from tensorflow.keras.optimizers import Adam  # Use legacy Adam optimizer for M1/M2 Mac compatibility
+from tensorflow.keras.optimizers import AdamW
 import argparse
 
 # Function to load data from multiple ROOT files
@@ -47,7 +48,7 @@ def load_data(root_files):
     return X, y
 
 # Build the model to accept a single 3D input
-def build_model(input_shape):
+def build_model(input_shape, dropout_rate=0.0):
     # Input layer for the 3D array
     input_layer = Input(shape=input_shape)
 
@@ -57,10 +58,12 @@ def build_model(input_shape):
     # Dense layers
     x = Dense(128, activation="relu")(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.2)(x)
+    x = Dropout(dropout_rate)(x)
+
     x = Dense(64, activation="relu")(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.2)(x)
+    x = Dropout(dropout_rate)(x)
+
     x = Dense(64, activation="relu")(x)
     x = BatchNormalization()(x)
 
@@ -69,23 +72,61 @@ def build_model(input_shape):
 
     # Define the model
     model = Model(inputs=input_layer, outputs=output)
-    model.compile(optimizer=Adam(learning_rate=0.001), loss="mse", metrics=["mae"])
     return model
 
 # Train the model
-def train_model(root_files, output_h5, epochs=100, batch_size=32):
+def train_model(args):
     # Load data
-    X, y = load_data(root_files)
+    X, y = load_data(args.input_root)
+
+    # Train val split
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.1, random_state=42)
+
+    # Baseline MAE
+    baseline_pred = np.mean(y_train, axis=0)
+    baseline_mae = np.mean(np.abs(y_val - baseline_pred))
+    print("Baseline MAE:", baseline_mae)
 
     # Build model
-    model = build_model(input_shape=(62, 2))  # Input shape is (62, 2)
+    model = build_model(input_shape=(62, 2), dropout_rate=args.dropout_rate)  # Input shape is (62, 2)
+    model.summary()
+
+    # Compile model
+    model.compile(
+        optimizer=AdamW(
+            learning_rate=args.learning_rate,
+            weight_decay=1e-4,
+            clipnorm=1.0
+        ),
+        loss="mse", 
+        metrics=["mae"]
+    )
+
+    # Early stopping to prevent severe overfitting
+    early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+
+    # LR scheduler
+    lr_scheduler = tf.keras.callbacks.ReduceLROnPlateau(
+        monitor='val_loss', 
+        factor=0.3, 
+        patience=3, 
+        min_lr=1e-6
+    )
 
     # Train model
-    model.fit(X, y, epochs=epochs, batch_size=batch_size, validation_split=0.1, verbose=1)
+    model.fit(
+        X_train, 
+        y_train, 
+        epochs=args.epochs, 
+        batch_size=args.batch_size, 
+        validation_data=(X_val, y_val), 
+        verbose=2, 
+        callbacks=[early_stopping, lr_scheduler]
+    )
 
     # Save model
-    model.save(output_h5)
-    print(f"Model saved to {output_h5}")
+    model.save(args.output)
+    print(f"Model saved to {args.output}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a DNN to predict gpx, gpy, gpz from HitArray.")
@@ -93,8 +134,10 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default="./models/mom_model.h5", help="Name of the output H5 model file.")
     parser.add_argument("--epochs", type=int, default=300, help="Number of training epochs.")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training.")
+    parser.add_argument("--learning_rate", type=float, default=0.001, help="Learning rate for the optimizer.")
+    parser.add_argument("--dropout_rate", type=float, default=0.0, help="Dropout rate for regularization.")
     args = parser.parse_args()
     
-    train_model(args.input_root, args.output, epochs=args.epochs, batch_size=args.batch_size)
+    train_model(args)
 
     

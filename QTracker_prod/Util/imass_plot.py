@@ -59,8 +59,7 @@ def plot_invariant_mass(masses, output_file="invariant_mass.png"):
     mom_size = os.getenv("MOM_SIZE")
     qtrack_size = os.getenv("QTRACK_SIZE")
 
-    with open("mass_stats.txt", "a") as file:
-        file.write(f"TrackFinder: {track_size}K, Momentum: {mom_size}K, QTracker: {qtrack_size}K\n")
+    with open("results/mass_stats.txt", "a") as file:
         file.write(f"Average invariant mass: {mean_mass:.4f} GeV/c^2\n")
         file.write(f"Mass distribution width (std dev): {std_mass:.4f} GeV/c^2\n\n")
     # print(f"Average invariant mass: {mean_mass:.4f} GeV/c^2")

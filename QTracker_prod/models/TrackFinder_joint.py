@@ -19,6 +19,10 @@ from backbones import unetpp_backbone
 from data_loader import load_data_denoise
 from losses import custom_loss, weighted_bce
 
+# Set seeds
+tf.random.set_seed(42)
+np.random.seed(42)
+
 # Ensure the checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
 
@@ -136,84 +140,106 @@ def train_model(args):
             }
         )
 
-    epochs_low = int(args.epochs * args.low_ratio)
-    epochs_med = int(args.epochs * args.med_ratio)
-    epochs_high = args.epochs
+    if args.train_root_file_med and args.train_root_file_high:     # enable curriculum learning
+        print("Curriculum learning enabled.")
 
-    lr_scheduler = ReduceLROnPlateau(
-        monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
-    )
-    early_stopping = EarlyStopping(
-        monitor="val_loss", patience=args.patience, restore_best_weights=False
-    )
-    model.fit(
-        X_train_low,
-        {"denoise": X_clean_train_low, "segment": y_train_low},
-        initial_epoch=0,
-        epochs=epochs_low,
-        batch_size=args.batch_size,
-        validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-        callbacks=[lr_scheduler, early_stopping],
-    )
-    del X_train_low, X_clean_train_low, y_train_low
-    gc.collect()  
+        epochs_low = int(args.epochs * args.low_ratio)
+        epochs_med = int(args.epochs * args.med_ratio)
+        epochs_high = args.epochs
 
-    X_train_med, X_clean_train_med, y_muPlus_train_med, y_muMinus_train_med = load_data_denoise(
-        args.train_root_file_med
-    )
-    if X_train_med is None or X_clean_train_med is None:
-        return
-    y_train_med = np.stack(
-        [y_muPlus_train_med, y_muMinus_train_med], axis=1
-    )  # Shape: (num_events, 2, 62)
+        lr_scheduler = ReduceLROnPlateau(
+            monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
+        )
+        early_stopping = EarlyStopping(
+            monitor="val_loss", patience=args.patience, restore_best_weights=False
+        )
+        model.fit(
+            X_train_low,
+            {"denoise": X_clean_train_low, "segment": y_train_low},
+            initial_epoch=0,
+            epochs=epochs_low,
+            batch_size=args.batch_size,
+            validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
+            callbacks=[lr_scheduler, early_stopping],
+        )
+        del X_train_low, X_clean_train_low, y_train_low
+        gc.collect()  
 
-    K.set_value(model.optimizer.learning_rate, args.lr_med)
-    lr_scheduler = ReduceLROnPlateau(
-        monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
-    )
-    early_stopping = EarlyStopping(
-        monitor="val_loss", patience=args.patience, restore_best_weights=False
-    )
-    model.fit(
-        X_train_med,
-        {"denoise": X_clean_train_med, "segment": y_train_med},
-        initial_epoch=epochs_low,
-        epochs=epochs_med,
-        batch_size=args.batch_size,
-        validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-        callbacks=[lr_scheduler, early_stopping],
-    )
-    del X_train_med, X_clean_train_med, y_train_med
-    gc.collect()
+        X_train_med, X_clean_train_med, y_muPlus_train_med, y_muMinus_train_med = load_data_denoise(
+            args.train_root_file_med
+        )
+        if X_train_med is None or X_clean_train_med is None:
+            return
+        y_train_med = np.stack(
+            [y_muPlus_train_med, y_muMinus_train_med], axis=1
+        )  # Shape: (num_events, 2, 62)
 
-    X_train_high, X_clean_train_high, y_muPlus_train_high, y_muMinus_train_high = load_data_denoise(
-        args.train_root_file_high
-    )
-    if X_train_high is None or X_clean_train_high is None:
-        return
-    y_train_high = np.stack(
-        [y_muPlus_train_high, y_muMinus_train_high], axis=1
-    )  # Shape: (num_events, 2, 62)
+        K.set_value(model.optimizer.learning_rate, args.lr_med)
+        lr_scheduler = ReduceLROnPlateau(
+            monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
+        )
+        early_stopping = EarlyStopping(
+            monitor="val_loss", patience=args.patience, restore_best_weights=False
+        )
+        model.fit(
+            X_train_med,
+            {"denoise": X_clean_train_med, "segment": y_train_med},
+            initial_epoch=epochs_low,
+            epochs=epochs_med,
+            batch_size=args.batch_size,
+            validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
+            callbacks=[lr_scheduler, early_stopping],
+        )
+        del X_train_med, X_clean_train_med, y_train_med
+        gc.collect()
 
-    K.set_value(model.optimizer.learning_rate, args.lr_high)
-    lr_scheduler = ReduceLROnPlateau(
-        monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
-    )
-    early_stopping = EarlyStopping(
-        monitor="val_loss", patience=args.patience, restore_best_weights=True
-    )
+        X_train_high, X_clean_train_high, y_muPlus_train_high, y_muMinus_train_high = load_data_denoise(
+            args.train_root_file_high
+        )
+        if X_train_high is None or X_clean_train_high is None:
+            return
+        y_train_high = np.stack(
+            [y_muPlus_train_high, y_muMinus_train_high], axis=1
+        )  # Shape: (num_events, 2, 62)
 
-    model.fit(
-        X_train_high,
-        {"denoise": X_clean_train_high, "segment": y_train_high},
-        initial_epoch=epochs_med,
-        epochs=epochs_high,
-        batch_size=args.batch_size,
-        validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-        callbacks=[lr_scheduler, early_stopping],
-    )
-    del X_train_high, X_clean_train_high, y_train_high
-    gc.collect()
+        K.set_value(model.optimizer.learning_rate, args.lr_high)
+        lr_scheduler = ReduceLROnPlateau(
+            monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
+        )
+        early_stopping = EarlyStopping(
+            monitor="val_loss", patience=args.patience, restore_best_weights=True
+        )
+
+        model.fit(
+            X_train_high,
+            {"denoise": X_clean_train_high, "segment": y_train_high},
+            initial_epoch=epochs_med,
+            epochs=epochs_high,
+            batch_size=args.batch_size,
+            validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
+            callbacks=[lr_scheduler, early_stopping],
+        )
+        del X_train_high, X_clean_train_high, y_train_high
+        gc.collect()
+
+    else:   # standard training without curriculum learning
+        print("Standard training without curriculum learning.")
+
+        lr_scheduler = ReduceLROnPlateau(
+            monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
+        )
+        early_stopping = EarlyStopping(
+            monitor="val_loss", patience=args.patience, restore_best_weights=False
+        )
+        model.fit(
+            X_train_low,
+            {"denoise": X_clean_train_low, "segment": y_train_low},
+            initial_epoch=0,
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
+            callbacks=[lr_scheduler, early_stopping],
+        )
 
     model.save(args.output_model)
     print(f"Model saved to {args.output_model}")
@@ -227,13 +253,13 @@ if __name__ == "__main__":
         "train_root_file_low", type=str, help="Path to the train ROOT file."
     )
     parser.add_argument(
-        "train_root_file_med", type=str, help="Path to the train ROOT file."
-    )
-    parser.add_argument(
-        "train_root_file_high", type=str, help="Path to the train ROOT file."
-    )
-    parser.add_argument(
         "val_root_file", type=str, help="Path to the validation ROOT file."
+    )
+    parser.add_argument(
+        "--train_root_file_med", type=str, default=None, help="Train ROOT file with medium complexity for curriculum learning."
+    )
+    parser.add_argument(
+        "--train_root_file_high", type=str, default=None, help="Train ROOT file with high complexity for curriculum learning."
     )
     parser.add_argument(
         "--output_model",

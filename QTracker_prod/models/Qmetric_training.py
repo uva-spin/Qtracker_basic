@@ -93,17 +93,27 @@ def train_chi2_model(chi2_values, hit_arrays, momentum_vectors, occupancies=None
     
     # Build and train the model
     model = build_chi2_model(input_shape=(X_train.shape[1],))
+
+    optimizer = tf.keras.optimizers.AdamW(
+        learning_rate=0.0001,
+        weight_decay=1e-4,
+        clipnorm=1.0
+    )
+    model.compile(optimizer=optimizer, loss='mse', metrics=['mae'])
     
+    lr_scheduler = tf.keras.callbacks.ReduceLROnPlateau(
+        monitor='val_loss', factor=0.3, patience=3, min_lr=1e-6
+    )
     early_stopping = tf.keras.callbacks.EarlyStopping(
-        monitor='val_loss', patience=1000, restore_best_weights=True
+        monitor='val_loss', patience=10, restore_best_weights=True
     )
     
     model.fit(
         X_train, y_train,
         validation_data=(X_test, y_test),
-        epochs=1000,
+        epochs=100,
         batch_size=64,
-        callbacks=[early_stopping]
+        callbacks=[early_stopping, lr_scheduler]
     )
     
     # Evaluate the model
@@ -123,8 +133,6 @@ def build_chi2_model(input_shape):
         tf.keras.layers.Dropout(0.2),
         tf.keras.layers.Dense(1, activation='linear')
     ])
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
-    model.compile(optimizer=optimizer, loss='mean_squared_error')
     return model
 
 def main(root_file):
