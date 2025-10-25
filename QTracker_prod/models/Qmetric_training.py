@@ -4,6 +4,12 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
+import random
+
+# Set random seeds
+tf.random.set_seed(42)
+np.random.seed(42)
+random.seed(42)
 
 NUM_DETECTORS_IDS = 62
 NUM_ELEMENT_IDS = 201
@@ -95,11 +101,11 @@ def train_chi2_model(chi2_values, hit_arrays, momentum_vectors, occupancies=None
     model = build_chi2_model(input_shape=(X_train.shape[1],))
 
     optimizer = tf.keras.optimizers.AdamW(
-        learning_rate=0.0001,
+        learning_rate=0.0003,
         weight_decay=1e-4,
         clipnorm=1.0
     )
-    model.compile(optimizer=optimizer, loss='mse', metrics=['mae'])
+    model.compile(optimizer=optimizer, loss=tf.keras.losses.Huber(delta=10.0), metrics=['mae'])
     
     lr_scheduler = tf.keras.callbacks.ReduceLROnPlateau(
         monitor='val_loss', factor=0.3, patience=3, min_lr=1e-6
@@ -141,12 +147,24 @@ def main(root_file):
     """
     # Load data from ROOT file
     chi2_values, hit_arrays, momentum_vectors, occupancies = load_root_file(root_file)
+
+    # Print chi^2 statistics
+    print("Chi2 range:", np.min(chi2_values), np.max(chi2_values))
+    print("Chi2 mean:", np.mean(chi2_values))
+
+    import matplotlib.pyplot as plt
+    plt.hist(chi2_values, bins=100, log=True)
+    plt.xlabel("Chi² values")
+    plt.ylabel("Count (log scale)")
+    plt.title("Distribution of chi²")
+    plt.savefig("chi2_distribution.png")
+    plt.close()
     
     # Train a model to predict chi^2
     model = train_chi2_model(chi2_values, hit_arrays, momentum_vectors, occupancies)
 
     # Save the trained model
-    model.save("chi2_predictor_model.h5")
+    model.save("checkpoints/chi2_predictor_model.h5")
     print("Chi^2 predictor model saved as 'chi2_predictor_model.h5'.")
 
 if __name__ == "__main__":
