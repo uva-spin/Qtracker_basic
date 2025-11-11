@@ -3,20 +3,38 @@ import os
 import numpy as np
 from tensorflow.keras import layers
 from tensorflow.keras.applications import ResNet50
+from typing import Optional
 
 from layers import conv_block, upsample, AxialAttention
 
 
 def unet_backbone(
-    input_layer,
-    num_detectors, 
-    num_elementIDs, 
-    use_bn, 
-    dropout_bn, 
-    dropout_enc,
-    base,
-    backbone=None,
-):
+    input_layer: layers.Input,
+    num_detectors: int,
+    num_elementIDs: int,
+    use_bn: bool,
+    dropout_bn: float,
+    dropout_enc: float,
+    base: int,
+    backbone: Optional[str] = None,
+) -> layers.Layer:
+    """
+    U-Net backbone with optional ResNet50 encoder.
+
+    Args:
+        input_layer (layers.Input): Input layer to the backbone.
+        num_detectors (int): Number of detector channels in the input.
+        num_elementIDs (int): Number of element ID channels in the input.
+        use_bn (bool): Whether to use batch normalization.
+        dropout_bn (float): Dropout rate after bottleneck if using batch normalization.
+        dropout_enc (float): Dropout rate in the encoder.
+        base (int): Base number of filters for the U-Net.
+        backbone (Optional[str]): Backbone type, either 'resnet50' or None for standard U-Net.
+    
+    Returns:
+        layers.Layer: Output layer of the U-Net backbone.
+    """
+
     # Zero padding (aligns to closest 2^n -> preserves input shape)
     filters = [base, base*2, base*4, base*8, base*16]
     n = 5 if backbone == 'resnet50' else len(filters) - 1
@@ -88,17 +106,36 @@ def unet_backbone(
 
 
 def unetpp_backbone(
-    input_layer,
-    num_detectors,
-    num_elementIDs,
-    use_bn,
-    dropout_bn,
-    dropout_enc,
-    base,
-    use_attn=False,
-    use_attn_ffn=True,
-    dropout_attn=0.0,
-):
+    input_layer: layers.Input,
+    num_detectors: int,
+    num_elementIDs: int,
+    use_bn: bool,
+    dropout_bn: float,
+    dropout_enc: float,
+    base: int,
+    use_attn: bool = False,
+    use_attn_ffn: bool = True,
+    dropout_attn: float = 0.0,
+) -> layers.Layer:
+    """
+    U-Net++ backbone.
+
+    Args:
+        input_layer (layers.Input): Input layer to the backbone.
+        num_detectors (int): Number of detector channels in the input.
+        num_elementIDs (int): Number of element ID channels in the input.
+        use_bn (bool): Whether to use batch normalization.
+        dropout_bn (float): Dropout rate after bottleneck if using batch normalization.
+        dropout_enc (float): Dropout rate in the encoder.
+        base (int): Base number of filters for the U-Net++.
+        use_attn (bool): Whether to use axial attention after the decoder.
+        use_attn_ffn (bool): Whether to use feed-forward network in axial attention.
+        dropout_attn (float): Dropout rate in axial attention.
+    
+    Returns:
+        layers.Layer: Output layer of the U-Net++ backbone.
+    """
+
     # Zero padding (aligns to closest 2^n -> preserves input shape)
     filters = [base, base*2, base*4, base*8, base*16]
     num_pool = 2**(len(filters) - 1)  # 2 ^ n, n = number of max pooling
@@ -113,7 +150,7 @@ def unetpp_backbone(
 
     x = layers.ZeroPadding2D(padding=padding)(input_layer)
 
-    # Encoder (column j=0)
+    # Encoder (starting with column j=0)
     X = [[None] * len(filters) for _ in range(len(filters))]    # X[i][j]
 
     X[0][0] = conv_block(x, filters[0], use_bn=use_bn)
@@ -130,7 +167,7 @@ def unetpp_backbone(
 
     X[4][0] = conv_block(pool4, filters[4], use_bn=use_bn, dropout_bn=dropout_bn)
 
-    # Column j=1
+    # Decoder with dense skip connections
     for j in range(1, len(filters)):
         for i in range(0, len(filters) - j):
             concat_parts = [X[i][k] for k in range(j)] + [upsample(X[i+1][j-1])]
@@ -139,6 +176,7 @@ def unetpp_backbone(
     # Cropping to match input shape
     x = layers.Cropping2D(cropping=padding)(X[0][len(filters)-1])
 
+    # Optional axial attention along height and width axes
     if use_attn:
         x = AxialAttention(
             embed_dim=filters[0], axis='height',

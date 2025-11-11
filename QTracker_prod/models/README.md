@@ -262,3 +262,28 @@ After training, a Keras `.h5` model file is saved to the `models/` directory. Yo
 - NumPy, scikit-learn
 
 ---
+
+
+## New Prototypes
+`TrackFinder_joint.py` is a prototype script that attempts to jointly train the Track Finder and Momentum models in an end-to-end fashion.
+
+### Details:
+
+- **Architecture**: Combines the U-Net++ based Track Finder with a Momentum model for improved track reconstruction.
+- **Training Strategy**: Utilizes a multi-task loss function that balances the objectives of both models.
+- **Data Handling**: Efficiently loads and preprocesses data for both tasks, ensuring compatibility and minimizing memory usage.
+- **Evaluation**: Implements joint evaluation metrics to assess the performance of both models during training.
+- **Usage**: Similar command-line interface as other Track Finder scripts, with additional options for joint training parameters.
+
+### Relevant Architecture Files:
+- `backbones.py`: Contains the U-Net++ architecture used in the joint model.
+- `data_loaders.py`: Custom data loaders for handling joint training datasets.
+- `losses.py`: Defines the multi-task loss function for joint training.
+- `layers.py`: Custom layers used in the U-Net++ architecture and axial attention mechanisms.
+
+### Training Command:
+```bash
+CODEDIR=<path_to_your_code_directory> sbatch scripts/train.slurm
+```
+- This command submits a job to train the joint model using SLURM workload manager.
+- Training scripts are run within apptainer containers for consistent environments.

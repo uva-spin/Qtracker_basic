@@ -1,8 +1,22 @@
 import ROOT
 import numpy as np
+from typing import Tuple
 
 
-def load_data(root_file):
+def load_data(root_file: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Load data from a ROOT file and return input features and labels.
+
+    Args:
+        root_file (str): Path to the ROOT file.
+    
+    Returns:
+        Tuple[np.ndarray, np.ndarray, np.ndarray]:
+            - X: Input features of shape (num_events, 62, 201, 1)
+            - y_muPlus: Labels for muPlus of shape (num_events, 201)
+            - y_muMinus: Labels for muMinus of shape (num_events, 201)
+    """
+
     f = ROOT.TFile.Open(root_file, "READ")
     tree = f.Get("tree")
 
@@ -38,7 +52,24 @@ def load_data(root_file):
     return X, y_muPlus, y_muMinus
 
 
-def load_data_denoise(root_file):
+def load_data_denoise(
+    root_file: str
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Load data from a ROOT file for denoising tasks. It returns an additional 
+    np.ndarray for clean input features (no background tracks) to use as label for denoiser.
+
+    Args:
+        root_file (str): Path to the ROOT file.
+    
+    Returns:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+            - X: Noisy input features of shape (num_events, 62, 201, 1)
+            - X_clean: Clean input features of shape (num_events, 62, 201, 1)
+            - y_muPlus: Labels for muPlus of shape (num_events, 201)
+            - y_muMinus: Labels for muMinus of shape (num_events, 201)
+    """
+
     f = ROOT.TFile.Open(root_file, "READ")
     tree = f.Get("tree")
 

@@ -1,9 +1,34 @@
 import os
 import tensorflow as tf
 from tensorflow.keras import layers, regularizers
+from typing import Any
 
 
-def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout=0.0):
+def conv_block(
+    x: tf.Tensor, 
+    filters: int, 
+    l2: float = 1e-4, 
+    use_bn: bool = False, 
+    dropout_bn: float = 0.0, 
+    dropout: float = 0.0,
+) -> tf.Tensor:
+    """
+    A convolutional block with two Conv2D layers, optional batch normalization,
+    ReLU activations, and dropout. Includes a residual connection.
+    Used in U-Net architectures.
+    
+    Args:
+        x (tf.Tensor): Input tensor.
+        filters (int): Number of filters for the Conv2D layers.
+        l2 (float): L2 regularization factor.
+        use_bn (bool): Whether to use batch normalization.
+        dropout_bn (float): Dropout rate after the first Conv2D layer (for bottleneck layers).
+        dropout (float): Dropout rate after the second Conv2D layer (for encoder blocks).
+    
+    Returns:
+        tf.Tensor: Output tensor after applying the convolutional block.
+    """
+
     shortcut = x
 
     # First Conv Layer + Activation
@@ -41,15 +66,49 @@ def conv_block(x, filters, l2=1e-4, use_bn=False, dropout_bn=0.0, dropout=0.0):
     return x
 
 
-def upsample(x):
+def upsample(x: tf.Tensor) -> tf.Tensor:
+    """
+    Upsamples the input tensor by a factor of 2 using bilinear interpolation.
+    
+    Args:
+        x (tf.Tensor): Input tensor.
+
+    Returns:
+        tf.Tensor: Upsampled tensor.
+    """
+
     x = layers.UpSampling2D(interpolation="bilinear")(x)
     return x
 
 
 class AxialAttention(layers.Layer):
+    """
+    Axial Attention Layer as described in "Axial Attention in Multidimensional Transformers"
+    (Ho et al., 2019). This layer applies self-attention along a specified axis (height or width)
+    of the input tensor, followed by an optional feed-forward network (FFN).
+    """
+
     def __init__(
-        self, embed_dim, num_heads=8, axis='height', dropout=0.0, use_ffn=True, **kwargs
-    ):
+        self, 
+        embed_dim: int, 
+        num_heads: int = 8, 
+        axis: str = 'height', 
+        dropout: float = 0.0, 
+        use_ffn: bool = True, 
+        **kwargs: Any,
+    ) -> None:
+        """
+        Initializes the AxialAttention layer.
+
+        Args:
+            embed_dim (int): Dimensionality of the embedding.
+            num_heads (int): Number of attention heads.
+            axis (str): Axis to apply attention ('height' or 'width').
+            dropout (float): Dropout rate.
+            use_ffn (bool): Whether to include the feed-forward network.
+            **kwargs: Additional keyword arguments for the base Layer class.
+        """
+
         super(AxialAttention, self).__init__(**kwargs)
 
         self.axis = axis
@@ -75,7 +134,12 @@ class AxialAttention(layers.Layer):
                 layers.Dropout(dropout),
             ])
 
-    def build(self, input_shape):
+    def build(self, input_shape: tf.TensorShape) -> None:
+        """
+        Builds the learned absolute positional encoding for the specified axis. 
+        This method is called when the layer is first used.
+        """
+
         _, D, E, C = input_shape
         L = D if self.axis == 'height' else E
 
@@ -86,7 +150,17 @@ class AxialAttention(layers.Layer):
             name=f'pos_enc_{self.axis}',
         )
 
-    def call(self, x):
+    def call(self, x: tf.Tensor) -> tf.Tensor:
+        """
+        Applies the Axial Attention layer to the input tensor.
+
+        Args:
+            x (tf.Tensor): Input tensor of shape (B, D, E, C).
+        
+        Returns:
+            tf.Tensor: Output tensor after applying axial attention and optional FFN.
+        """
+
         B, D, E, C = tf.unstack(tf.shape(x))
 
         # Apply positional encoding and reshape for attention

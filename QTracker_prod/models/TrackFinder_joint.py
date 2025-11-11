@@ -31,19 +31,40 @@ NUM_ELEMENT_IDS = 201
 
 
 def build_model(
-    num_detectors=62,
-    num_elementIDs=201,
-    use_bn=False,
-    dropout_bn=0.0,
-    dropout_enc=0.0,
-    denoise_base=64,
-    base=64,
-    use_attn=False,
-    use_attn_ffn=True,
-    dropout_attn=0.0,
-):
+    num_detectors: int = 62,
+    num_elementIDs: int = 201,
+    use_bn: bool = False,
+    dropout_bn: float = 0.0,
+    dropout_enc: float = 0.0,
+    denoise_base: int = 64,
+    base: int = 64,
+    use_attn: bool = False,
+    use_attn_ffn: bool = True,
+    dropout_attn: float = 0.0,
+) -> tf.keras.Model:
+    """
+    This function builds the joint denoising and segmentation model using two U-Net++ backbones.
+    It first denoises the input hit array and then segments the denoised output end-to-end.
+
+    Args:
+        num_detectors (int): Number of detectors (default: 62).
+        num_elementIDs (int): Number of element IDs (default: 201).
+        use_bn (bool): Whether to use batch normalization (default: False).
+        dropout_bn (float): Dropout rate for bottleneck layer (default: 0.0).
+        dropout_enc (float): Dropout rate for encoder blocks (default: 0.0).
+        denoise_base (int): Number of base channels in U-Net++ for denoising (default: 64).
+        base (int): Number of base channels in U-Net++ for segmentation (default: 64).
+        use_attn (bool): Whether to use axial attention mechanism in segmentation U-Net++ (default: False).
+        use_attn_ffn (bool): Whether to use feed-forward layers in attention (default: True).
+        dropout_attn (float): Dropout rate for attention block (default: 0.0).
+    
+    Returns:
+        tf.keras.Model: The constructed joint denoising and segmentation model.
+    """
+
     input_layer = layers.Input(shape=(num_detectors, num_elementIDs, 1))
 
+    # Denoising Backbone - first U-Net++
     x = unetpp_backbone(
         input_layer,
         num_detectors,
@@ -58,6 +79,7 @@ def build_model(
     # Denoise Head
     denoise_out = layers.Conv2D(1, kernel_size=1, activation="sigmoid", name="denoise")(x)
 
+    # Segmentation Backbone - second U-Net++
     x = unetpp_backbone(
         denoise_out,
         num_detectors,
@@ -81,11 +103,21 @@ def build_model(
     return model
 
 
-def train_model(args):
+def train_model(args: argparse.Namespace) -> None:
+    """
+    This function trains the joint denoising and segmentation model using the provided arguments.
+    It supports curriculum learning with low, medium, and high complexity datasets.
+    Additionally, it utilizes distributed training with MirroredStrategy to enable multi-GPU training.
+
+    Args:
+        args (argparse.Namespace): Command-line arguments for training configuration.
+    """
+
     # Distributed Training
     strategy = tf.distribute.MirroredStrategy()
     print(f"Number of devices: {strategy.num_replicas_in_sync}")
 
+    # Load low complexity training data and validation data
     X_train_low, X_clean_train_low, y_muPlus_train_low, y_muMinus_train_low = load_data_denoise(
         args.train_root_file_low
     )
@@ -124,6 +156,12 @@ def train_model(args):
             weight_decay=args.weight_decay,
             clipnorm=args.clipnorm,
         )
+
+        """
+        Compile the model with multiple losses and metrics
+        - Denoising: Weighted BCE to heavily penalize false negatives
+        - Segmentation: Custom cross entropy based loss function
+        """
         model.compile(
             optimizer=optimizer,
             loss={
@@ -142,6 +180,13 @@ def train_model(args):
 
     if args.train_root_file_med and args.train_root_file_high:     # enable curriculum learning
         print("Curriculum learning enabled.")
+
+        """
+        Typical curriculum learning with 3 stages: low, medium, high complexity
+        - We determine epochs for each stage based on provided ratios
+        - Learning rate is adjusted for each stage
+        - Delete training data after each stage to free up memory
+        """
 
         epochs_low = int(args.epochs * args.low_ratio)
         epochs_med = int(args.epochs * args.med_ratio)

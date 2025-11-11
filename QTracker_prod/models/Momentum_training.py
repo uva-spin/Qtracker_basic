@@ -6,10 +6,23 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, BatchNormalization, Dropout, Concatenate, Flatten
 from tensorflow.keras.optimizers import AdamW
+from typing import List, Tuple
 import argparse
 
 # Function to load data from multiple ROOT files
-def load_data(root_files):
+def load_data(root_files: List[str]) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Load HitArray and target variables (gpx, gpy, gpz) from multiple ROOT files.
+    Preprocess the HitArray by zeroing out irrelevant slots.
+    This function retains original logic in Qtracker_prod codebase.
+
+    Args:
+        root_files (List[str]): List of paths to ROOT files.
+    
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: Preprocessed HitArray and target variables.
+    """
+
     hit_arrays_list = []
     targets_list = []
     
@@ -48,7 +61,21 @@ def load_data(root_files):
     return X, y
 
 # Build the model to accept a single 3D input
-def build_model(input_shape, dropout_rate=0.0):
+def build_model(
+    input_shape: Tuple[int, int],
+    dropout_rate: float = 0.0
+) -> Model:
+    """
+    Build a DNN model to predict gpx, gpy, gpz from HitArray.
+
+    Args:
+        input_shape (Tuple[int, int]): Shape of the input HitArray (62, 2).
+        dropout_rate (float): Dropout rate for regularization.
+    
+    Returns:
+        Model: Compiled Keras model.
+    """
+
     # Input layer for the 3D array
     input_layer = Input(shape=input_shape)
 
@@ -75,14 +102,21 @@ def build_model(input_shape, dropout_rate=0.0):
     return model
 
 # Train the model
-def train_model(args):
+def train_model(args: argparse.Namespace) -> None:
+    """
+    Train the DNN model with the provided arguments.
+
+    Args:
+        args (argparse.Namespace): Command line arguments.
+    """
+
     # Load data
     X, y = load_data(args.input_root)
 
     # Train val split
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.1, random_state=42)
 
-    # Baseline MAE
+    # Baseline MAE - used to compare model performance
     baseline_pred = np.mean(y_train, axis=0)
     baseline_mae = np.mean(np.abs(y_val - baseline_pred))
     print("Baseline MAE:", baseline_mae)
@@ -128,6 +162,7 @@ def train_model(args):
     model.save(args.output)
     print(f"Model saved to {args.output}")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a DNN to predict gpx, gpy, gpz from HitArray.")
     parser.add_argument("input_root", type=str, nargs='+', help="Path(s) to the input ROOT file(s).")
@@ -139,5 +174,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     train_model(args)
-
     
