@@ -3,9 +3,9 @@
 #SBATCH -p standard
 #SBATCH -c 4
 #SBATCH -t 72:00:00
-#SBATCH -J tunertest
-#SBATCH -o Slurm_Files/tuner.out
-#SBATCH -e Slurm_Files/tuner.err
+#SBATCH -J preprocess
+#SBATCH -o Slurm_Files/preprocess.out
+#SBATCH -e Slurm_Files/preprocess.err
 #SBATCH --mem=128000
 
 module purge
@@ -116,43 +116,31 @@ CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_prod/
 
 # # --- 3. Generate training data by combining μ⁺ and μ⁻ signal tracks ---
 # echo "Generate training data for train set"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/gen_training.py \
-#         data/raw_files/JPsi_Dump_Train_track1.root \
-#         data/raw_files/JPsi_Dump_Train_track2.root \
-#         --output data/processed_files/finder_training_train.root
+${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" python3 data/gen_training.py data/raw_files/JPsi_Dump_Train_track1.root data/raw_files/JPsi_Dump_Train_track2.root --output data/processed_files/finder_training_train.root --pairs 2
 
 # mv momentum_training-1.root data/processed_files/momentum_training-1_train.root 
 # mv momentum_training-2.root data/processed_files/momentum_training-2_train.root
 
 # echo "Generate training data for val set"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/gen_training.py \
-#         data/raw_files/JPsi_Dump_Val_track1.root \
-#         data/raw_files/JPsi_Dump_Val_track2.root \
-#         --output data/processed_files/finder_training_val.root
+${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" python3 data/gen_training.py data/raw_files/JPsi_Dump_Val_track1.root data/raw_files/JPsi_Dump_Val_track2.root --output data/processed_files/finder_training_val.root --pairs 2
 
 # mv momentum_training-1.root data/processed_files/momentum_training-1_val.root 
 # mv momentum_training-2.root data/processed_files/momentum_training-2_val.root
 
 # echo "Generate training data for test set"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/gen_training.py \
-#         data/raw_files/JPsi_Dump_Test_track1.root \
-#         data/raw_files/JPsi_Dump_Test_track2.root \
-#         --output data/processed_files/finder_training_test.root
+${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" python3 data/gen_training.py data/raw_files/JPsi_Dump_Test_track1.root data/raw_files/JPsi_Dump_Test_track2.root --output data/processed_files/finder_training_test.root --pairs 2
 
 # mv momentum_training-1.root data/processed_files/momentum_training-1_test.root 
 # mv momentum_training-2.root data/processed_files/momentum_training-2_test.root
 
 # --- 4. Inject background muon tracks to signal file from 3 ---
-echo "Inject background tracks into train set"
-${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 data/messy_gen_v4.py \
-        data/processed_files/finder_training_train.root \
-        data/processed_files/single_muons_train.root \
-        --output data/processed_files/mc_events_train.root \
-        --uniform_tracks 0 \
+# echo "Inject background tracks into train set"
+# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+#    python3 data/messy_gen_v4.py \
+#        data/processed_files/finder_training_train.root \
+#        data/processed_files/single_muons_train.root \
+#        --output data/processed_files/mc_events_train.root \
+#        --uniform_tracks 0 \
 
 # echo "Inject low-level background tracks into train set"
 # ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \

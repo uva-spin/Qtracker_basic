@@ -5,7 +5,7 @@ from array import array
 import time
 import os
 
-def combine_files(file1, file2, output_file):
+def combine_files(file1, file2, output_file, n_pairs=1):
     if os.path.exists(output_file):
         os.remove(output_file)
     
@@ -30,6 +30,7 @@ def combine_files(file1, file2, output_file):
     output_tree.SetAutoSave(0)  # Disable auto-save (0 or negative value)
     
     eventID = array('i', [0])
+    nPairs  = array('i', [0])
     muID = ROOT.std.vector("int")()
     elementID = ROOT.std.vector("int")()
     detectorID = ROOT.std.vector("int")()
@@ -46,10 +47,14 @@ def combine_files(file1, file2, output_file):
     gvx = ROOT.std.vector("double")()
     gvy = ROOT.std.vector("double")()
     gvz = ROOT.std.vector("double")()
-    HitArray_mup = np.zeros(62, dtype=np.int32)
-    HitArray_mum = np.zeros(62, dtype=np.int32)
+
+    # GT hit arrays as 2D: [pair][layer]
+    NUM_LAYERS = 62
+    HitArray_mup = np.zeros((n_pairs, NUM_LAYERS), dtype=np.int32)
+    HitArray_mum = np.zeros((n_pairs, NUM_LAYERS), dtype=np.int32)
 
     output_tree.Branch("eventID", eventID, "eventID/I")
+    output_tree.Branch("nPairs", nPairs, "nPairs/I")
     output_tree.Branch("muID", muID)
     output_tree.Branch("elementID", elementID)
     output_tree.Branch("detectorID", detectorID)
@@ -66,13 +71,23 @@ def combine_files(file1, file2, output_file):
     output_tree.Branch("gvx", gvx)
     output_tree.Branch("gvy", gvy)
     output_tree.Branch("gvz", gvz)
-    output_tree.Branch("HitArray_mup", HitArray_mup, "HitArray_mup[62]/I")
-    output_tree.Branch("HitArray_mum", HitArray_mum, "HitArray_mum[62]/I")
+    # Note: branch names keep the same identifiers; only the leaf shape changes to [nPairs][62]
+    output_tree.Branch("HitArray_mup", HitArray_mup, f"HitArray_mup[{n_pairs}][{NUM_LAYERS}]/I")
+    output_tree.Branch("HitArray_mum", HitArray_mum, f"HitArray_mum[{n_pairs}][{NUM_LAYERS}]/I")
     
-    fill_count = 0
-    for i in range(min(tree1.GetEntries(), tree2.GetEntries())):
-        tree1.GetEntry(i)
-        tree2.GetEntry(i)
+    def _v(x):
+        return x[0] if hasattr(x, '__getitem__') else x
+
+    fills = 0
+    n1 = tree1.GetEntries()
+    n2 = tree2.GetEntries()
+    n_min = min(n1, n2)
+    if n_pairs <= 0:
+        raise ValueError("n_pairs must be >= 1")
+    max_events = n_min // n_pairs  # consume n_pairs entries from each tree per output event
+
+    for ev in range(max_events):
+        base = ev * n_pairs
 
         muID.clear()
         elementID.clear()
@@ -93,61 +108,62 @@ def combine_files(file1, file2, output_file):
         HitArray_mup.fill(0)
         HitArray_mum.fill(0)
 
-        eventID[0] = i
-        muID.push_back(1)
-        muID.push_back(2)
+        eventID[0] = ev
+        nPairs[0] = n_pairs
 
-        gCharge.push_back(tree1.gCharge[0] if hasattr(tree1.gCharge, '__getitem__') else tree1.gCharge)
-        gCharge.push_back(tree2.gCharge[0] if hasattr(tree2.gCharge, '__getitem__') else tree2.gCharge)
-        gTrackID.push_back(tree1.gTrackID[0] if hasattr(tree1.gTrackID, '__getitem__') else tree1.gTrackID)
-        gTrackID.push_back(tree2.gTrackID[0] if hasattr(tree2.gTrackID, '__getitem__') else tree2.gTrackID)
-        
-        for elem, det, drift, tdc, hit, track, proc in zip(
-            tree1.elementID, tree1.detectorID, tree1.driftDistance, tree1.tdcTime,
-            tree1.hitID, tree1.hitTrackID, tree1.gProcessID
-        ):
-            elementID.push_back(elem)
-            detectorID.push_back(det)
-            driftDistance.push_back(drift)
-            tdcTime.push_back(tdc)
-            hitID.push_back(hit)
-            hitTrackID.push_back(track)
-            gProcessID.push_back(proc)
-            if 1 <= det <= 62:
-                HitArray_mup[det - 1] = elem
+        # For each pair k: tree1[base+k] -> mu+, tree2[base+k] -> mu-
+        for k in range(n_pairs):
+            idx = base + k
+            tree1.GetEntry(idx)
+            tree2.GetEntry(idx)
 
-        for elem, det, drift, tdc, hit, track, proc in zip(
-            tree2.elementID, tree2.detectorID, tree2.driftDistance, tree2.tdcTime,
-            tree2.hitID, tree2.hitTrackID, tree2.gProcessID
-        ):
-            elementID.push_back(elem)
-            detectorID.push_back(det)
-            driftDistance.push_back(drift)
-            tdcTime.push_back(tdc)
-            hitID.push_back(hit)
-            hitTrackID.push_back(track)
-            gProcessID.push_back(proc)
-            if 1 <= det <= 62:
-                HitArray_mum[det - 1] = elem
+            # accumulate raw hits (union of four tracks over all pairs)
+            for elem, det, drift, tdc, hit, track, proc in zip(
+                tree1.elementID, tree1.detectorID, tree1.driftDistance, tree1.tdcTime,
+                tree1.hitID, tree1.hitTrackID, tree1.gProcessID
+            ):
+                elementID.push_back(elem)
+                detectorID.push_back(det)
+                driftDistance.push_back(drift)
+                tdcTime.push_back(tdc)
+                hitID.push_back(hit)
+                hitTrackID.push_back(track)
+                gProcessID.push_back(proc)
+                if 1 <= det <= NUM_LAYERS:
+                    HitArray_mup[k, det - 1] = elem
 
-        gpx.push_back(tree1.gpx[0])
-        gpy.push_back(tree1.gpy[0])
-        gpz.push_back(tree1.gpz[0])
-        gvx.push_back(tree1.gvx[0])
-        gvy.push_back(tree1.gvy[0])
-        gvz.push_back(tree1.gvz[0])
+            for elem, det, drift, tdc, hit, track, proc in zip(
+                tree2.elementID, tree2.detectorID, tree2.driftDistance, tree2.tdcTime,
+                tree2.hitID, tree2.hitTrackID, tree2.gProcessID
+            ):
+                elementID.push_back(elem)
+                detectorID.push_back(det)
+                driftDistance.push_back(drift)
+                tdcTime.push_back(tdc)
+                hitID.push_back(hit)
+                hitTrackID.push_back(track)
+                gProcessID.push_back(proc)
+                if 1 <= det <= NUM_LAYERS:
+                    HitArray_mum[k, det - 1] = elem
 
-        gpx.push_back(tree2.gpx[0])
-        gpy.push_back(tree2.gpy[0])
-        gpz.push_back(tree2.gpz[0])
-        gvx.push_back(tree2.gvx[0])
-        gvy.push_back(tree2.gvy[0])
-        gvz.push_back(tree2.gvz[0])
+            # per-track metadata/kinematics in order: [k μ+, k μ−]
+            muID.push_back(2 * k + 1)
+            muID.push_back(2 * k + 2)
+
+            gCharge.push_back(_v(tree1.gCharge))
+            gCharge.push_back(_v(tree2.gCharge))
+            gTrackID.push_back(_v(tree1.gTrackID))
+            gTrackID.push_back(_v(tree2.gTrackID))
+
+            gpx.push_back(_v(tree1.gpx)); gpy.push_back(_v(tree1.gpy)); gpz.push_back(_v(tree1.gpz))
+            gvx.push_back(_v(tree1.gvx)); gvy.push_back(_v(tree1.gvy)); gvz.push_back(_v(tree1.gvz))
+            gpx.push_back(_v(tree2.gpx)); gpy.push_back(_v(tree2.gpy)); gpz.push_back(_v(tree2.gpz))
+            gvx.push_back(_v(tree2.gvx)); gvy.push_back(_v(tree2.gvy)); gvz.push_back(_v(tree2.gvz))
 
         output_tree.Fill()
-        fill_count += 1
+        fills += 1
 
-    print(f"Fill() called {fill_count} times")
+    print(f"Fill() called {fills} times")
     print(f"Events in output tree before writing: {output_tree.GetEntries()}")
     
     # Write the tree only once with overwrite
@@ -222,6 +238,7 @@ if __name__ == "__main__":
     parser.add_argument("file1", type=str, help="First ROOT file")
     parser.add_argument("file2", type=str, help="Second ROOT file")
     parser.add_argument("--output", type=str, default="finder_training.root", help="Output file")
+    parser.add_argument("--pairs", type=int, default=1, help="Number of GT dimuon pairs per event (i)")
 
     args = parser.parse_args()
 
@@ -233,7 +250,7 @@ if __name__ == "__main__":
 
     print(f"ROOT version: {ROOT.gROOT.GetVersion()}")
     start_time = time.time()
-    combine_files(args.file1, args.file2, args.output)
+    combine_files(args.file1, args.file2, args.output, n_pairs=args.pairs)
     end_time = time.time()
 
     start_time = time.time()
