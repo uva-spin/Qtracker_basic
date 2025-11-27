@@ -206,6 +206,7 @@ def train_model(args: argparse.Namespace) -> None:
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
             callbacks=[lr_scheduler, early_stopping],
+            verbose=2,
         )
         del X_train_low, X_clean_train_low, y_train_low
         gc.collect()  
@@ -234,6 +235,7 @@ def train_model(args: argparse.Namespace) -> None:
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
             callbacks=[lr_scheduler, early_stopping],
+            verbose=2,
         )
         del X_train_med, X_clean_train_med, y_train_med
         gc.collect()
@@ -263,6 +265,7 @@ def train_model(args: argparse.Namespace) -> None:
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
             callbacks=[lr_scheduler, early_stopping],
+            verbose=2,
         )
         del X_train_high, X_clean_train_high, y_train_high
         gc.collect()
@@ -284,6 +287,7 @@ def train_model(args: argparse.Namespace) -> None:
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
             callbacks=[lr_scheduler, early_stopping],
+            verbose=2,
         )
 
     model.save(args.output_model)
