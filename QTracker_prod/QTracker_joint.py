@@ -18,7 +18,7 @@ USE_DECLUSTERING = False  # Toggle to enable/disable declustering
 USE_SMAXMATRIX = False  # Toggle to enable/disable write softmax matrix
 
 # Paths to model checkpoints
-MODEL_PATH_TRACK = "./checkpoints/track_finder_joint.keras"
+MODEL_PATH_TRACK = "./checkpoints/track_finder_flagship.keras"
 MODEL_PATH_MOMENTUM_MUP = "./checkpoints/mom_mup.h5"
 MODEL_PATH_MOMENTUM_MUM = "./checkpoints/mom_mum.h5"
 MODEL_PATH_METRIC = "./checkpoints/chi2_predictor.h5"
