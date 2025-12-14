@@ -80,7 +80,7 @@ def evaluate_model(args):
         model.load_weights(args.model_path)
 
         y_pred = model.predict(X_test)[0]
-    elif "joint" in args.model_path:
+    elif "joint" in args.model_path or "flagship" in args.model_path:
         custom_objects = {
             "AxialAttention": AxialAttention
         }
