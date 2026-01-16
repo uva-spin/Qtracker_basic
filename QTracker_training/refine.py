@@ -7,7 +7,10 @@ def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs):
     using the detectorID and elementID vectors. Returns 0 if no actual hits exist.
     Optimized for speed.
     """
-    def find_closest_actual_hit(detector_id, inferred_element, detectorIDs_event, elementIDs_event):
+
+    def find_closest_actual_hit(
+        detector_id, inferred_element, detectorIDs_event, elementIDs_event
+    ):
         """
         Finds the closest actual hit to the inferred_element for a specific detector_id.
         Returns 0 if no hits exist.
@@ -22,7 +25,9 @@ def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs):
             return 0  # Return 0 if no hits exist.
 
         # Find the closest actual hit elementID using NumPy's vectorized operations
-        closest_elementID = actual_elementIDs[np.argmin(np.abs(actual_elementIDs - inferred_element))]
+        closest_elementID = actual_elementIDs[
+            np.argmin(np.abs(actual_elementIDs - inferred_element))
+        ]
 
         return closest_elementID
 
@@ -49,10 +54,16 @@ def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs):
 
             # Find the closest actual hits
             refined_mup[event, detector] = find_closest_actual_hit(
-                detector_ids[detector], inferred_mup, detectorIDs_event, elementIDs_event
+                detector_ids[detector],
+                inferred_mup,
+                detectorIDs_event,
+                elementIDs_event,
             )
             refined_mum[event, detector] = find_closest_actual_hit(
-                detector_ids[detector], inferred_mum, detectorIDs_event, elementIDs_event
+                detector_ids[detector],
+                inferred_mum,
+                detectorIDs_event,
+                elementIDs_event,
             )
 
     return refined_mup, refined_mum

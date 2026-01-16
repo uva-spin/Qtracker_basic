@@ -51,23 +51,35 @@ def merge_alternating_reader(file1, file2, output_file, max_output_events=100000
                 vec = ROOT.std.vector("double")()
                 out_tree.Branch(name, vec)
                 out_branches[name] = ("vector", vec)
-                reader_vals1[name] = ROOT.TTreeReaderValue["vector<double>"](reader1, name)
-                reader_vals2[name] = ROOT.TTreeReaderValue["vector<double>"](reader2, name)
+                reader_vals1[name] = ROOT.TTreeReaderValue["vector<double>"](
+                    reader1, name
+                )
+                reader_vals2[name] = ROOT.TTreeReaderValue["vector<double>"](
+                    reader2, name
+                )
             elif is_array:
                 # Handle arrays (e.g., Float_t[10], Double_t[10])
                 if typename in ["Float_t", "Double_t"]:
                     arr_type = "f" if typename == "Float_t" else "d"
                     arr = array.array(arr_type, [0] * leaf.GetLen())
-                    out_tree.Branch(name, arr, f"{name}[{leaf.GetLen()}]/{arr_type.upper()}")
+                    out_tree.Branch(
+                        name, arr, f"{name}[{leaf.GetLen()}]/{arr_type.upper()}"
+                    )
                     out_branches[name] = ("array", arr)
                     reader_vals1[name] = ROOT.TTreeReaderArray[typename](reader1, name)
                     reader_vals2[name] = ROOT.TTreeReaderArray[typename](reader2, name)
                 else:
-                    print(f"[WARN] Skipping unsupported array type '{typename}' for branch '{name}'")
+                    print(
+                        f"[WARN] Skipping unsupported array type '{typename}' for branch '{name}'"
+                    )
             else:
-                print(f"[WARN] Skipping unsupported type '{typename}' for branch '{name}'")
+                print(
+                    f"[WARN] Skipping unsupported type '{typename}' for branch '{name}'"
+                )
         except Exception as e:
-            print(f"[ERROR] Failed to process branch '{name}' (type: {typename}): {str(e)}")
+            print(
+                f"[ERROR] Failed to process branch '{name}' (type: {typename}): {str(e)}"
+            )
             continue
 
     # Always override eventID
@@ -80,6 +92,7 @@ def merge_alternating_reader(file1, file2, output_file, max_output_events=100000
         out_tree.Write()
         fout.Close()
         sys.exit(0)
+
     signal.signal(signal.SIGINT, handle_interrupt)
 
     def copy_entry(reader, reader_vals, eid):
@@ -120,12 +133,22 @@ def merge_alternating_reader(file1, file2, output_file, max_output_events=100000
     fout.Close()
     print(f"[INFO] Final output: {eid} events written to '{output_file}'")
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Alternate merge events from two ROOT files.")
+    parser = argparse.ArgumentParser(
+        description="Alternate merge events from two ROOT files."
+    )
     parser.add_argument("file1", type=str)
     parser.add_argument("file2", type=str)
     parser.add_argument("--output", type=str, default="single_muons.root")
-    parser.add_argument("--max_output_events", type=int, default=100000, help="Set this to limit total events written. Set to None to go until one file ends.")
+    parser.add_argument(
+        "--max_output_events",
+        type=int,
+        default=100000,
+        help="Set this to limit total events written. Set to None to go until one file ends.",
+    )
     args = parser.parse_args()
 
-    merge_alternating_reader(args.file1, args.file2, args.output, args.max_output_events)
+    merge_alternating_reader(
+        args.file1, args.file2, args.output, args.max_output_events
+    )

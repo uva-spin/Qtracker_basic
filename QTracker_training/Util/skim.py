@@ -30,10 +30,19 @@ def skim_root_file(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Skim a ROOT file to keep only the first N events.")
+    parser = argparse.ArgumentParser(
+        description="Skim a ROOT file to keep only the first N events."
+    )
     parser.add_argument("input_file", type=str, help="Input ROOT file")
-    parser.add_argument("--output_file", type=str, default="skimmed_output.root", help="Output ROOT file")
-    parser.add_argument("--max_events", type=int, default=2000, help="Max events to keep")
+    parser.add_argument(
+        "--output_file",
+        type=str,
+        default="skimmed_output.root",
+        help="Output ROOT file",
+    )
+    parser.add_argument(
+        "--max_events", type=int, default=2000, help="Max events to keep"
+    )
     parser.add_argument("--start", type=int, default=0, help="Event to start skimming.")
 
     args = parser.parse_args()
