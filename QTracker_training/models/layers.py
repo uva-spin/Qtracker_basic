@@ -4,18 +4,18 @@ from typing import Any
 
 
 def conv_block(
-    x: tf.Tensor, 
-    filters: int, 
-    l2: float = 1e-4, 
-    use_bn: bool = False, 
-    dropout_bn: float = 0.0, 
+    x: tf.Tensor,
+    filters: int,
+    l2: float = 1e-4,
+    use_bn: bool = False,
+    dropout_bn: float = 0.0,
     dropout: float = 0.0,
 ) -> tf.Tensor:
     """
     A convolutional block with two Conv2D layers, optional batch normalization,
     ReLU activations, and dropout. Includes a residual connection.
     Used in U-Net architectures.
-    
+
     Args:
         x (tf.Tensor): Input tensor.
         filters (int): Number of filters for the Conv2D layers.
@@ -23,7 +23,7 @@ def conv_block(
         use_bn (bool): Whether to use batch normalization.
         dropout_bn (float): Dropout rate after the first Conv2D layer (for bottleneck layers).
         dropout (float): Dropout rate after the second Conv2D layer (for encoder blocks).
-    
+
     Returns:
         tf.Tensor: Output tensor after applying the convolutional block.
     """
@@ -32,12 +32,11 @@ def conv_block(
 
     # First Conv Layer + Activation
     x = layers.Conv2D(
-        filters, kernel_size=3, padding='same',
-        kernel_regularizer=regularizers.l2(l2)
+        filters, kernel_size=3, padding="same", kernel_regularizer=regularizers.l2(l2)
     )(x)
     if use_bn:
         x = layers.BatchNormalization()(x)
-    x = layers.Activation('relu')(x)
+    x = layers.Activation("relu")(x)
 
     # Dropout for bottleneck layers
     if dropout_bn > 0:
@@ -45,19 +44,18 @@ def conv_block(
 
     # Second Conv Layer
     x = layers.Conv2D(
-        filters, kernel_size=3, padding='same',
-        kernel_regularizer=regularizers.l2(l2)
+        filters, kernel_size=3, padding="same", kernel_regularizer=regularizers.l2(l2)
     )(x)
     if use_bn:
         x = layers.BatchNormalization()(x)
 
     # Project shortcut if needed
     if shortcut.shape[-1] != x.shape[-1]:
-        shortcut = tf.keras.layers.Conv2D(filters, (1, 1), padding='same')(shortcut)
+        shortcut = tf.keras.layers.Conv2D(filters, (1, 1), padding="same")(shortcut)
 
     x = tf.keras.layers.Add()([x, shortcut])
-    
-    x = layers.Activation('relu')(x)
+
+    x = layers.Activation("relu")(x)
 
     # Dropout for encoder blocks
     if dropout > 0:
@@ -68,7 +66,7 @@ def conv_block(
 def upsample(x: tf.Tensor) -> tf.Tensor:
     """
     Upsamples the input tensor by a factor of 2 using bilinear interpolation.
-    
+
     Args:
         x (tf.Tensor): Input tensor.
 
@@ -88,12 +86,12 @@ class AxialAttention(layers.Layer):
     """
 
     def __init__(
-        self, 
-        embed_dim: int, 
-        num_heads: int = 8, 
-        axis: str = 'height', 
-        dropout: float = 0.0, 
-        use_ffn: bool = True, 
+        self,
+        embed_dim: int,
+        num_heads: int = 8,
+        axis: str = "height",
+        dropout: float = 0.0,
+        use_ffn: bool = True,
         **kwargs: Any,
     ) -> None:
         """
@@ -125,28 +123,32 @@ class AxialAttention(layers.Layer):
 
         if use_ffn:
             # Convolutional Feed-Forward Network
-            self.ffn = tf.keras.Sequential([
-                layers.Conv2D(embed_dim * 4, kernel_size=1, activation='gelu'),
-                layers.DepthwiseConv2D(kernel_size=3, padding='same'),  # for spatial mixing
-                layers.Dropout(dropout),
-                layers.Conv2D(embed_dim, kernel_size=1),
-                layers.Dropout(dropout),
-            ])
+            self.ffn = tf.keras.Sequential(
+                [
+                    layers.Conv2D(embed_dim * 4, kernel_size=1, activation="gelu"),
+                    layers.DepthwiseConv2D(
+                        kernel_size=3, padding="same"
+                    ),  # for spatial mixing
+                    layers.Dropout(dropout),
+                    layers.Conv2D(embed_dim, kernel_size=1),
+                    layers.Dropout(dropout),
+                ]
+            )
 
     def build(self, input_shape: tf.TensorShape) -> None:
         """
-        Builds the learned absolute positional encoding for the specified axis. 
+        Builds the learned absolute positional encoding for the specified axis.
         This method is called when the layer is first used.
         """
 
         _, D, E, C = input_shape
-        L = D if self.axis == 'height' else E
+        L = D if self.axis == "height" else E
 
         self.pos_enc = self.add_weight(
             shape=(L, C),
             initializer=tf.keras.initializers.RandomNormal(stddev=0.02),
             trainable=True,
-            name=f'pos_enc_{self.axis}',
+            name=f"pos_enc_{self.axis}",
         )
 
     def call(self, x: tf.Tensor) -> tf.Tensor:
@@ -155,7 +157,7 @@ class AxialAttention(layers.Layer):
 
         Args:
             x (tf.Tensor): Input tensor of shape (B, D, E, C).
-        
+
         Returns:
             tf.Tensor: Output tensor after applying axial attention and optional FFN.
         """
@@ -163,26 +165,26 @@ class AxialAttention(layers.Layer):
         B, D, E, C = tf.unstack(tf.shape(x))
 
         # Apply positional encoding and reshape for attention
-        if self.axis == 'height':
+        if self.axis == "height":
             pos_enc = tf.reshape(self.pos_enc, (1, D, 1, C))
             x = x + pos_enc
             x = tf.transpose(x, perm=[0, 2, 1, 3])  # (B, E, D, C)
-            x = tf.reshape(x, (B * E, D, C))        # (B * E, D, C)
+            x = tf.reshape(x, (B * E, D, C))  # (B * E, D, C)
         else:
             pos_enc = tf.reshape(self.pos_enc, (1, 1, E, C))
             x = x + pos_enc
-            x = tf.reshape(x, (B * D, E, C))        # (B * D, E, C)
+            x = tf.reshape(x, (B * D, E, C))  # (B * D, E, C)
 
         # Layer norm + Multi-head Self-Attention
         skip = x
         x = self.lnorm1(x)
         x = self.attention(x, x)  # Self-attention
         x = self.dropout(x)
-        x = tf.cast(x, skip.dtype)      # Ensure dtype consistency
+        x = tf.cast(x, skip.dtype)  # Ensure dtype consistency
         x = self.add([x, skip])  # Residual connection
 
         # Restore original shape
-        if self.axis == 'height':
+        if self.axis == "height":
             x = tf.reshape(x, (B, E, D, C))
             x = tf.transpose(x, perm=[0, 2, 1, 3])  # (B, D, E, C)
         else:
@@ -192,7 +194,7 @@ class AxialAttention(layers.Layer):
         if self.use_ffn:
             skip = x
             x = self.ffn(self.lnorm2(x))
-            x = tf.cast(x, skip.dtype)      # Ensure dtype consistency
+            x = tf.cast(x, skip.dtype)  # Ensure dtype consistency
             x = self.add([x, skip])
 
         return x

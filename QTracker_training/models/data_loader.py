@@ -9,7 +9,7 @@ def load_data(root_file: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
 
     Args:
         root_file (str): Path to the ROOT file.
-    
+
     Returns:
         Tuple[np.ndarray, np.ndarray, np.ndarray]:
             - X: Input features of shape (num_events, 62, 201, 1)
@@ -53,15 +53,15 @@ def load_data(root_file: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 
 def load_data_denoise(
-    root_file: str
+    root_file: str,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Load data from a ROOT file for denoising tasks. It returns an additional 
+    Load data from a ROOT file for denoising tasks. It returns an additional
     np.ndarray for clean input features (no background tracks) to use as label for denoiser.
 
     Args:
         root_file (str): Path to the ROOT file.
-    
+
     Returns:
         Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
             - X: Noisy input features of shape (num_events, 62, 201, 1)
@@ -87,12 +87,14 @@ def load_data_denoise(
 
     for event in tree:
         event_hits_matrix = np.zeros((num_detectors, num_elementIDs), dtype=np.float32)
-        clean_event_hits_matrix = np.zeros((num_detectors, num_elementIDs), dtype=np.float32)
+        clean_event_hits_matrix = np.zeros(
+            (num_detectors, num_elementIDs), dtype=np.float32
+        )
 
         for det_id, elem_id in zip(event.detectorID, event.elementID):
             if 0 <= det_id < num_detectors and 0 <= elem_id < num_elementIDs:
                 event_hits_matrix[det_id, elem_id] = 1
-        
+
         for det_id, elem_id in zip(event.detectorIDClean, event.elementIDClean):
             if 0 <= det_id < num_detectors and 0 <= elem_id < num_elementIDs:
                 clean_event_hits_matrix[det_id, elem_id] = 1

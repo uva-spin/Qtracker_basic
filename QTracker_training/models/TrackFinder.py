@@ -1,11 +1,11 @@
-""" Attention U-Net++ based denoiser + segmenter: end-to-end training """
+"""Attention U-Net++ based denoiser + segmenter: end-to-end training"""
 
 import argparse
 import gc
 import os
 
+
 import numpy as np
-import ROOT
 import tensorflow as tf
 from tensorflow.keras import layers
 import tensorflow.keras.backend as K
@@ -55,7 +55,7 @@ def build_model(
         use_attn (bool): Whether to use axial attention mechanism in segmentation U-Net++ (default: False).
         use_attn_ffn (bool): Whether to use feed-forward layers in attention (default: True).
         dropout_attn (float): Dropout rate for attention block (default: 0.0).
-    
+
     Returns:
         tf.keras.Model: The constructed joint denoising and segmentation model.
     """
@@ -75,7 +75,9 @@ def build_model(
     )
 
     # Denoise Head
-    denoise_out = layers.Conv2D(1, kernel_size=1, activation="sigmoid", name="denoise")(x)
+    denoise_out = layers.Conv2D(1, kernel_size=1, activation="sigmoid", name="denoise")(
+        x
+    )
 
     # Segmentation Backbone - second U-Net++
     x = unetpp_backbone(
@@ -94,7 +96,7 @@ def build_model(
     # Segmentation Head
     x = layers.Conv2D(2, kernel_size=1)(x)
     x = layers.Softmax(axis=2)(x)  # softmax over elementID
-    seg_output = layers.Permute((3, 1, 2), name="segment")(x)   # (batch, 2, det, elem)
+    seg_output = layers.Permute((3, 1, 2), name="segment")(x)  # (batch, 2, det, elem)
 
     # Initialize model
     model = tf.keras.Model(inputs=input_layer, outputs=[denoise_out, seg_output])
@@ -116,8 +118,8 @@ def train_model(args: argparse.Namespace) -> None:
     print(f"Number of devices: {strategy.num_replicas_in_sync}")
 
     # Load low complexity training data and validation data
-    X_train_low, X_clean_train_low, y_muPlus_train_low, y_muMinus_train_low = load_data_denoise(
-        args.train_root_file_low
+    X_train_low, X_clean_train_low, y_muPlus_train_low, y_muMinus_train_low = (
+        load_data_denoise(args.train_root_file_low)
     )
     if X_train_low is None or X_clean_train_low is None:
         return
@@ -137,10 +139,10 @@ def train_model(args: argparse.Namespace) -> None:
     with strategy.scope():
         model = build_model(
             num_detectors=NUM_DETECTORS,
-            num_elementIDs=NUM_ELEMENT_IDS, 
-            use_bn=args.batch_norm, 
-            dropout_bn=args.dropout_bn, 
-            dropout_enc=args.dropout_enc, 
+            num_elementIDs=NUM_ELEMENT_IDS,
+            use_bn=args.batch_norm,
+            dropout_bn=args.dropout_bn,
+            dropout_enc=args.dropout_enc,
             denoise_base=args.denoise_base,
             base=args.base,
             use_attn=args.use_attn,
@@ -171,12 +173,14 @@ def train_model(args: argparse.Namespace) -> None:
                 "segment": 1.0,
             },
             metrics={
-                "denoise": [Precision(name='precision'), Recall(name='recall')],
+                "denoise": [Precision(name="precision"), Recall(name="recall")],
                 "segment": ["accuracy"],
-            }
+            },
         )
 
-    if args.train_root_file_med and args.train_root_file_high:     # enable curriculum learning
+    if (
+        args.train_root_file_med and args.train_root_file_high
+    ):  # enable curriculum learning
         print("Curriculum learning enabled.")
 
         """
@@ -191,7 +195,10 @@ def train_model(args: argparse.Namespace) -> None:
         epochs_high = args.epochs
 
         lr_scheduler = ReduceLROnPlateau(
-            monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
+            monitor="val_loss",
+            factor=args.factor,
+            patience=args.lr_patience,
+            min_lr=1e-6,
         )
         early_stopping = EarlyStopping(
             monitor="val_loss", patience=args.patience, restore_best_weights=False
@@ -207,10 +214,10 @@ def train_model(args: argparse.Namespace) -> None:
             verbose=2,
         )
         del X_train_low, X_clean_train_low, y_train_low
-        gc.collect()  
+        gc.collect()
 
-        X_train_med, X_clean_train_med, y_muPlus_train_med, y_muMinus_train_med = load_data_denoise(
-            args.train_root_file_med
+        X_train_med, X_clean_train_med, y_muPlus_train_med, y_muMinus_train_med = (
+            load_data_denoise(args.train_root_file_med)
         )
         if X_train_med is None or X_clean_train_med is None:
             return
@@ -220,7 +227,10 @@ def train_model(args: argparse.Namespace) -> None:
 
         K.set_value(model.optimizer.learning_rate, args.lr_med)
         lr_scheduler = ReduceLROnPlateau(
-            monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
+            monitor="val_loss",
+            factor=args.factor,
+            patience=args.lr_patience,
+            min_lr=1e-6,
         )
         early_stopping = EarlyStopping(
             monitor="val_loss", patience=args.patience, restore_best_weights=False
@@ -238,8 +248,8 @@ def train_model(args: argparse.Namespace) -> None:
         del X_train_med, X_clean_train_med, y_train_med
         gc.collect()
 
-        X_train_high, X_clean_train_high, y_muPlus_train_high, y_muMinus_train_high = load_data_denoise(
-            args.train_root_file_high
+        X_train_high, X_clean_train_high, y_muPlus_train_high, y_muMinus_train_high = (
+            load_data_denoise(args.train_root_file_high)
         )
         if X_train_high is None or X_clean_train_high is None:
             return
@@ -249,7 +259,10 @@ def train_model(args: argparse.Namespace) -> None:
 
         K.set_value(model.optimizer.learning_rate, args.lr_high)
         lr_scheduler = ReduceLROnPlateau(
-            monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
+            monitor="val_loss",
+            factor=args.factor,
+            patience=args.lr_patience,
+            min_lr=1e-6,
         )
         early_stopping = EarlyStopping(
             monitor="val_loss", patience=args.patience, restore_best_weights=True
@@ -268,11 +281,14 @@ def train_model(args: argparse.Namespace) -> None:
         del X_train_high, X_clean_train_high, y_train_high
         gc.collect()
 
-    else:   # standard training without curriculum learning
+    else:  # standard training without curriculum learning
         print("Standard training without curriculum learning.")
 
         lr_scheduler = ReduceLROnPlateau(
-            monitor="val_loss", factor=args.factor, patience=args.lr_patience, min_lr=1e-6
+            monitor="val_loss",
+            factor=args.factor,
+            patience=args.lr_patience,
+            min_lr=1e-6,
         )
         early_stopping = EarlyStopping(
             monitor="val_loss", patience=args.patience, restore_best_weights=False
@@ -303,10 +319,16 @@ if __name__ == "__main__":
         "val_root_file", type=str, help="Path to the validation ROOT file."
     )
     parser.add_argument(
-        "--train_root_file_med", type=str, default=None, help="Train ROOT file with medium complexity for curriculum learning."
+        "--train_root_file_med",
+        type=str,
+        default=None,
+        help="Train ROOT file with medium complexity for curriculum learning.",
     )
     parser.add_argument(
-        "--train_root_file_high", type=str, default=None, help="Train ROOT file with high complexity for curriculum learning."
+        "--train_root_file_high",
+        type=str,
+        default=None,
+        help="Train ROOT file with high complexity for curriculum learning.",
     )
     parser.add_argument(
         "--output_model",
@@ -342,7 +364,10 @@ if __name__ == "__main__":
         "--patience", type=int, default=12, help="Patience for EarlyStopping."
     )
     parser.add_argument(
-        "--lr_patience", type=int, default=4, help="Patience for learning rate scheduler."
+        "--lr_patience",
+        type=int,
+        default=4,
+        help="Patience for learning rate scheduler.",
     )
     parser.add_argument(
         "--batch_norm",
