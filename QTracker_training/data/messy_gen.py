@@ -3,6 +3,7 @@ import numpy as np
 from array import array
 import random
 
+
 # Detector efficiency probability
 NUM_TRACKS = 50
 PROB_MEAN = 0.9
@@ -13,7 +14,10 @@ PROPAGATION_MODEL = "gaussian"
 GAUSSIAN_SIGMA = 60.0
 EXP_DECAY_CONST = 15.0
 
-def inject_tracks(file1, file2, output_file, num_tracks, lower_bound=0, uniform_tracks=True):
+
+def inject_tracks(
+    file1, file2, output_file, num_tracks, lower_bound=0, uniform_tracks=True
+):
     if not (1 <= num_tracks <= 100):
         raise ValueError("num_tracks must be between 1 and 100.")
     if not (0 <= PROB_MEAN <= 1):
@@ -28,10 +32,12 @@ def inject_tracks(file1, file2, output_file, num_tracks, lower_bound=0, uniform_
 
     fout = ROOT.TFile.Open(output_file, "RECREATE", "", ROOT.kLZMA)
     fout.SetCompressionLevel(9)
-    output_tree = ROOT.TTree("tree", "Tree with injected tracks and preserved signal hit arrays")
+    output_tree = ROOT.TTree(
+        "tree", "Tree with injected tracks and preserved signal hit arrays"
+    )
 
     # Event-level and hit-level branches
-    eventID = array('i', [0])
+    eventID = array("i", [0])
     muID = ROOT.std.vector("int")()
     elementID = ROOT.std.vector("int")()
     detectorID = ROOT.std.vector("int")()
@@ -125,12 +131,18 @@ def inject_tracks(file1, file2, output_file, num_tracks, lower_bound=0, uniform_
         gTrackID.push_back(tree1.gTrackID[0])
         gTrackID.push_back(tree1.gTrackID[1])
 
-        for v in tree1.gpx: gpx.push_back(v)
-        for v in tree1.gpy: gpy.push_back(v)
-        for v in tree1.gpz: gpz.push_back(v)
-        for v in tree1.gvx: gvx.push_back(v)
-        for v in tree1.gvy: gvy.push_back(v)
-        for v in tree1.gvz: gvz.push_back(v)
+        for v in tree1.gpx:
+            gpx.push_back(v)
+        for v in tree1.gpy:
+            gpy.push_back(v)
+        for v in tree1.gpz:
+            gpz.push_back(v)
+        for v in tree1.gvx:
+            gvx.push_back(v)
+        for v in tree1.gvy:
+            gvy.push_back(v)
+        for v in tree1.gvz:
+            gvz.push_back(v)
 
         for j in range(len(tree1.elementID)):
             elementID.push_back(tree1.elementID[j])
@@ -152,7 +164,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, lower_bound=0, uniform_
         next_trackID = max(tree1.gTrackID) + 1 if len(tree1.gTrackID) > 0 else 3
 
         weights = [2] * (num_tracks - lower_bound + 1)
-        
+
         # Skew probabilities towards higher track counts
         if not uniform_tracks:
             for i in range(len(weights)):
@@ -162,9 +174,7 @@ def inject_tracks(file1, file2, output_file, num_tracks, lower_bound=0, uniform_
                     weights[i] += 1
 
         random_num_tracks = random.choices(
-            range(lower_bound, num_tracks + 1), 
-            weights=weights,
-            k=1
+            range(lower_bound, num_tracks + 1), weights=weights, k=1
         )[0]
         # random_num_tracks = random.randint(lower_bound, num_tracks)
 
@@ -188,8 +198,13 @@ def inject_tracks(file1, file2, output_file, num_tracks, lower_bound=0, uniform_
 
             probability = np.clip(np.random.normal(PROB_MEAN, PROB_WIDTH), 0, 1)
 
-            for procID, elem, det, dist, tdc in zip(tree2.gProcessID, tree2.elementID, tree2.detectorID, tree2.driftDistance, tree2.tdcTime):
-
+            for procID, elem, det, dist, tdc in zip(
+                tree2.gProcessID,
+                tree2.elementID,
+                tree2.detectorID,
+                tree2.driftDistance,
+                tree2.tdcTime,
+            ):
                 if PROPAGATION_MODEL == "linear":
                     weight = 1 - det / 100
                 elif PROPAGATION_MODEL == "gaussian":
@@ -219,13 +234,42 @@ def inject_tracks(file1, file2, output_file, num_tracks, lower_bound=0, uniform_
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Inject background tracks into ROOT data while preserving hit arrays.")
-    parser.add_argument("file1", type=str, help="Path to the finder_training.root file (signal).")
+
+    parser = argparse.ArgumentParser(
+        description="Inject background tracks into ROOT data while preserving hit arrays."
+    )
+    parser.add_argument(
+        "file1", type=str, help="Path to the finder_training.root file (signal)."
+    )
     parser.add_argument("file2", type=str, help="Path to the background file.")
-    parser.add_argument("--output", type=str, default="mc_events.root", help="Output ROOT file name.")
-    parser.add_argument("--num_tracks", type=int, default=NUM_TRACKS, help="Upper bound number of background tracks to inject.")
-    parser.add_argument("--lower_bound", type=int, default=0, help="Lower bound number of background tracks to inject.")
-    parser.add_argument("--uniform_tracks", type=int, default=1, help="Use uniform distribution for track injection: 1 for True, 0 for False.")
+    parser.add_argument(
+        "--output", type=str, default="mc_events.root", help="Output ROOT file name."
+    )
+    parser.add_argument(
+        "--num_tracks",
+        type=int,
+        default=NUM_TRACKS,
+        help="Upper bound number of background tracks to inject.",
+    )
+    parser.add_argument(
+        "--lower_bound",
+        type=int,
+        default=0,
+        help="Lower bound number of background tracks to inject.",
+    )
+    parser.add_argument(
+        "--uniform_tracks",
+        type=int,
+        default=1,
+        help="Use uniform distribution for track injection: 1 for True, 0 for False.",
+    )
     args = parser.parse_args()
 
-    inject_tracks(args.file1, args.file2, args.output, args.num_tracks, lower_bound=args.lower_bound, uniform_tracks=bool(args.uniform_tracks))
+    inject_tracks(
+        args.file1,
+        args.file2,
+        args.output,
+        args.num_tracks,
+        lower_bound=args.lower_bound,
+        uniform_tracks=bool(args.uniform_tracks),
+    )
