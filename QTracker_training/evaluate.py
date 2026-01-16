@@ -7,6 +7,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 absl.logging.set_verbosity("error")
 
 import argparse
+import ROOT  # noqa: F401
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
