@@ -1,9 +1,0 @@
-*.root
-*.sif
-checkpoints/
-Slurm_Files/
-local/
-
-run.sh
-
-__pycache__/

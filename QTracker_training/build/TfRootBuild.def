@@ -1,0 +1,57 @@
+Bootstrap: docker
+From: nvidia/cuda:12.8.0-cudnn-devel-ubi8
+
+%post
+    export TZ=America/New_York
+    dnf install -y gcc gcc-c++ make cmake wget curl git openssl-devel python39 python39-pip python39-devel hostname && dnf clean all
+
+    # Download and extract ROOT
+    cd /opt
+    wget https://root.cern/download/root_v6.32.08.source.tar.gz
+    tar -xzf root_v6.32.08.source.tar.gz
+    rm root_v6.32.08.source.tar.gz
+
+    # Build ROOT
+    mkdir -p /opt/root-build
+    cd /opt/root-build
+    cmake /opt/root-6.32.08 \
+        -DCMAKE_INSTALL_PREFIX=/opt/root-6.32.08 \
+        -DCMAKE_INSTALL_LIBDIR=lib \
+        -Dpyroot=ON \
+        -DPython3_EXECUTABLE=/usr/bin/python3.9 \
+        -Dx11=OFF \
+        -Dqt=OFF \
+        -Droofit=OFF \
+        -Dgraphics=OFF \
+        -Dxrootd=OFF \
+        -Dssl=ON \
+        -Dcling=OFF \
+        -DCMAKE_BUILD_TYPE=Release
+
+    make -j4
+    make install
+
+    # Verify PyROOT installation
+    echo "Verifying PyROOT installation..."
+    export ROOTSYS=/opt/root-6.32.08
+    export PYTHONPATH=/opt/root-6.32.08/lib:$PYTHONPATH
+    export LD_LIBRARY_PATH=/opt/root-6.32.08/lib:$LD_LIBRARY_PATH
+    /usr/bin/python3.9 -c "import ROOT; print('PyROOT successfully installed')" || echo "PyROOT installation failed"
+
+    cd /opt
+    rm -rf /opt/root-build
+
+    # Install TensorFlow with CUDA support
+    /usr/bin/python3.9 -m pip install --upgrade pip
+    /usr/bin/python3.9 -m pip install tensorflow==2.19.0
+    /usr/bin/python3.9 -m pip install scikit-learn numpy pandas matplotlib seaborn uproot awkward numba h5py tqdm joblib
+
+%environment
+    export ROOTSYS=/opt/root-6.32.08
+    export PATH=$ROOTSYS/bin:$PATH
+    export LD_LIBRARY_PATH=$ROOTSYS/lib:$LD_LIBRARY_PATH
+    export PYTHONPATH=$ROOTSYS/lib:$PYTHONPATH
+
+%labels
+    Author   David Kim, Youngwoong, bab6cw
+    Version  v1.6

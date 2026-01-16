@@ -5,22 +5,17 @@ import argparse
 import os
 from ROOT import TFile, TTree, TMatrixD
 from numba import njit, prange
-from typing import Tuple
-from tensorflow.keras.losses import MeanSquaredError
-from scipy.optimize import linear_sum_assignment
-
-from refine import refine_hit_arrays, refine_hit_arrays_v3
 
 # USE_CHI2 must be False the first time the script is ran to obtain output for training the quality metric
 USE_CHI2 = False
 USE_DECLUSTERING = False  # Toggle to enable/disable declustering
 USE_SMAXMATRIX = False  # Toggle to enable/disable write softmax matrix
 
-# Paths to model checkpoints
-MODEL_PATH_TRACK = "./checkpoints/track_finder_Dump_100K.h5"
-MODEL_PATH_MOMENTUM_MUP = "./checkpoints/mom_mup_Dump_100K.h5"
-MODEL_PATH_MOMENTUM_MUM = "./checkpoints/mom_mum_Dump_100K.h5"
-MODEL_PATH_METRIC = "./checkpoints/chi2_predictor_model.h5"
+# Paths to models
+MODEL_PATH_TRACK = "./models/track_finder.h5"
+MODEL_PATH_MOMENTUM_MUP = "./models/mom_mup.h5"
+MODEL_PATH_MOMENTUM_MUM = "./models/mom_mum.h5"
+MODEL_PATH_METRIC = "./models/chi2_predictor_model.h5"
 
 # Number of detectors and element IDs
 NUM_DETECTORS = 62
@@ -239,6 +234,8 @@ def write_predicted_root_file(output_file, input_file, rHitArray_mup, rHitArray_
     fout.SetCompressionLevel(5)
     output_tree = tree_input.CloneTree(0)
 
+    output_tree.SetAutoSave(0)
+
     muID = ROOT.std.vector("int")()
     HitArray_mup = np.zeros(62, dtype=np.int32)
     HitArray_mum = np.zeros(62, dtype=np.int32)
@@ -285,6 +282,63 @@ def write_predicted_root_file(output_file, input_file, rHitArray_mup, rHitArray_
     fout.Close()
     f_input.Close()
     print(f"Predicted data written to {output_file}, retaining all original data.")
+
+def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs):
+    """
+    Refines the HitArrays by replacing inferred elementIDs with the closest actual elementID
+    using the detectorID and elementID vectors. Returns 0 if no actual hits exist.
+    Optimized for speed.
+    """
+    def find_closest_actual_hit(detector_id, inferred_element, detectorIDs_event, elementIDs_event):
+        """
+        Finds the closest actual hit to the inferred_element for a specific detector_id.
+        Returns 0 if no hits exist.
+        """
+        if inferred_element == 0:
+            return 0  # Preserve 0 values (no hit).
+
+        # Filter elementIDs for the given detector_id
+        actual_elementIDs = elementIDs_event[detectorIDs_event == detector_id]
+
+        if len(actual_elementIDs) == 0:
+            return 0  # Return 0 if no hits exist.
+
+        # Find the closest actual hit elementID using NumPy's vectorized operations
+        closest_elementID = actual_elementIDs[np.argmin(np.abs(actual_elementIDs - inferred_element))]
+
+        return closest_elementID
+
+    # Initialize refined arrays
+    refined_mup = np.zeros_like(hit_array_mup)
+    refined_mum = np.zeros_like(hit_array_mum)
+
+    num_events, num_detectors = hit_array_mup.shape
+
+    # Precompute detector IDs (1-based to match detector_id in the ROOT file)
+    detector_ids = np.arange(1, num_detectors + 1)
+
+    # Iterate over events
+    for event in range(num_events):
+        # Convert detectorIDs and elementIDs to NumPy arrays for faster processing
+        detectorIDs_event = np.array(detectorIDs[event], dtype=np.int32)
+        elementIDs_event = np.array(elementIDs[event], dtype=np.int32)
+
+        # Iterate over detectors
+        for detector in range(num_detectors):
+            # Get inferred elementIDs for mu+ and mu-
+            inferred_mup = hit_array_mup[event, detector]
+            inferred_mum = hit_array_mum[event, detector]
+
+            # Find the closest actual hits
+            refined_mup[event, detector] = find_closest_actual_hit(
+                detector_ids[detector], inferred_mup, detectorIDs_event, elementIDs_event
+            )
+            refined_mum[event, detector] = find_closest_actual_hit(
+                detector_ids[detector], inferred_mum, detectorIDs_event, elementIDs_event
+            )
+
+    return refined_mup, refined_mum
+
 
 
 def write_hit_matrices_to_root(fout, hits_before, hits_after):
@@ -442,14 +496,8 @@ def process_data(root_file, output_file="tracker_output.root", use_chi2_model=US
     with tf.keras.utils.custom_object_scope({"custom_loss": custom_loss, "Adam": tf.keras.optimizers.legacy.Adam}):
         model_track = tf.keras.models.load_model(MODEL_PATH_TRACK)
 
-    model_momentum_mup = tf.keras.models.load_model(
-        MODEL_PATH_MOMENTUM_MUP,
-        custom_objects={"mse": MeanSquaredError()}
-    )
-    model_momentum_mum = tf.keras.models.load_model(
-        MODEL_PATH_MOMENTUM_MUM,
-        custom_objects={"mse": MeanSquaredError()}
-    )
+    model_momentum_mup = tf.keras.models.load_model(MODEL_PATH_MOMENTUM_MUP)
+    model_momentum_mum = tf.keras.models.load_model(MODEL_PATH_MOMENTUM_MUM)
 
     #X, event_entries, _ = load_data(root_file)
     #detectorIDs, elementIDs, driftDistances, _ = load_detector_element_data(root_file)

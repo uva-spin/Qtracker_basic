@@ -2,7 +2,11 @@ import ROOT
 import argparse
 
 
-def skim_root_file(input_file, output_file, max_events, start=0):
+OUTPUT_FILE = "skimmed_output.root"     # Output ROOT file
+NUM_EVENTS_TO_KEEP = 10000                # Number of events to keep
+
+
+def skim_root_file(input_file, output_file, max_events):
     # Open input file
     fin = ROOT.TFile.Open(input_file, "READ")
     if not fin or fin.IsZombie():
@@ -22,9 +26,8 @@ def skim_root_file(input_file, output_file, max_events, start=0):
     skimmed_tree.SetAutoSave(0)
 
     # Copy entries
-    n_entries = min(tree.GetEntries() - start, max_events)
-    end = start + n_entries
-    for i in range(start, end):
+    n_entries = min(tree.GetEntries(), max_events)
+    for i in range(n_entries):
         tree.GetEntry(i)
         skimmed_tree.Fill()
 
@@ -39,10 +42,6 @@ def skim_root_file(input_file, output_file, max_events, start=0):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Skim a ROOT file to keep only the first N events.")
     parser.add_argument("input_file", type=str, help="Input ROOT file")
-    parser.add_argument("--output_file", type=str, default="skimmed_output.root", help="Output ROOT file")
-    parser.add_argument("--max_events", type=int, default=2000, help="Max events to keep")
-    parser.add_argument("--start", type=int, default=0, help="Event to start skimming.")
 
     args = parser.parse_args()
-
-    skim_root_file(args.input_file, args.output_file, args.max_events, args.start)
+    skim_root_file(args.input_file, OUTPUT_FILE, NUM_EVENTS_TO_KEEP)

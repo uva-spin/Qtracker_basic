@@ -3,7 +3,7 @@ import ROOT
 from array import array
 
 # Hardcoded max number of events to process (None means use all)
-MAX_EVENTS = None  # or set to an integer, e.g., 1000
+MAX_EVENTS = 100000  # or set to an integer, e.g., 1000
 
 def split_tracks(input_filename):
     input_file = ROOT.TFile.Open(input_filename, "READ")

@@ -1,5 +1,4 @@
 import ROOT
-import os
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
@@ -40,9 +39,6 @@ def extract_momenta_and_calculate_mass(root_file):
     return np.array(masses)
 
 def plot_invariant_mass(masses, output_file="invariant_mass.png"):
-    mean_mass = np.mean(masses)
-    std_mass = np.std(masses)
-
     plt.figure(figsize=(8,6))
     plt.hist(masses, bins=np.linspace(0, 6, 300), alpha=0.7, color='b', edgecolor='black')
     plt.xlabel("Invariant Mass (GeV/c^2)")
@@ -50,20 +46,8 @@ def plot_invariant_mass(masses, output_file="invariant_mass.png"):
     plt.title("Invariant Mass Distribution of Muon Pairs")
     plt.xlim(0, 6)  # Keep full range
     plt.grid()
-
     plt.savefig(output_file)
     plt.show()
-
-    # Added for quick sanity tests
-    track_size = os.getenv("TRACK_SIZE")
-    mom_size = os.getenv("MOM_SIZE")
-    qtrack_size = os.getenv("QTRACK_SIZE")
-
-    with open("results/mass_stats.txt", "a") as file:
-        file.write(f"Average invariant mass: {mean_mass:.4f} GeV/c^2\n")
-        file.write(f"Mass distribution width (std dev): {std_mass:.4f} GeV/c^2\n\n")
-    # print(f"Average invariant mass: {mean_mass:.4f} GeV/c^2")
-    # print(f"Mass distribution width (std dev): {std_mass:.4f} GeV/c^2")
 
 def main():
     parser = argparse.ArgumentParser(description="Calculate and plot the invariant mass of muon pairs from a ROOT file.")

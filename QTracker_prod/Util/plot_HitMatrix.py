@@ -1,4 +1,4 @@
-import uproot, os
+import uproot
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -41,13 +41,6 @@ def plot_event(file_name, event_number):
         plt.ylabel("Element ID (1 to 200)")
         plt.xticks(np.arange(0, 61, 10))
         plt.yticks(np.arange(0, 201, 20))
-
-        plot_name = os.path.basename(file_name).replace('.root', '')
-        plot_name += f'_{event_number}.png'
-        plot_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "plots")
-        os.makedirs(plot_dir, exist_ok=True)
-        plot_path = os.path.join(plot_dir, plot_name)
-        plt.savefig(plot_path)
         
         # Show the plot
         plt.show()
