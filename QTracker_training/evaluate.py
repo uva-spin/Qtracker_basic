@@ -20,7 +20,7 @@ from models import (
     # TrackFinder_unet_3p_ds,
 )
 from models.layers import AxialAttention
-import QTracker_prod
+import QTracker
 from refine import refine_hit_arrays
 
 
@@ -67,9 +67,7 @@ def evaluate_model(args):
         return
 
     y_test = np.stack([y_muPlus_test, y_muMinus_test], axis=1)
-    det_test, elem_test, _, _, _ = QTracker_prod.load_detector_element_data(
-        args.root_file
-    )
+    det_test, elem_test, _, _, _ = QTracker.load_detector_element_data(args.root_file)
 
     mask = np.ones(62, dtype=bool)
     mask[6:12] = False

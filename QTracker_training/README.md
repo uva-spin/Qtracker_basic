@@ -1,7 +1,4 @@
-QTracker_prod is a set of learning scripts that is more closely representative of the real production version. Start with QTracker_basic and learn
-what its doing, then explore the data generation and training here. QTracker_prod.py used the most updated version of the RUS file while QTracker_basic uses only a limited version with limited variables. QTracker_basic is meant to be very simple just for getting started and will not be updated for further data features and improved handling. QTracker_prod will be updated as the RUS file framework evolves.
-
-# RUS Track and Momentum Reconstruction with QTracker_prod
+# Single RUS Track and Momentum Reconstruction with QTracker_training
 
 This repository contains a Python-based reconstruction pipeline designed to process RUS files. The script reads raw detector hit information, reconstructs the muon tracks, predicts the muon momenta, and outputs the results to a new ROOT file, enabling further physics analysis.
 
