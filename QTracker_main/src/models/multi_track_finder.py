@@ -18,6 +18,7 @@ class MultiTrackFinder:
             compile=False,
             custom_objects={"AxialAttention": AxialAttention},
         )
+        self.refiner = Refiner()
 
     # --- Public interface --- #
     def run(
@@ -57,11 +58,11 @@ class MultiTrackFinder:
             mu_minus_pred = tf.cast(tf.argmax(mm_softmax, axis=-1), tf.int32).numpy()
 
             # Refine predicted Hit Arrays
-            refiner = Refiner()
-
             detector_id, element_id, _, _ = load_detector_element_data(input_root_file)
-            refined_mu_plus_pred, refined_mu_minus_pred = refiner.refine_hit_arrays(
-                mu_plus_pred, mu_minus_pred, detector_id, element_id
+            refined_mu_plus_pred, refined_mu_minus_pred = (
+                self.refiner.refine_hit_arrays(
+                    mu_plus_pred, mu_minus_pred, detector_id, element_id
+                )
             )
 
             mu_plus_softmax.append(mp_softmax)
