@@ -159,15 +159,44 @@ class MultiTrackFinder:
         - Example factors: highest softmax value for that detector.
 
         Args:
-            X (np.ndarray): Input data array.
-            mu_plus_pred (np.ndarray): Predicted hit array for mu+ tracks.
-            mu_minus_pred (np.ndarray): Predicted hit array for mu- tracks.
-            mu_plus_softmax (np.ndarray): Softmax scores for mu+ tracks.
-            mu_minus_softmax (np.ndarray): Softmax scores for mu- tracks.
+            X (np.ndarray): Input data array. Shape: (num_events, num_detectors, num_elements).
+            mu_plus_pred (np.ndarray): Predicted hit array for mu+ tracks. Shape: (num_events, num_detectors).
+            mu_minus_pred (np.ndarray): Predicted hit array for mu- tracks. Shape: (num_events, num_detectors).
+            mu_plus_softmax (np.ndarray): Softmax scores for mu+ tracks. Shape: (num_events, num_detectors, num_elements).
+            mu_minus_softmax (np.ndarray): Softmax scores for mu- tracks. Shape: (num_events, num_detectors, num_elements).
         Returns:
-            np.ndarray: Updated input data array with found tracks subtracted.
+            np.ndarray: Updated input data array with found tracks subtracted. Shape: (num_events, num_detectors, num_elements).
         """
-        pass
+        X_updated = X.copy()
+        num_events, num_detectors, num_elements = X.shape
+
+        for event_idx in range(num_events):
+            for detector_idx in range(num_detectors):
+                # Subtract mu+ track hits
+                mu_plus_element_idx = mu_plus_pred[event_idx, detector_idx]
+                if 0 <= mu_plus_element_idx < num_elements:
+                    subtraction_value = mu_plus_softmax[
+                        event_idx, detector_idx, mu_plus_element_idx
+                    ]
+                    X_updated[event_idx, detector_idx, mu_plus_element_idx] = max(
+                        0,
+                        X_updated[event_idx, detector_idx, mu_plus_element_idx]
+                        - subtraction_value,
+                    )
+
+                # Subtract mu- track hits
+                mu_minus_element_idx = mu_minus_pred[event_idx, detector_idx]
+                if 0 <= mu_minus_element_idx < num_elements:
+                    subtraction_value = mu_minus_softmax[
+                        event_idx, detector_idx, mu_minus_element_idx
+                    ]
+                    X_updated[event_idx, detector_idx, mu_minus_element_idx] = max(
+                        0,
+                        X_updated[event_idx, detector_idx, mu_minus_element_idx]
+                        - subtraction_value,
+                    )
+
+        return X_updated
 
 
 if __name__ == "__main__":
