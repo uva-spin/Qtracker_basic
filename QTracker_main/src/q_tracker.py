@@ -387,9 +387,7 @@ def add_drift_distance_to_hit_arrays(
 
         assert (
             len(detectorIDs_event) == len(elementIDs_event) == len(driftDistances_event)
-        ), (
-            f"[Mismatch] event {event}: detectorIDs={len(detectorIDs_event)} elementIDs={len(elementIDs_event)} driftDistances={len(driftDistances_event)}"
-        )
+        ), f"[Mismatch] event {event}: detectorIDs={len(detectorIDs_event)} elementIDs={len(elementIDs_event)} driftDistances={len(driftDistances_event)}"
 
         # Iterate over detectors
         for detector in range(num_detectors):
@@ -486,14 +484,15 @@ def process_data(root_file, output_file="tracker_output.root", use_chi2_model=US
         rHitArray_mup, rHitArray_mum, detectorIDs, elementIDs
     )
 
-    refined_HitArray_mup_with_drift, refined_HitArray_mum_with_drift = (
-        add_drift_distance_to_hit_arrays(
-            refined_HitArray_mup,
-            refined_HitArray_mum,
-            detectorIDs,
-            elementIDs,
-            driftDistances,
-        )
+    (
+        refined_HitArray_mup_with_drift,
+        refined_HitArray_mum_with_drift,
+    ) = add_drift_distance_to_hit_arrays(
+        refined_HitArray_mup,
+        refined_HitArray_mum,
+        detectorIDs,
+        elementIDs,
+        driftDistances,
     )
 
     results = {

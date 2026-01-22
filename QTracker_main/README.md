@@ -13,23 +13,22 @@ QTracker is a Python-based project designed for tracking and analyzing data effi
 
 To set up the project, follow these steps:
 
-1. Clone the repository:
+1. Clone the repository in bash (Mac) or WSL (Windows):
    ```bash
    git clone <repository-url>
    cd QTracker_main
    ```
-2. Create a virtual environment:
+2. Install [Anaconda](https://www.anaconda.com/download) and verify:
    ```bash
-   python -m venv .venv
+   conda --version
    ```
-3. Activate the virtual environment:
+3. Create a new Anaconda environment with necessary dependencies:
    ```bash
-   # On Windows
-   .venv\Scripts\activate
+   conda env create -f environment.yml
    ```
-4. Install the required packages using `uv sync`:
+4. Activate Anaconda environment:
    ```bash
-   uv sync
+   conda activate qtracker
    ```
 
 ## Development Practices
@@ -41,18 +40,6 @@ To set up the project, follow these steps:
   ```
   This will set up hooks to automatically check your code for issues before committing.
 
-## Running Tests
-
-To run the tests, use the following command:
-
-```bash
-pytest
-```
-
 ## Contributing
 
 Contributions are welcome! Please follow the guidelines outlined in the repository for submitting issues and pull requests.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
