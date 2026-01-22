@@ -10,3 +10,5 @@ dependencies:
   - tensorflow
   - uproot
   - pre-commit
+  - fastapi
+  - aiofiles
