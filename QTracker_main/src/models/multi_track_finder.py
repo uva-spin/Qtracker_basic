@@ -59,10 +59,11 @@ class MultiTrackFinder:
 
             # Refine predicted Hit Arrays
             detector_id, element_id, _, _ = load_detector_element_data(input_root_file)
-            refined_mu_plus_pred, refined_mu_minus_pred = (
-                self.refiner.refine_hit_arrays(
-                    mu_plus_pred, mu_minus_pred, detector_id, element_id
-                )
+            (
+                refined_mu_plus_pred,
+                refined_mu_minus_pred,
+            ) = self.refiner.refine_hit_arrays(
+                mu_plus_pred, mu_minus_pred, detector_id, element_id
             )
 
             mu_plus_softmax.append(mp_softmax)
@@ -120,12 +121,40 @@ class MultiTrackFinder:
         mu_plus_std = np.std(np.abs(mu_plus_residuals))
         mu_minus_std = np.std(np.abs(mu_minus_residuals))
 
+        # Calculate per-track metrics
+        mu_plus_accuracy_per_track = [
+            np.mean(mu_plus_track_residuals == 0)
+            for mu_plus_track_residuals in mu_plus_residuals
+        ]
+        mu_minus_accuracy_per_track = [
+            np.mean(mu_minus_track_residuals == 0)
+            for mu_minus_track_residuals in mu_minus_residuals
+        ]
+
+        mu_plus_within_two_per_track = [
+            np.mean(np.abs(mu_plus_track_residuals) <= 2)
+            for mu_plus_track_residuals in mu_plus_residuals
+        ]
+        mu_minus_within_two_per_track = [
+            np.mean(np.abs(mu_minus_track_residuals) <= 2)
+            for mu_minus_track_residuals in mu_minus_residuals
+        ]
+
         mu_plus_mean_per_track = [
             np.mean(np.abs(mu_plus_track_residuals))
             for mu_plus_track_residuals in mu_plus_residuals
         ]
         mu_minus_mean_per_track = [
             np.mean(np.abs(mu_minus_track_residuals))
+            for mu_minus_track_residuals in mu_minus_residuals
+        ]
+
+        mu_plus_std_per_track = [
+            np.std(np.abs(mu_plus_track_residuals))
+            for mu_plus_track_residuals in mu_plus_residuals
+        ]
+        mu_minus_std_per_track = [
+            np.std(np.abs(mu_minus_track_residuals))
             for mu_minus_track_residuals in mu_minus_residuals
         ]
 
@@ -138,8 +167,14 @@ class MultiTrackFinder:
             "mu_minus_mean_residual": mu_minus_mean,
             "mu_plus_std_residual": mu_plus_std,
             "mu_minus_std_residual": mu_minus_std,
+            "mu_plus_accuracy_per_track": mu_plus_accuracy_per_track,
+            "mu_minus_accuracy_per_track": mu_minus_accuracy_per_track,
+            "mu_plus_within_two_per_track": mu_plus_within_two_per_track,
+            "mu_minus_within_two_per_track": mu_minus_within_two_per_track,
             "mu_plus_mean_residual_per_track": mu_plus_mean_per_track,
             "mu_minus_mean_residual_per_track": mu_minus_mean_per_track,
+            "mu_plus_std_residual_per_track": mu_plus_std_per_track,
+            "mu_minus_std_residual_per_track": mu_minus_std_per_track,
         }
         return evaluation_results
 
