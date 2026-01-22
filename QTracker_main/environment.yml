@@ -1,0 +1,12 @@
+name: qtracker
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10
+  - root
+  - numpy
+  - numba
+  - tensorflow
+  - uproot
+  - pre-commit
