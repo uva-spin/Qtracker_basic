@@ -81,7 +81,12 @@ class MultiTrackFinder:
         mu_plus_tracks = np.stack(mu_plus_tracks, axis=1)
         mu_minus_tracks = np.stack(mu_minus_tracks, axis=1)
 
-        return mu_plus_tracks, mu_minus_tracks, mu_plus_softmax, mu_minus_softmax
+        return (
+            mu_plus_tracks,  # Shape: (num_events, num_tracks, num_detectors)
+            mu_minus_tracks,  # Shape: (num_events, num_tracks, num_detectors)
+            mu_plus_softmax,  # Shape: (num_events, num_tracks, num_detectors, num_elements)
+            mu_minus_softmax,  # Shape: (num_events, num_tracks, num_detectors, num_elements)
+        )
 
     def evaluate(self, input_root_file: str) -> dict[str, Union[float, list[float]]]:
         """
