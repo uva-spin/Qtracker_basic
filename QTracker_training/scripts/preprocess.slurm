@@ -3,9 +3,9 @@
 #SBATCH -p standard
 #SBATCH -c 4
 #SBATCH -t 72:00:00
-#SBATCH -J tunertest
-#SBATCH -o Slurm_Files/tuner.out
-#SBATCH -e Slurm_Files/tuner.err
+#SBATCH -J preprocess
+#SBATCH -o Slurm_Files/preprocess.out
+#SBATCH -e Slurm_Files/preprocess.err
 #SBATCH --mem=128000
 
 module purge

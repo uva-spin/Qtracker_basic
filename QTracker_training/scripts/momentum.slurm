@@ -14,7 +14,7 @@ module purge
 # For apptainer exec
 APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
 IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
-CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_prod
+CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training/
 
 
 ### Main Body ###
