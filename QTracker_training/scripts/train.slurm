@@ -45,8 +45,8 @@ ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind $
      --batch_norm $BATCH_NORM \
      --use_attn $USE_ATTENTION \
      --use_attn_ffn $USE_ATTENTION_FFN \
-     --denoise_base 16 \
-     --base 32 \
+     --denoise_base 32 \
+     --base 64 \
      --epochs 60 \
      --batch_size 64 \
      --dropout_bn 0.5 \
