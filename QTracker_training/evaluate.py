@@ -15,10 +15,6 @@ from typing import Callable, Dict
 
 # core TrackFinder loaders / custom loss
 from models import data_loader
-from models import (
-    TrackFinder_unetpp_ds,
-    # TrackFinder_unet_3p_ds,
-)
 from models.layers import AxialAttention
 import QTracker
 from refine import refine_hit_arrays
@@ -73,33 +69,13 @@ def evaluate_model(args):
     mask[6:12] = False
     mask[54:62] = False
 
-    if ".weights.h5" in args.model_path:
-        model_map: Dict[str, Callable] = {
-            "TrackFinder_unetpp_ds": TrackFinder_unetpp_ds.build_model,
-            # "TrackFinder_unet_3p_ds": TrackFinder_unet_3p_ds.build_model,
-        }
-        build_model = model_map[args.model]
-        model = build_model(
-            use_bn=bool(args.batch_norm),
-            base=args.base,
-        )
-        model.load_weights(args.model_path)
-
-        y_pred = model.predict(X_test)[0]
-    elif "joint" in args.model_path or "flagship" in args.model_path:
-        custom_objects = {"AxialAttention": AxialAttention}
-        model = tf.keras.models.load_model(
-            args.model_path,
-            compile=False,
-            custom_objects=custom_objects,
-        )
-        y_pred = model.predict(tf.cast(X_test, tf.float32))[1]
-    else:
-        model = tf.keras.models.load_model(
-            args.model_path,
-            compile=False,
-        )
-        y_pred = model.predict(X_test)
+    custom_objects = {"AxialAttention": AxialAttention}
+    model = tf.keras.models.load_model(
+        args.model_path,
+        compile=False,
+        custom_objects=custom_objects,
+    )
+    y_pred = model.predict(tf.cast(X_test, tf.float32))[1]
 
     y_p_raw = tf.cast(
         tf.argmax(tf.squeeze(tf.split(y_pred, 2, axis=1)[0], axis=1), axis=-1), tf.int32

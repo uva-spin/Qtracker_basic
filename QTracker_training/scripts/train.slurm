@@ -6,7 +6,7 @@
 #SBATCH -C gpupod
 #SBATCH -c 4
 #SBATCH -t 72:00:00
-#SBATCH -J distributedtest
+#SBATCH -J distribute
 #SBATCH -o Slurm_Files/distribute.out
 #SBATCH -e Slurm_Files/distribute.err
 #SBATCH --mem=256000
@@ -45,8 +45,8 @@ ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind $
      --batch_norm $BATCH_NORM \
      --use_attn $USE_ATTENTION \
      --use_attn_ffn $USE_ATTENTION_FFN \
-     --denoise_base 32 \
-     --base 64 \
+     --denoise_base 16 \
+     --base 32 \
      --epochs 60 \
      --batch_size 64 \
      --dropout_bn 0.5 \
