@@ -36,26 +36,6 @@ This will print:
 
 ---
 
-### `skim.py`
-
-**Purpose:**  
-Creates a skimmed version of a ROOT file, copying only the first `N` events from the TTree named `"tree"`.
-
-**Edit These Variables to Customize:**
-```python
-OUTPUT_FILE = "skimmed_output.root"
-NUM_EVENTS_TO_KEEP = 1000
-```
-
-**Usage:**  
-```bash
-python3 skim.py input_file.root
-```
-
-This creates a new ROOT file with the first `NUM_EVENTS_TO_KEEP` events.
-
----
-
 ### `imass_plot.py`
 
 **Purpose:**  
@@ -155,7 +135,6 @@ python3 plot_smax.py yourfile.root -event 42
 
 ```
 ├── file_structure.py      # Inspect structure of ROOT files
-├── skim.py                # Make skimmed files with reduced events
 ├── imass_plot.py          # Plot invariant mass from muon momenta
 ├── merge_rus.py           # Merge multiple RUS-format ROOT files
 ├── plot_HitMatrix.py      # Visualize hit matrix for specific events
