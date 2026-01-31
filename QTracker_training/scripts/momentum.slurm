@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH -c 4
 #SBATCH -t 72:00:00
-#SBATCH -J momentumtest
+#SBATCH -J momentum
 #SBATCH -o Slurm_Files/momentum.out
 #SBATCH -e Slurm_Files/momentum.err
 #SBATCH --mem=256000
