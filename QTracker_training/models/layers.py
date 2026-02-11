@@ -35,7 +35,7 @@ def conv_block(
         filters, kernel_size=3, padding="same", kernel_regularizer=regularizers.l2(l2)
     )(x)
     if use_bn:
-        x = layers.BatchNormalization()(x)
+        x = layers.BatchNormalization(dtype=tf.float32)(x)
     x = layers.Activation("relu")(x)
 
     # Dropout for bottleneck layers
@@ -47,7 +47,7 @@ def conv_block(
         filters, kernel_size=3, padding="same", kernel_regularizer=regularizers.l2(l2)
     )(x)
     if use_bn:
-        x = layers.BatchNormalization()(x)
+        x = layers.BatchNormalization(dtype=tf.float32)(x)
 
     # Project shortcut if needed
     if shortcut.shape[-1] != x.shape[-1]:
@@ -111,12 +111,13 @@ class AxialAttention(layers.Layer):
         self.axis = axis
         self.use_ffn = use_ffn
 
-        self.lnorm1 = layers.LayerNormalization(epsilon=1e-6)
-        self.lnorm2 = layers.LayerNormalization(epsilon=1e-6)
+        self.lnorm1 = layers.LayerNormalization(epsilon=1e-6, dtype=tf.float32)
+        self.lnorm2 = layers.LayerNormalization(epsilon=1e-6, dtype=tf.float32)
         self.attention = layers.MultiHeadAttention(
             num_heads=num_heads,
             key_dim=embed_dim // num_heads,
             dropout=dropout,
+            dtype=tf.float32,
         )
         self.add = layers.Add()
         self.dropout = layers.Dropout(dropout)
@@ -167,12 +168,12 @@ class AxialAttention(layers.Layer):
         # Apply positional encoding and reshape for attention
         if self.axis == "height":
             pos_enc = tf.reshape(self.pos_enc, (1, D, 1, C))
-            x = x + pos_enc
+            x = x + tf.cast(pos_enc, x.dtype)
             x = tf.transpose(x, perm=[0, 2, 1, 3])  # (B, E, D, C)
             x = tf.reshape(x, (B * E, D, C))  # (B * E, D, C)
         else:
             pos_enc = tf.reshape(self.pos_enc, (1, 1, E, C))
-            x = x + pos_enc
+            x = x + tf.cast(pos_enc, x.dtype)
             x = tf.reshape(x, (B * D, E, C))  # (B * D, E, C)
 
         # Layer norm + Multi-head Self-Attention

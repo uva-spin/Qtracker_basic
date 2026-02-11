@@ -17,6 +17,7 @@ def custom_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
     Returns:
         tf.Tensor: Computed loss value.
     """
+    y_pred = tf.cast(y_pred, tf.float32)
 
     y_muPlus_true, y_muMinus_true = tf.split(y_true, num_or_size_splits=2, axis=1)
     y_muPlus_pred, y_muMinus_pred = tf.split(y_pred, num_or_size_splits=2, axis=1)
@@ -52,8 +53,12 @@ def weighted_bce(pos_weight: float = 1.0) -> Callable:
     """
 
     def loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
+        y_true = tf.cast(y_true, tf.float32)
+        y_pred = tf.cast(y_pred, tf.float32)
+
         bce = tf.keras.losses.BinaryCrossentropy(
-            reduction=tf.keras.losses.Reduction.NONE
+            from_logits=True,
+            reduction=tf.keras.losses.Reduction.NONE,
         )
         weights = 1 + (pos_weight - 1) * y_true
         bce_loss = bce(y_true, y_pred, sample_weight=weights)

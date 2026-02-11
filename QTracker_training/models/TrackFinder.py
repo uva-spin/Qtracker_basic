@@ -4,11 +4,12 @@ import argparse
 import gc
 import os
 
+os.environ["TF_GPU_ALLOCATOR"] = "cuda_malloc_async"  # Enable asynchronous GPU memory allocation for better performance
 
 import numpy as np
 import ROOT  # noqa: F401
 import tensorflow as tf
-from tensorflow.keras import layers
+from tensorflow.keras import layers, mixed_precision
 import tensorflow.keras.backend as K
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import AdamW
@@ -24,6 +25,9 @@ np.random.seed(42)
 
 # Ensure the checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
+
+# Set mixed precision policy for better performance
+mixed_precision.set_global_policy("mixed_float16")
 
 NUM_DETECTORS = 62
 NUM_ELEMENT_IDS = 201
@@ -76,9 +80,9 @@ def build_model(
     )
 
     # Denoise Head
-    denoise_out = layers.Conv2D(1, kernel_size=1, activation="sigmoid", name="denoise")(
-        x
-    )
+    denoise_out = layers.Conv2D(
+        1, kernel_size=1, name="denoise", dtype=tf.float32
+    )(x)
 
     # Segmentation Backbone - second U-Net++
     x = unetpp_backbone(
@@ -96,8 +100,8 @@ def build_model(
 
     # Segmentation Head
     x = layers.Conv2D(2, kernel_size=1)(x)
-    x = layers.Softmax(axis=2)(x)  # softmax over elementID
-    seg_output = layers.Permute((3, 1, 2), name="segment")(x)  # (batch, 2, det, elem)
+    x = layers.Permute((3, 1, 2))(x)  # (batch, 2, det, elem)
+    seg_output = layers.Softmax(axis=-1, name="segment", dtype=tf.float32)(x)  # softmax over elementID
 
     # Initialize model
     model = tf.keras.Model(inputs=input_layer, outputs=[denoise_out, seg_output])

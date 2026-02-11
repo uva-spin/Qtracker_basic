@@ -1,0 +1,15 @@
+Average invariant mass: 6.1699 GeV/c^2
+Mass distribution width (std dev): 5.2834 GeV/c^2
+
+Average invariant mass: 6.1699 GeV/c^2
+Mass distribution width (std dev): 5.2834 GeV/c^2
+
+Average invariant mass: 6.1699 GeV/c^2
+Mass distribution width (std dev): 5.2822 GeV/c^2
+
+Average invariant mass: 3.7356 GeV/c^2
+Mass distribution width (std dev): 4.9185 GeV/c^2
+
+Average invariant mass: 3.7356 GeV/c^2
+Mass distribution width (std dev): 4.9185 GeV/c^2
+

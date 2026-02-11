@@ -6,9 +6,9 @@
 #SBATCH -C gpupod
 #SBATCH -c 4
 #SBATCH -t 72:00:00
-#SBATCH -J distribute
-#SBATCH -o Slurm_Files/distribute.out
-#SBATCH -e Slurm_Files/distribute.err
+#SBATCH -J distribute-64
+#SBATCH -o Slurm_Files/distribute-64.out
+#SBATCH -e Slurm_Files/distribute-64.err
 #SBATCH --mem=256000
 #SBATCH --export=CODEDIR
 
@@ -36,7 +36,7 @@ ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind $
      /mnt/code/data/processed_files/mc_events_val.root \
      --train_root_file_med /mnt/code/data/processed_files/mc_events_train_med.root \
      --train_root_file_high /mnt/code/data/processed_files/mc_events_train_high.root \
-     --output_model /mnt/code/checkpoints/track_finder.keras \
+     --output_model /mnt/code/checkpoints/track_finder_64.keras \
      --lr_low 0.0003 \
      --lr_med 0.0001 \
      --lr_high 0.00003 \
@@ -58,4 +58,4 @@ ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind $
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/evaluate.py \
      /mnt/code/data/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/track_finder.keras
+     /mnt/code/checkpoints/track_finder_64.keras

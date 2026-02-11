@@ -75,7 +75,7 @@ def load_data_denoise(
 
     if not tree:
         print("Error: Tree not found in file.")
-        return None, None, None
+        return None, None, None, None
 
     num_detectors = 62
     num_elementIDs = 201
@@ -101,6 +101,12 @@ def load_data_denoise(
 
         mu_plus_array = np.array(event.HitArray_mup, dtype=np.int32)
         mu_minus_array = np.array(event.HitArray_mum, dtype=np.int32)
+
+        if np.any(mu_plus_array < 0) or np.any(mu_plus_array >= num_elementIDs):
+            continue
+
+        if np.any(mu_minus_array < 0) or np.any(mu_minus_array >= num_elementIDs):
+            continue
 
         X.append(event_hits_matrix)
         X_clean.append(clean_event_hits_matrix)

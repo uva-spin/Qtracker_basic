@@ -44,13 +44,13 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/QTracker.py \
-     /mnt/code/data/processed_files/mc_events_val.root \
-     --output_file /mnt/code/data/processed_files/qtracker_reco.root
+     /project/ptgroup/spinquest/Donghwa/Qtracker_basic_old/QTracker_prod/data/processed_files/mc_events_val.root \
+     --output_file /mnt/code/data/processed_files/qtracker_reco_jpsi.root
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/Util/imass_plot.py \
-     /mnt/code/data/processed_files/qtracker_reco.root \
-     --output_plot /mnt/code/plots/invariant_mass.png
+     /mnt/code/data/processed_files/qtracker_reco_jpsi.root \
+     --output_plot /mnt/code/plots/invariant_mass_jpsi.png
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/models/Qmetric_training.py \
