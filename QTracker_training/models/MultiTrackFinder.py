@@ -1,4 +1,4 @@
-"""Attention U-Net++ based denoiser + segmenter: end-to-end training"""
+# ruff: noqa: E402
 
 import argparse
 import gc
@@ -8,18 +8,18 @@ os.environ[
     "TF_GPU_ALLOCATOR"
 ] = "cuda_malloc_async"  # Enable asynchronous GPU memory allocation for better performance
 
-import numpy as np  # noqa: E402
-import ROOT  # noqa: F401,E402
-import tensorflow as tf  # noqa: E402
-from tensorflow.keras import layers, mixed_precision  # noqa: E402
-import tensorflow.keras.backend as K  # noqa: E402
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau  # noqa: E402
-from tensorflow.keras.optimizers import AdamW  # noqa: E402
-from tensorflow.keras.metrics import Precision, Recall  # noqa: E402
+import numpy as np
+import ROOT  # noqa: F401
+import tensorflow as tf
+from tensorflow.keras import layers, mixed_precision
+import tensorflow.keras.backend as K
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.optimizers import AdamW
+from tensorflow.keras.metrics import Precision, Recall
 
-from backbones import unetpp_backbone  # noqa: E402
-from data_loader import load_data_denoise  # noqa: E402
-from losses import custom_loss, weighted_bce  # noqa: E402
+from backbones import unetpp_backbone
+from data_loader import load_data_denoise
+from losses import custom_loss, weighted_bce
 
 # Set seeds
 tf.random.set_seed(42)
