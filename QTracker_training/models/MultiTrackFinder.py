@@ -19,7 +19,7 @@ from tensorflow.keras.metrics import Precision, Recall
 
 from backbones import unetpp_backbone
 from data_loader import load_data_denoise
-from losses import custom_loss, weighted_bce
+from losses import multi_track_loss, weighted_bce
 
 # Set seeds
 tf.random.set_seed(42)
@@ -183,7 +183,10 @@ def train_model(args: argparse.Namespace) -> None:
             optimizer=optimizer,
             loss={
                 "denoise": weighted_bce(pos_weight=args.pos_weight),
-                "segment": custom_loss,
+                "segment": multi_track_loss(
+                    lambda_presence=args.lambda_presence,
+                    pos_weight_presence=args.pos_weight_presence,
+                ),
             },
             loss_weights={
                 "denoise": 10.0,
@@ -487,6 +490,18 @@ if __name__ == "__main__":
         type=int,
         default=5,
         help="Maximum number of possible dimuon pairs in an event.",
+    )
+    parser.add_argument(
+        "--lambda_presence",
+        type=float,
+        default=0.2,
+        help="Weight for presence term in multi-track loss.",
+    )
+    parser.add_argument(
+        "--pos_weight_presence",
+        type=float,
+        default=5.0,
+        help="Positive class weight for presence term in multi-track loss.",
     )
     args = parser.parse_args()
 
