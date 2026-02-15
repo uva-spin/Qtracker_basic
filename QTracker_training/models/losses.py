@@ -60,12 +60,6 @@ def multi_track_loss(
         Loss function.
     """
 
-    # Keras BCE object (stable implementation)
-    bce = tf.keras.losses.BinaryCrossentropy(
-        from_logits=False,
-        reduction=tf.keras.losses.Reduction.NONE,
-    )
-
     def loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
         """
         y_true: (B, P, 2, 62)
@@ -104,10 +98,13 @@ def multi_track_loss(
         )  # penalize false negatives more
 
         # compute BCE per position
-        bce_loss = bce(y_hit, p_hit, sample_weight=weights)
+        bce_loss = tf.keras.backend.binary_crossentropy(y_hit, p_hit)
+        bce_loss_weighted = bce_loss * weights
 
         # normalize by sum of weights
-        presence_loss = tf.reduce_sum(bce_loss) / (tf.reduce_sum(weights) + EPSILON)
+        presence_loss = tf.reduce_sum(bce_loss_weighted) / (
+            tf.reduce_sum(weights) + EPSILON
+        )
 
         return cls_loss + lambda_presence * presence_loss
 
