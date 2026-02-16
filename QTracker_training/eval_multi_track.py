@@ -1,4 +1,3 @@
-# TODO: Change this script to support new multi-track evaluation
 # ruff: noqa: E402
 
 import os
