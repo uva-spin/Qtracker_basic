@@ -241,7 +241,7 @@ Pre-commit hook configured with ruff (v0.14.4):
 
 ## Project-Specific Conventions
 
-1. **Branch naming**: Current work is on `feature/mixed-precision` branch. Main branch is `main`.
+1. **Branch naming**: Current work is on `dev` branch. Main branch is `main`.
 
 2. **Detector coordinate system**:
    - 62 detector layers (stations 1-4 with drift chambers, hodoscopes, proportional tubes)
