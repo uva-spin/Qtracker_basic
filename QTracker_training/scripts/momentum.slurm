@@ -44,7 +44,7 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/QTracker.py \
-     /mnt/code/data/processed_files/mc_events_val.root \
+     data/processed_files/mc_events_val.root \
      --output_file /mnt/code/data/processed_files/qtracker_reco.root
 
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \

@@ -38,8 +38,8 @@ def load_data(root_file: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
             if 0 <= det_id < num_detectors and 0 <= elem_id < num_elementIDs:
                 event_hits_matrix[det_id, elem_id] = 1
 
-        mu_plus_array = np.array(event.HitArray_mup, dtype=np.int32)
-        mu_minus_array = np.array(event.HitArray_mum, dtype=np.int32)
+        mu_plus_array = np.array(list(event.HitArray_mup), dtype=np.int32)
+        mu_minus_array = np.array(list(event.HitArray_mum), dtype=np.int32)
 
         X.append(event_hits_matrix)
         y_muPlus.append(mu_plus_array)
@@ -75,7 +75,7 @@ def load_data_denoise(
 
     if not tree:
         print("Error: Tree not found in file.")
-        return None, None, None
+        return None, None, None, None
 
     num_detectors = 62
     num_elementIDs = 201
@@ -99,8 +99,14 @@ def load_data_denoise(
             if 0 <= det_id < num_detectors and 0 <= elem_id < num_elementIDs:
                 clean_event_hits_matrix[det_id, elem_id] = 1
 
-        mu_plus_array = np.array(event.HitArray_mup, dtype=np.int32)
-        mu_minus_array = np.array(event.HitArray_mum, dtype=np.int32)
+        mu_plus_array = np.array(list(event.HitArray_mup), dtype=np.int32)
+        mu_minus_array = np.array(list(event.HitArray_mum), dtype=np.int32)
+
+        if np.any(mu_plus_array < 0) or np.any(mu_plus_array >= num_elementIDs):
+            continue
+
+        if np.any(mu_minus_array < 0) or np.any(mu_minus_array >= num_elementIDs):
+            continue
 
         X.append(event_hits_matrix)
         X_clean.append(clean_event_hits_matrix)

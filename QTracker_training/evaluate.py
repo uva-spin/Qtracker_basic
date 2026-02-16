@@ -75,14 +75,22 @@ def evaluate_model(args):
         compile=False,
         custom_objects=custom_objects,
     )
-    y_pred = model.predict(tf.cast(X_test, tf.float32))[1]
+    
+    preds = []
+    chunk_size = 128  # even 32 is fine
 
-    y_p_raw = tf.cast(
-        tf.argmax(tf.squeeze(tf.split(y_pred, 2, axis=1)[0], axis=1), axis=-1), tf.int32
-    ).numpy()
-    y_m_raw = tf.cast(
-        tf.argmax(tf.squeeze(tf.split(y_pred, 2, axis=1)[1], axis=1), axis=-1), tf.int32
-    ).numpy()
+    for i in range(0, len(X_test), chunk_size):
+        X_chunk = tf.cast(X_test[i:i+chunk_size], tf.float32)
+        y_chunk = model.predict(X_chunk, verbose=0)
+        preds.append(y_chunk[1])
+
+    y_pred = np.concatenate(preds, axis=0)
+
+    y_p_logits = y_pred[:, 0]
+    y_m_logits = y_pred[:, 1]
+
+    y_p_raw = np.argmax(y_p_logits, axis=-1).astype(np.int32)
+    y_m_raw = np.argmax(y_m_logits, axis=-1).astype(np.int32)
 
     y_p_true = y_test[:, 0, :].astype(np.int32)
     y_m_true = y_test[:, 1, :].astype(np.int32)

@@ -6,17 +6,17 @@
 #SBATCH -C gpupod
 #SBATCH -c 4
 #SBATCH -t 72:00:00
-#SBATCH -J single-track-finder
-#SBATCH -o Slurm_Files/single-track-finder.out
-#SBATCH -e Slurm_Files/single-track-finder.err
+#SBATCH -J multi-track-finder
+#SBATCH -o Slurm_Files/multi-track-finder.out
+#SBATCH -e Slurm_Files/multi-track-finder.err
 #SBATCH --mem=256000
-#SBATCH --export=CODEDIR
 
 module purge
 
 # For apptainer exec
 APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
 IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
+CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training/
 
 
 ### Main Body ###
@@ -31,12 +31,12 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
 
 # Denoise-base 16 and 32 are not too different in performance
 ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/models/TrackFinder.py \
-     /mnt/code/data/processed_files/mc_events_train_low.root \
-     /mnt/code/data/processed_files/mc_events_val.root \
-     --train_root_file_med /mnt/code/data/processed_files/mc_events_train_med.root \
-     --train_root_file_high /mnt/code/data/processed_files/mc_events_train_high.root \
-     --output_model /mnt/code/checkpoints/track_finder_64.keras \
+    python3 /mnt/code/models/MultiTrackFinder.py \
+     /mnt/code/data/multi_track/processed_files/mc_events_train_low.root \
+     /mnt/code/data/multi_track/processed_files/mc_events_val.root \
+     --train_root_file_med /mnt/code/data/multi_track/processed_files/mc_events_train_med.root \
+     --train_root_file_high /mnt/code/data/multi_track/processed_files/mc_events_train_high.root \
+     --output_model /mnt/code/checkpoints/multi_track_finder.keras \
      --lr_low 0.0003 \
      --lr_med 0.0001 \
      --lr_high 0.00003 \
@@ -53,9 +53,12 @@ ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind $
      --dropout_enc 0.4 \
      --dropout_attn 0.1 \
      --factor 0.3 \
-     --pos_weight 20.0
+     --pos_weight 20.0 \
+     --max_pairs 5 \
+     --lambda_presence 0.2 \
+     --pos_weight_presence 5.0
 
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/evaluate.py \
-     /mnt/code/data/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/track_finder_64.keras
+# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+#     python3 /mnt/code/evaluate.py \
+#      /mnt/code/data/multi_track/processed_files/mc_events_val.root \
+#      /mnt/code/checkpoints/multi_track_finder.keras

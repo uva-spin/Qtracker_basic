@@ -1,10 +1,12 @@
-"""Attention U-Net++ based denoiser + segmenter: end-to-end training"""
+# ruff: noqa: E402
 
 import argparse
 import gc
 import os
 
-os.environ["TF_GPU_ALLOCATOR"] = "cuda_malloc_async"  # Enable asynchronous GPU memory allocation for better performance
+os.environ[
+    "TF_GPU_ALLOCATOR"
+] = "cuda_malloc_async"  # Enable asynchronous GPU memory allocation for better performance
 
 import numpy as np
 import ROOT  # noqa: F401
@@ -17,7 +19,7 @@ from tensorflow.keras.metrics import Precision, Recall
 
 from backbones import unetpp_backbone
 from data_loader import load_data_denoise
-from losses import custom_loss, weighted_bce
+from losses import multi_track_loss, weighted_bce
 
 # Set seeds
 tf.random.set_seed(42)
@@ -44,6 +46,7 @@ def build_model(
     use_attn: bool = False,
     use_attn_ffn: bool = True,
     dropout_attn: float = 0.0,
+    max_pairs: int = 5,
 ) -> tf.keras.Model:
     """
     This function builds the joint denoising and segmentation model using two U-Net++ backbones.
@@ -80,9 +83,7 @@ def build_model(
     )
 
     # Denoise Head
-    denoise_out = layers.Conv2D(
-        1, kernel_size=1, name="denoise", dtype=tf.float32
-    )(x)
+    denoise_out = layers.Conv2D(1, kernel_size=1, name="denoise", dtype=tf.float32)(x)
 
     # Segmentation Backbone - second U-Net++
     x = unetpp_backbone(
@@ -99,9 +100,16 @@ def build_model(
     )
 
     # Segmentation Head
-    x = layers.Conv2D(2, kernel_size=1)(x)
-    x = layers.Permute((3, 1, 2))(x)  # (batch, 2, det, elem)
-    seg_output = layers.Softmax(axis=-1, name="segment", dtype=tf.float32)(x)  # softmax over elementID
+    x = layers.Conv2D(max_pairs * 2, kernel_size=1)(
+        x
+    )  # (batch, det, elem, max_pairs*2)
+    x = layers.Permute((3, 1, 2))(x)  # (batch, max_pairs*2, det, elem)
+    x = layers.Reshape((max_pairs, 2, num_detectors, num_elementIDs))(
+        x
+    )  # (batch, max_pairs, 2, det, elem)
+    seg_output = layers.Softmax(axis=-1, name="segment", dtype=tf.float32)(
+        x
+    )  # softmax over elementID
 
     # Initialize model
     model = tf.keras.Model(inputs=input_layer, outputs=[denoise_out, seg_output])
@@ -123,14 +131,17 @@ def train_model(args: argparse.Namespace) -> None:
     print(f"Number of devices: {strategy.num_replicas_in_sync}")
 
     # Load low complexity training data and validation data
-    X_train_low, X_clean_train_low, y_muPlus_train_low, y_muMinus_train_low = (
-        load_data_denoise(args.train_root_file_low)
-    )
+    (
+        X_train_low,
+        X_clean_train_low,
+        y_muPlus_train_low,
+        y_muMinus_train_low,
+    ) = load_data_denoise(args.train_root_file_low)
     if X_train_low is None or X_clean_train_low is None:
         return
     y_train_low = np.stack(
-        [y_muPlus_train_low, y_muMinus_train_low], axis=1
-    )  # Shape: (num_events, 2, 62)
+        [y_muPlus_train_low, y_muMinus_train_low], axis=2
+    )  # Shape: (num_events, max_pairs, 2, 62)
 
     X_val, X_clean_val, y_muPlus_val, y_muMinus_val = load_data_denoise(
         args.val_root_file
@@ -138,8 +149,8 @@ def train_model(args: argparse.Namespace) -> None:
     if X_val is None or X_clean_val is None:
         return
     y_val = np.stack(
-        [y_muPlus_val, y_muMinus_val], axis=1
-    )  # Shape: (num_events, 2, 62)
+        [y_muPlus_val, y_muMinus_val], axis=2
+    )  # Shape: (num_events, max_pairs, 2, 62)
 
     with strategy.scope():
         model = build_model(
@@ -153,6 +164,7 @@ def train_model(args: argparse.Namespace) -> None:
             use_attn=args.use_attn,
             use_attn_ffn=args.use_attn_ffn,
             dropout_attn=args.dropout_attn,
+            max_pairs=args.max_pairs,
         )
         model.summary()
 
@@ -171,7 +183,10 @@ def train_model(args: argparse.Namespace) -> None:
             optimizer=optimizer,
             loss={
                 "denoise": weighted_bce(pos_weight=args.pos_weight),
-                "segment": custom_loss,
+                "segment": multi_track_loss(
+                    lambda_presence=args.lambda_presence,
+                    pos_weight_presence=args.pos_weight_presence,
+                ),
             },
             loss_weights={
                 "denoise": 10.0,
@@ -221,14 +236,17 @@ def train_model(args: argparse.Namespace) -> None:
         del X_train_low, X_clean_train_low, y_train_low
         gc.collect()
 
-        X_train_med, X_clean_train_med, y_muPlus_train_med, y_muMinus_train_med = (
-            load_data_denoise(args.train_root_file_med)
-        )
+        (
+            X_train_med,
+            X_clean_train_med,
+            y_muPlus_train_med,
+            y_muMinus_train_med,
+        ) = load_data_denoise(args.train_root_file_med)
         if X_train_med is None or X_clean_train_med is None:
             return
         y_train_med = np.stack(
-            [y_muPlus_train_med, y_muMinus_train_med], axis=1
-        )  # Shape: (num_events, 2, 62)
+            [y_muPlus_train_med, y_muMinus_train_med], axis=2
+        )  # Shape: (num_events, max_pairs, 2, 62)
 
         K.set_value(model.optimizer.learning_rate, args.lr_med)
         lr_scheduler = ReduceLROnPlateau(
@@ -253,14 +271,17 @@ def train_model(args: argparse.Namespace) -> None:
         del X_train_med, X_clean_train_med, y_train_med
         gc.collect()
 
-        X_train_high, X_clean_train_high, y_muPlus_train_high, y_muMinus_train_high = (
-            load_data_denoise(args.train_root_file_high)
-        )
+        (
+            X_train_high,
+            X_clean_train_high,
+            y_muPlus_train_high,
+            y_muMinus_train_high,
+        ) = load_data_denoise(args.train_root_file_high)
         if X_train_high is None or X_clean_train_high is None:
             return
         y_train_high = np.stack(
-            [y_muPlus_train_high, y_muMinus_train_high], axis=1
-        )  # Shape: (num_events, 2, 62)
+            [y_muPlus_train_high, y_muMinus_train_high], axis=2
+        )  # Shape: (num_events, max_pairs, 2, 62)
 
         K.set_value(model.optimizer.learning_rate, args.lr_high)
         lr_scheduler = ReduceLROnPlateau(
@@ -463,6 +484,24 @@ if __name__ == "__main__":
         type=float,
         default=0.8,
         help="Fraction of epochs for medium complexity data.",
+    )
+    parser.add_argument(
+        "--max_pairs",
+        type=int,
+        default=5,
+        help="Maximum number of possible dimuon pairs in an event.",
+    )
+    parser.add_argument(
+        "--lambda_presence",
+        type=float,
+        default=0.2,
+        help="Weight for presence term in multi-track loss.",
+    )
+    parser.add_argument(
+        "--pos_weight_presence",
+        type=float,
+        default=5.0,
+        help="Positive class weight for presence term in multi-track loss.",
     )
     args = parser.parse_args()
 

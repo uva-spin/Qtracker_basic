@@ -152,12 +152,17 @@ def mass_to_bin(m):
 
 
 def main():
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} input.root output.root")
+    if len(sys.argv) != 3 and len(sys.argv) != 4:
+        print(f"Usage: {sys.argv[0]} input.root output.root [n_dimuons]")
         sys.exit(1)
 
     inpath = sys.argv[1]
     outpath = sys.argv[2]
+    
+    if len(sys.argv) > 3:
+        n_dimuon_out = int(sys.argv[3])
+    else:
+        n_dimuon_out = N_DIMUON_OUT
 
     ROOT.gROOT.SetBatch(True)
 
@@ -204,11 +209,11 @@ def main():
     nb = len(nonempty_bins)
 
     # Target allocation per bin: as uniform as possible, with integer counts
-    target = int(N_DIMUON_OUT)
+    target = int(n_dimuon_out)
 
     # If user requests more than available, cap to available
     if target > n_in_range:
-        print(f"WARNING: Requested N_DIMUON_OUT={target}, but only {n_in_range} events exist in range.")
+        print(f"WARNING: Requested n_dimuon_out={target}, but only {n_in_range} events exist in range.")
         target = n_in_range
 
     base = target // nb  # baseline per non-empty bin
@@ -247,7 +252,7 @@ def main():
     print(f"Tree:            {TREE_NAME}")
     print(f"Mass range:      [{MMIN}, {MMAX}) GeV")
     print(f"Flatten bins:    {NBINS}")
-    print(f"Requested out:   {N_DIMUON_OUT}")
+    print(f"Requested out:   {n_dimuon_out}")
     print(f"Planned out:     {planned_out}")
     print(f"Use gTrackID:    {use_trackid}")
     print(f"Seed:            {SEED}")
