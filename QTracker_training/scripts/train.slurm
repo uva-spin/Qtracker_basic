@@ -6,9 +6,9 @@
 #SBATCH -C gpupod
 #SBATCH -c 4
 #SBATCH -t 72:00:00
-#SBATCH -J distribute-64
-#SBATCH -o Slurm_Files/distribute-64.out
-#SBATCH -e Slurm_Files/distribute-64.err
+#SBATCH -J single-track-finder-64
+#SBATCH -o Slurm_Files/single-track-finder-64.out
+#SBATCH -e Slurm_Files/single-track-finder-64.err
 #SBATCH --mem=256000
 #SBATCH --export=CODEDIR
 

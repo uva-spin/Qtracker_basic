@@ -2,108 +2,131 @@ import argparse
 import numpy as np
 import tensorflow as tf
 
+from backbones import unetpp_backbone
 from data_loader import load_data_denoise
-from losses import custom_loss, weighted_bce
+from TrackFinder import build_model  # adjust if build_model is elsewhere
 
 NUM_DETECTORS = 62
 NUM_ELEMENT_IDS = 201
 
 
-def check_array(name, arr):
-    arr = np.asarray(arr)
-    print(f"\n[{name}]")
-    print("  shape:", arr.shape)
-    print("  dtype:", arr.dtype)
-    print("  has NaN:", np.isnan(arr).any())
-    print("  has Inf:", np.isinf(arr).any())
-    if arr.size > 0:
-        print("  min:", np.nanmin(arr), "max:", np.nanmax(arr))
+def find_bad_training_batch(model, X, X_clean, y, bs, pos_weight=1.0):
+    from losses import custom_loss, weighted_bce
+
+    denoise_loss_fn = weighted_bce(pos_weight=pos_weight)
+
+    optimizer = tf.keras.optimizers.AdamW(
+        learning_rate=0.0003,
+        weight_decay=1e-4,
+        clipnorm=1.0,
+    )
+
+    for i in range(0, len(X), bs):
+        xb = X[i:i + bs]
+        xclean_b = X_clean[i:i + bs]
+        yb = y[i:i + bs]
+
+        with tf.GradientTape() as tape:
+            den, seg = model(xb, training=True)
+
+            loss_den = denoise_loss_fn(xclean_b, den)
+            loss_seg = custom_loss(yb, seg)
+
+            total_loss = 10.0 * loss_den + loss_seg
+
+        grads = tape.gradient(total_loss, model.trainable_variables)
+
+        # --- Check forward outputs ---
+        if not tf.reduce_all(tf.math.is_finite(den)):
+            print(f"\n❌ Non-finite DENOISE output in batch {i}")
+            return i
+
+        if not tf.reduce_all(tf.math.is_finite(seg)):
+            print(f"\n❌ Non-finite SEGMENT output in batch {i}")
+            return i
+
+        # --- Check losses ---
+        if not tf.math.is_finite(loss_den):
+            print(f"\n❌ Non-finite denoise loss in batch {i}")
+            return i
+
+        if not tf.math.is_finite(loss_seg):
+            print(f"\n❌ Non-finite segment loss in batch {i}")
+            return i
+
+        if not tf.math.is_finite(total_loss):
+            print(f"\n❌ Non-finite TOTAL loss in batch {i}")
+            return i
+
+        # --- Check gradients ---
+        for g in grads:
+            if g is not None and not tf.reduce_all(tf.math.is_finite(g)):
+                print(f"\n❌ Non-finite gradient in batch {i}")
+                return i
+
+        # Optional: simulate optimizer step
+        optimizer.apply_gradients(zip(grads, model.trainable_variables))
+
+    print("✅ All batches stable under forward + loss + backprop")
+    return None
+
+
+def check_labels(y, name, num_classes=201):
+    y = np.asarray(y)
+    print(f"\n{name}")
+    print("  dtype:", y.dtype)
+    print("  min:", y.min(), "max:", y.max())
+
+    bad = np.where((y < 0) | (y >= num_classes))
+    print("  bad count:", bad[0].size)
+
+
+def check_binary_targets(x, name):
+    x = np.asarray(x)
+    print(f"\n{name}")
+    print("  dtype:", x.dtype)
+    print("  min:", x.min(), "max:", x.max())
+
+    non_binary = np.sum((x != 0) & (x != 1))
+    print("  non-binary count:", non_binary)
 
 
 def main(args):
-    print("\nLoading data...")
-    X, X_clean, y_muPlus, y_muMinus = load_data_denoise(args.root_file)
+    print("Loading training data...")
+    X_train, X_clean_train, y_muPlus_train, y_muMinus_train = \
+        load_data_denoise(args.train_root_file)
 
-    if X is None:
-        print("Failed to load data")
-        return
+    print("Loading validation data...")
+    X_val, X_clean_val, y_muPlus_val, y_muMinus_val = \
+        load_data_denoise(args.val_root_file)
 
-    y = np.stack([y_muPlus, y_muMinus], axis=1)
+    # Label checks
+    check_labels(y_muPlus_train, "y_muPlus_train")
+    check_labels(y_muMinus_train, "y_muMinus_train")
+    check_labels(y_muPlus_val, "y_muPlus_val")
+    check_labels(y_muMinus_val, "y_muMinus_val")
 
-    # ---- Basic global checks ----
-    check_array("X", X)
-    check_array("X_clean", X_clean)
-    check_array("y", y)
+    # Binary denoise target checks
+    check_binary_targets(X_clean_train, "X_clean_train")
+    check_binary_targets(X_clean_val, "X_clean_val")
 
-    # ---- Label validity ----
-    print("\n[Label range checks]")
-    for head, name in [(0, "mu+"), (1, "mu-")]:
-        y_head = y[:, head, :]
-        bad_low = np.where(y_head < 0)
-        bad_high = np.where(y_head >= NUM_ELEMENT_IDS)
+    print("\nBuilding model...")
+    model = build_model(
+        num_detectors=NUM_DETECTORS,
+        num_elementIDs=NUM_ELEMENT_IDS,
+    )
 
-        print(f"{name}: min={y_head.min()}, max={y_head.max()}")
+    y_train = np.stack([y_muPlus_train, y_muMinus_train], axis=1)
 
-        if bad_low[0].size > 0:
-            print(f"  ❌ {name}: negative labels found")
-            print("    sample indices:", bad_low[0][:10])
-            print("    detector indices:", bad_low[1][:10])
-
-        if bad_high[0].size > 0:
-            print(f"  ❌ {name}: labels >= {NUM_ELEMENT_IDS} found")
-            print("    sample indices:", bad_high[0][:10])
-            print("    detector indices:", bad_high[1][:10])
-
-    # ---- Per-batch loss check ----
-    print("\n[Per-batch loss sanity check]")
-    bce_loss = weighted_bce(pos_weight=args.pos_weight)
-
-    batch_size = args.batch_size
-    num_batches = int(np.ceil(len(X) / batch_size))
-
-    for b in range(num_batches):
-        start = b * batch_size
-        end = min(len(X), start + batch_size)
-
-        Xb = tf.convert_to_tensor(X[start:end], tf.float32)
-        Xcb = tf.convert_to_tensor(X_clean[start:end], tf.float32)
-        yb = tf.convert_to_tensor(y[start:end], tf.int32)
-
-        try:
-            # fake predictions for loss shape validation
-            denoise_pred = tf.clip_by_value(Xcb, 1e-6, 1.0 - 1e-6)
-
-            seg_pred = tf.one_hot(
-                yb,
-                depth=NUM_ELEMENT_IDS,
-                axis=-1,
-                dtype=tf.float32,
-            )
-
-            loss_denoise = bce_loss(Xcb, denoise_pred)
-            loss_segment = custom_loss(yb, seg_pred)
-
-            if tf.math.is_nan(loss_denoise) or tf.math.is_nan(loss_segment):
-                print(f"\n❌ NaN loss detected in batch {b}")
-                print("  denoise loss:", loss_denoise.numpy())
-                print("  segment loss:", loss_segment.numpy())
-                print("  sample indices:", list(range(start, end)))
-                break
-
-        except Exception as e:
-            print(f"\n❌ Exception in batch {b}")
-            print(e)
-            print("  sample indices:", list(range(start, end)))
-            break
-    else:
-        print("\n✅ No NaNs detected in per-batch loss check")
+    print("\nRunning forward-pass batch scan...")
+    find_bad_training_batch(model, X_train, X_clean_train, y_train, args.batch_size)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Sanity check dataset for NaNs and label errors")
-    parser.add_argument("root_file", type=str, help="Path to ROOT file")
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--pos_weight", type=float, default=1.0)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("train_root_file", type=str)
+    parser.add_argument("val_root_file", type=str)
+    parser.add_argument("--batch_size", type=int, default=48)
 
     args = parser.parse_args()
     main(args)

@@ -26,5 +26,5 @@ USE_ATTENTION_FFN=0
 # --- Training and Evaluating Momentum Model ---
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 models/sanity_check.py data/processed_files/mc_events_train_low.root \
-        --batch_size 48 \
-        --pos_weight 20.0
+        data/processed_files/mc_events_val.root \
+        --batch_size 48
