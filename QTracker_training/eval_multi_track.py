@@ -58,7 +58,9 @@ def chi_squared(y_true, y_pred):
 
 def evaluate_model(args):
     # Load data - existing loader handles both formats
-    load_result = data_loader.load_data(args.root_file)
+    load_result = data_loader.load_data(
+        args.root_file, multi_track=True, max_pairs=args.max_pairs
+    )
     X_test, y_muPlus_test, y_muMinus_test = load_result[:3]
 
     if X_test is None:
@@ -69,9 +71,9 @@ def evaluate_model(args):
 
     if is_multi_track:
         num_events, max_pairs, num_detectors = y_muPlus_test.shape
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"Multi-track format detected: max_pairs={max_pairs}")
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
         y_test = np.stack([y_muPlus_test, y_muMinus_test], axis=2)
         # Shape: (num_events, max_pairs, 2, 62)
     else:
@@ -120,9 +122,9 @@ def evaluate_model(args):
 
     # Evaluate each pair
     for pair_idx in range(max_pairs):
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"Evaluating Pair {pair_idx}")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
 
         # Check for non-zero ground truth to determine valid events
         valid_mask = np.any(y_test[:, pair_idx, :, :] != 0, axis=(1, 2))
