@@ -37,7 +37,7 @@ def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
 
     base = os.path.splitext(os.path.basename(model_path))[0]
     fname = f"{base}_{stage_label}_residuals.png"
-    plot_dir = os.path.join(os.path.dirname(__file__), "plots")
+    plot_dir = os.path.join(os.path.dirname(__file__), "plots", "multi_track")
     os.makedirs(plot_dir, exist_ok=True)
     plt.savefig(os.path.join(plot_dir, fname))
     plt.show()
@@ -125,6 +125,51 @@ def evaluate_model(args):
         print(f"\n{'=' * 70}")
         print(f"Evaluating Pair {pair_idx}")
         print(f"{'=' * 70}")
+
+        # ============================================================
+        # Pair Existence Evaluation (captures FP and FN)
+        # ============================================================
+
+        print("\n--- Pair Existence Metrics ---")
+
+        # Ground truth existence
+        gt_exists = np.any(y_test[:, pair_idx, :, :] != 0, axis=(1, 2))
+
+        # Prediction existence (after argmax)
+        pred_exists = np.any(y_pred_argmax[:, pair_idx, :, :] != 0, axis=(1, 2))
+
+        TP = np.sum(gt_exists & pred_exists)
+        TN = np.sum(~gt_exists & ~pred_exists)
+        FP = np.sum(~gt_exists & pred_exists)
+        FN = np.sum(gt_exists & ~pred_exists)
+
+        total = len(gt_exists)
+
+        accuracy_exist = (TP + TN) / total if total > 0 else 0.0
+        precision = TP / (TP + FP) if (TP + FP) > 0 else 0.0
+        recall = TP / (TP + FN) if (TP + FN) > 0 else 0.0
+        specificity = TN / (TN + FP) if (TN + FP) > 0 else 0.0
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if (precision + recall) > 0
+            else 0.0
+        )
+
+        print(f"Total events: {total}")
+        print(f"True Positives : {TP}")
+        print(f"True Negatives : {TN}")
+        print(f"False Positives: {FP}")
+        print(f"False Negatives: {FN}")
+
+        print(f"\nExistence Accuracy : {accuracy_exist:.4f}")
+        print(f"Precision          : {precision:.4f}")
+        print(f"Recall             : {recall:.4f}")
+        print(f"Specificity        : {specificity:.4f}")
+        print(f"F1 Score           : {f1:.4f}")
+
+        if np.sum(~gt_exists) > 0:
+            fp_rate_empty = FP / np.sum(~gt_exists)
+            print(f"\nFalse Positive Rate on Empty Pairs: {fp_rate_empty:.4f}")
 
         # Check for non-zero ground truth to determine valid events
         valid_mask = np.any(y_test[:, pair_idx, :, :] != 0, axis=(1, 2))
