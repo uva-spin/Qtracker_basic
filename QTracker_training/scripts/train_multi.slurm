@@ -24,6 +24,7 @@ CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training/
 BATCH_NORM=1
 USE_ATTENTION=1
 USE_ATTENTION_FFN=0
+MAX_PAIRS=5
 
 # GPU validation
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
@@ -54,11 +55,12 @@ ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind $
      --dropout_attn 0.1 \
      --factor 0.3 \
      --pos_weight 20.0 \
-     --max_pairs 5 \
+     --max_pairs $MAX_PAIRS \
      --lambda_presence 0.2 \
      --pos_weight_presence 5.0
 
-# ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 /mnt/code/evaluate.py \
-#      /mnt/code/data/multi_track/processed_files/mc_events_val.root \
-#      /mnt/code/checkpoints/multi_track_finder.keras
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    python3 /mnt/code/eval_multi_track.py \
+     /mnt/code/data/multi_track/processed_files/mc_events_val.root \
+     /mnt/code/checkpoints/multi_track_finder.keras \
+     --max_pairs $MAX_PAIRS
