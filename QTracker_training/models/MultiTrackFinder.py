@@ -4,9 +4,9 @@ import argparse
 import gc
 import os
 
-os.environ[
-    "TF_GPU_ALLOCATOR"
-] = "cuda_malloc_async"  # Enable asynchronous GPU memory allocation for better performance
+os.environ["TF_GPU_ALLOCATOR"] = (
+    "cuda_malloc_async"  # Enable asynchronous GPU memory allocation for better performance
+)
 
 import numpy as np
 import ROOT  # noqa: F401
@@ -136,7 +136,9 @@ def train_model(args: argparse.Namespace) -> None:
         X_clean_train_low,
         y_muPlus_train_low,
         y_muMinus_train_low,
-    ) = load_data_denoise(args.train_root_file_low)
+    ) = load_data_denoise(
+        args.train_root_file_low, multi_track=True, max_pairs=args.max_pairs
+    )
     if X_train_low is None or X_clean_train_low is None:
         return
     y_train_low = np.stack(
@@ -144,7 +146,7 @@ def train_model(args: argparse.Namespace) -> None:
     )  # Shape: (num_events, max_pairs, 2, 62)
 
     X_val, X_clean_val, y_muPlus_val, y_muMinus_val = load_data_denoise(
-        args.val_root_file
+        args.val_root_file, multi_track=True, max_pairs=args.max_pairs
     )
     if X_val is None or X_clean_val is None:
         return
@@ -241,7 +243,9 @@ def train_model(args: argparse.Namespace) -> None:
             X_clean_train_med,
             y_muPlus_train_med,
             y_muMinus_train_med,
-        ) = load_data_denoise(args.train_root_file_med)
+        ) = load_data_denoise(
+            args.train_root_file_med, multi_track=True, max_pairs=args.max_pairs
+        )
         if X_train_med is None or X_clean_train_med is None:
             return
         y_train_med = np.stack(
@@ -276,7 +280,9 @@ def train_model(args: argparse.Namespace) -> None:
             X_clean_train_high,
             y_muPlus_train_high,
             y_muMinus_train_high,
-        ) = load_data_denoise(args.train_root_file_high)
+        ) = load_data_denoise(
+            args.train_root_file_high, multi_track=True, max_pairs=args.max_pairs
+        )
         if X_train_high is None or X_clean_train_high is None:
             return
         y_train_high = np.stack(
