@@ -67,3 +67,41 @@ def refine_hit_arrays(hit_array_mup, hit_array_mum, detectorIDs, elementIDs):
             )
 
     return refined_mup, refined_mum
+
+
+def refine_hit_arrays_multi(
+    hit_array_mup_multi, hit_array_mum_multi, detectorIDs, elementIDs
+):
+    """
+    Wrapper to refine hit arrays for multiple pairs by reshaping.
+    This allows batch processing of multiple pairs using the existing single-pair refinement logic.
+
+    Args:
+        hit_array_mup_multi (np.ndarray): Hit arrays for mu+ (shape: num_events, max_pairs, 62)
+        hit_array_mum_multi (np.ndarray): Hit arrays for mu- (shape: num_events, max_pairs, 62)
+        detectorIDs (list of np.ndarray): List of detectorID vectors for each event
+        elementIDs (list of np.ndarray): List of elementID vectors for each event
+
+    Returns:
+        tuple: (refined_mup_multi, refined_mum_multi) each with shape (num_events, max_pairs, 62)
+    """
+    num_events, max_pairs, num_detectors = hit_array_mup_multi.shape
+
+    # Reshape to (num_events * max_pairs, 62) for batch processing
+    mup_flat = hit_array_mup_multi.reshape(-1, num_detectors)
+    mum_flat = hit_array_mum_multi.reshape(-1, num_detectors)
+
+    # Repeat detectorIDs and elementIDs for each pair
+    det_repeated = detectorIDs * max_pairs
+    elem_repeated = elementIDs * max_pairs
+
+    # Refine using existing function
+    refined_mup_flat, refined_mum_flat = refine_hit_arrays(
+        mup_flat, mum_flat, det_repeated, elem_repeated
+    )
+
+    # Reshape back to (num_events, max_pairs, 62)
+    refined_mup = refined_mup_flat.reshape(num_events, max_pairs, num_detectors)
+    refined_mum = refined_mum_flat.reshape(num_events, max_pairs, num_detectors)
+
+    return refined_mup, refined_mum
