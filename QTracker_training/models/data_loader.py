@@ -1,21 +1,30 @@
 import ROOT
 import numpy as np
-from typing import Tuple
+from typing import Optional, Tuple
 
 
-def load_data(root_file: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def load_data(
+    root_file: str, multi_track: bool = False, max_pairs: Optional[int] = None
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Load data from a ROOT file and return input features and labels.
 
     Args:
         root_file (str): Path to the ROOT file.
-
+        multi_track (bool): If True, load multi-track events. If False, load single-track events.
+        max_pairs (Optional[int]): Maximum number of pairs to consider for multi-track events.
     Returns:
         Tuple[np.ndarray, np.ndarray, np.ndarray]:
             - X: Input features of shape (num_events, 62, 201, 1)
-            - y_muPlus: Labels for muPlus of shape (num_events, 201)
-            - y_muMinus: Labels for muMinus of shape (num_events, 201)
+            - y_muPlus: Labels for muPlus of shape (num_events, 62) for single track, (num_events, max_pairs, 62) for multi-track
+            - y_muMinus: Labels for muMinus of shape (num_events, 62) for single track, (num_events, max_pairs, 62) for multi-track
     """
+
+    # Input validation
+    if multi_track and max_pairs is None:
+        raise ValueError("max_pairs must be provided when multi_track=True")
+    if not multi_track and max_pairs is not None:
+        raise ValueError("max_pairs should not be set when multi_track=False")
 
     f = ROOT.TFile.Open(root_file, "READ")
     tree = f.Get("tree")
@@ -41,6 +50,10 @@ def load_data(root_file: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         mu_plus_array = np.array(list(event.HitArray_mup), dtype=np.int32)
         mu_minus_array = np.array(list(event.HitArray_mum), dtype=np.int32)
 
+        if multi_track and max_pairs is not None:
+            mu_plus_array = mu_plus_array.reshape(max_pairs, num_detectors)
+            mu_minus_array = mu_minus_array.reshape(max_pairs, num_detectors)
+
         X.append(event_hits_matrix)
         y_muPlus.append(mu_plus_array)
         y_muMinus.append(mu_minus_array)
@@ -53,7 +66,7 @@ def load_data(root_file: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 
 def load_data_denoise(
-    root_file: str,
+    root_file: str, multi_track: bool = False, max_pairs: Optional[int] = None
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Load data from a ROOT file for denoising tasks. It returns an additional
@@ -61,14 +74,21 @@ def load_data_denoise(
 
     Args:
         root_file (str): Path to the ROOT file.
-
+        multi_track (bool): If True, load multi-track events. If False, load single-track events.
+        max_pairs (Optional[int]): Maximum number of pairs to consider for multi-track events.
     Returns:
         Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
             - X: Noisy input features of shape (num_events, 62, 201, 1)
             - X_clean: Clean input features of shape (num_events, 62, 201, 1)
-            - y_muPlus: Labels for muPlus of shape (num_events, 201)
-            - y_muMinus: Labels for muMinus of shape (num_events, 201)
+            - y_muPlus: Labels for muPlus of shape (num_events, 62) for single track, (num_events, max_pairs, 62) for multi-track
+            - y_muMinus: Labels for muMinus of shape (num_events, 62) for single track, (num_events, max_pairs, 62) for multi-track
     """
+
+    # Input validation
+    if multi_track and max_pairs is None:
+        raise ValueError("max_pairs must be provided when multi_track=True")
+    if not multi_track and max_pairs is not None:
+        raise ValueError("max_pairs should not be set when multi_track=False")
 
     f = ROOT.TFile.Open(root_file, "READ")
     tree = f.Get("tree")
@@ -101,6 +121,10 @@ def load_data_denoise(
 
         mu_plus_array = np.array(list(event.HitArray_mup), dtype=np.int32)
         mu_minus_array = np.array(list(event.HitArray_mum), dtype=np.int32)
+
+        if multi_track and max_pairs is not None:
+            mu_plus_array = mu_plus_array.reshape(max_pairs, num_detectors)
+            mu_minus_array = mu_minus_array.reshape(max_pairs, num_detectors)
 
         if np.any(mu_plus_array < 0) or np.any(mu_plus_array >= num_elementIDs):
             continue
