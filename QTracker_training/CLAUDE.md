@@ -35,10 +35,22 @@ CODEDIR=/path/to/code sbatch scripts/train.slurm
 # Train Momentum models (SLURM)
 sbatch scripts/momentum.slurm
 
-# Train TrackFinder locally (single complexity level)
+# Train TrackFinder locally (single complexity level, no confidence head)
 python3 models/TrackFinder.py mc_events_train.root mc_events_val.root \
     --output_model checkpoints/track_finder.keras \
     --batch_norm 1 --use_attn 1 --denoise_base 32 --base 64
+
+# Train TrackFinder with Proposal A confidence head (event-level stop-or-go)
+python3 models/TrackFinder.py mc_events_train.root mc_events_val.root \
+    --output_model checkpoints/track_finder_conf_a.keras \
+    --batch_norm 1 --use_attn 1 --denoise_base 32 --base 64 \
+    --confidence_mode event_level --confidence_weight 0.1 --confidence_pos_weight 2.0
+
+# Train TrackFinder with Proposal B confidence head (track-quality F1 overlap)
+python3 models/TrackFinder.py mc_events_train.root mc_events_val.root \
+    --output_model checkpoints/track_finder_conf_b.keras \
+    --batch_norm 1 --use_attn 1 --denoise_base 32 --base 64 \
+    --confidence_mode track_quality --confidence_weight 0.1
 
 # Train Momentum models locally
 python3 models/Momentum_training.py momentum_training-1.root --output checkpoints/mom_mup.h5
@@ -56,6 +68,17 @@ python3 QTracker.py mc_events_val.root --output_file qtracker_reco.root
 
 # Evaluate TrackFinder performance (residual distributions)
 python3 evaluate.py mc_events_val.root checkpoints/track_finder.keras
+
+# Run multi-track finder (auto-regressive, uses confidence-based stopping)
+# Requires a model with confidence head for learned stopping; falls back to
+# fixed max_steps if loaded model has no confidence head.
+cd ../QTracker_main
+python3 -c "
+from src.models.multi_track_finder import MultiTrackFinder
+mtf = MultiTrackFinder(max_steps=10, mode='evaluation', confidence_threshold=0.5)
+results = mtf.evaluate('path/to/test_file.root')
+print(results)
+"
 
 # Evaluate Momentum reconstruction
 python3 evaluate_momentum.py qtracker_reco.root
@@ -129,6 +152,13 @@ Final Reconstructed Tracks
 - Custom loss: Sparse categorical cross-entropy + overlap penalty
 - Supports curriculum learning (low/med/high complexity datasets)
 - Mixed precision training (FP16) enabled by default
+- **Confidence Head** (optional, controlled by `--confidence_mode`):
+  - Architecture: GlobalAveragePooling2D on segmentation backbone features → Dense(128, relu) → Dropout(0.3) → Dense(64, relu) → Dropout(0.3) → Dense(1, sigmoid)
+  - `--confidence_mode none` (default): No confidence head, legacy 2-output model
+  - `--confidence_mode event_level` (Proposal A): Binary stop-or-go head. Target is 1 if any valid tracks exist in the event, 0 otherwise. Trained with standard BCE loss. Labels are derived automatically from GT hit arrays.
+  - `--confidence_mode track_quality` (Proposal B): Track correctness head. Target is the F1 overlap between the model's own segmentation prediction and the best-matching GT track. Computed dynamically inside a custom `train_step` (uses `TrackFinderWithConfidence` model subclass). Trained with BCE against the soft F1 target.
+  - `--confidence_weight` controls the loss weighting (default 0.1, start conservatively 0.05–0.2)
+  - `--confidence_pos_weight` (Proposal A only) up-weights positive class in BCE for improved recall
 
 **Momentum Models (models/Momentum_training.py)**:
 
@@ -150,11 +180,14 @@ Final Reconstructed Tracks
 
 **models/layers.py**: Custom layers including `AxialAttention` (required for loading TrackFinder models)
 
-**models/losses.py**: Custom loss functions (`custom_loss`, `weighted_bce`) for TrackFinder training
+**models/losses.py**: Custom loss functions (`custom_loss`, `weighted_bce`) for TrackFinder training. Also includes:
+  - `compute_track_f1()`: Computes per-event F1 overlap between predicted and GT tracks (used as Proposal B target)
+  - `confidence_bce()`: Weighted BCE loss for Proposal A event-level confidence head
+  - `confidence_f1_loss()`: Computes F1 target dynamically and applies BCE loss for Proposal B (called inside custom `train_step`)
 
 **models/data_loader.py**: Utilities for loading ROOT files and building hit matrices
 
-**QTracker.py**: Main reconstruction script that orchestrates the full pipeline:
+**QTracker.py**: Main reconstruction script that orchestrates the full single-track pipeline:
 
 1. Loads detector hits from ROOT file
 2. Optionally declusterizes noisy hits (numba-accelerated)
@@ -164,6 +197,15 @@ Final Reconstructed Tracks
 6. Optionally predicts χ² quality metric
 7. Writes results to compressed ROOT file
 
+**Multi-Track Finder** (`QTracker_main/src/models/multi_track_finder.py`):
+- Auto-regressive multi-track reconstruction that iteratively invokes the single track finder
+- After each track extraction, performs **soft hit subtraction**: subtracts the softmax probability of the predicted element-ID from the hit matrix (vectorized with numpy advanced indexing)
+- Subtraction formula: `new_value = max(0.0, old_value - softmax_value)` — prevents negative values when overlapping tracks share detector elements
+- Uses the confidence head's score as **stopping criterion**: events with confidence < threshold (default 0.5) are marked inactive
+- Backward compatible: falls back to fixed `max_steps` iterations if the loaded model has no confidence head
+- Handles 4D input tensors (with channel dim) transparently
+- Supports `"evaluation"` mode (runs all steps for uniform output shapes) and `"production"` mode (allows early termination)
+
 **refine.py**: Matches predicted element IDs to actual recorded hits by finding closest matches
 
 ### Important Settings in QTracker.py
@@ -172,6 +214,21 @@ Final Reconstructed Tracks
 USE_CHI2 = False          # Must be False for first run (before training χ² model)
 USE_DECLUSTERING = False  # Enable to clean clustered/noisy hits
 USE_SMAXMATRIX = False    # Enable to save softmax probability matrices
+```
+
+### Important Settings for Multi-Track Finder
+
+```python
+# In QTracker_main/src/config.py
+MAX_STEPS = 10             # Maximum auto-regressive iterations (should match data generation)
+
+# When constructing MultiTrackFinder:
+MultiTrackFinder(
+    max_steps=10,                  # Should match MAX_STEPS / data generation
+    mode="evaluation",             # "evaluation" or "production"
+    confidence_threshold=0.5,      # Confidence below this marks event inactive
+    model_path="checkpoints/track_finder.keras",  # Optional, defaults to config
+)
 ```
 
 ### Model Checkpoints Location
@@ -252,14 +309,17 @@ Pre-commit hook configured with ruff (v0.14.4):
    - Split → Skim → Separate → Combine → Generate → Inject backgrounds → Inject noise
 
 4. **Model training order**:
-   - TrackFinder must be trained first
+   - TrackFinder must be trained first (optionally with confidence head via `--confidence_mode`)
    - Momentum models trained on clean truth data (no interdependence with TrackFinder yet)
    - χ² model requires output from both TrackFinder and Momentum models
+   - For multi-track auto-regressive usage, the TrackFinder should be trained with a confidence head (`event_level` or `track_quality`)
 
 5. **Evaluation workflow**:
    - TrackFinder: Residual distributions (difference between predicted and true element IDs)
+   - Confidence head (auto-detected by `evaluate.py`): Binary accuracy/precision/recall, Pearson correlation between confidence score and F1 overlap, scatter plots of confidence vs reconstruction quality
    - Momentum: Momentum residuals, invariant mass spectrum (should show J/ψ peak at ~3.1 GeV)
    - Quality: χ² distribution, correlation with reconstruction accuracy
+   - Multi-track: Per-step residuals, track duplication rate, early stopping behavior
 
 6. **File size considerations**: Training datasets can be very large (500K-19M events). Use `data/skim.py` or `data/skim_flat.py` to create manageable subsets for development.
 

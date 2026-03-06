@@ -1,11 +1,18 @@
-import ROOT
+from typing import Optional, Tuple, Union
+
 import numpy as np
-from typing import Optional, Tuple
+import ROOT
 
 
 def load_data(
-    root_file: str, multi_track: bool = False, max_pairs: Optional[int] = None
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    root_file: str,
+    multi_track: bool = False,
+    max_pairs: Optional[int] = None,
+    return_confidence: bool = False,
+) -> Union[
+    Tuple[np.ndarray, np.ndarray, np.ndarray],
+    Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+]:
     """
     Load data from a ROOT file and return input features and labels.
 
@@ -13,11 +20,16 @@ def load_data(
         root_file (str): Path to the ROOT file.
         multi_track (bool): If True, load multi-track events. If False, load single-track events.
         max_pairs (Optional[int]): Maximum number of pairs to consider for multi-track events.
+        return_confidence (bool): If True, also return a binary confidence label per event
+            derived from the ground-truth hit arrays.  The label is **1** when at least one
+            non-zero element-ID exists in either ``HitArray_mup`` or ``HitArray_mum``, and
+            **0** otherwise (i.e. the event contains no valid tracks).
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        Tuple containing:
             - X: Input features of shape (num_events, 62, 201, 1)
             - y_muPlus: Labels for muPlus of shape (num_events, 62) for single track, (num_events, max_pairs, 62) for multi-track
             - y_muMinus: Labels for muMinus of shape (num_events, 62) for single track, (num_events, max_pairs, 62) for multi-track
+            - confidence (optional): Binary presence labels of shape (num_events,), returned only when *return_confidence* is True.
     """
 
     # Input validation
@@ -31,6 +43,8 @@ def load_data(
 
     if not tree:
         print("Error: Tree not found in file.")
+        if return_confidence:
+            return None, None, None, None
         return None, None, None
 
     num_detectors = 62
@@ -62,12 +76,22 @@ def load_data(
     y_muPlus = np.array(y_muPlus)
     y_muMinus = np.array(y_muMinus)
 
+    if return_confidence:
+        confidence = _derive_confidence_labels(y_muPlus, y_muMinus)
+        return X, y_muPlus, y_muMinus, confidence
+
     return X, y_muPlus, y_muMinus
 
 
 def load_data_denoise(
-    root_file: str, multi_track: bool = False, max_pairs: Optional[int] = None
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    root_file: str,
+    multi_track: bool = False,
+    max_pairs: Optional[int] = None,
+    return_confidence: bool = False,
+) -> Union[
+    Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+    Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+]:
     """
     Load data from a ROOT file for denoising tasks. It returns an additional
     np.ndarray for clean input features (no background tracks) to use as label for denoiser.
@@ -76,12 +100,17 @@ def load_data_denoise(
         root_file (str): Path to the ROOT file.
         multi_track (bool): If True, load multi-track events. If False, load single-track events.
         max_pairs (Optional[int]): Maximum number of pairs to consider for multi-track events.
+        return_confidence (bool): If True, also return a binary confidence label per event
+            derived from the ground-truth hit arrays.  The label is **1** when at least one
+            non-zero element-ID exists in either ``HitArray_mup`` or ``HitArray_mum``, and
+            **0** otherwise (i.e. the event contains no valid tracks).
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        Tuple containing:
             - X: Noisy input features of shape (num_events, 62, 201, 1)
             - X_clean: Clean input features of shape (num_events, 62, 201, 1)
             - y_muPlus: Labels for muPlus of shape (num_events, 62) for single track, (num_events, max_pairs, 62) for multi-track
             - y_muMinus: Labels for muMinus of shape (num_events, 62) for single track, (num_events, max_pairs, 62) for multi-track
+            - confidence (optional): Binary presence labels of shape (num_events,), returned only when *return_confidence* is True.
     """
 
     # Input validation
@@ -95,6 +124,8 @@ def load_data_denoise(
 
     if not tree:
         print("Error: Tree not found in file.")
+        if return_confidence:
+            return None, None, None, None, None
         return None, None, None, None
 
     num_detectors = 62
@@ -142,4 +173,49 @@ def load_data_denoise(
     y_muPlus = np.array(y_muPlus)
     y_muMinus = np.array(y_muMinus)
 
+    if return_confidence:
+        confidence = _derive_confidence_labels(y_muPlus, y_muMinus)
+        return X, X_clean, y_muPlus, y_muMinus, confidence
+
     return X, X_clean, y_muPlus, y_muMinus
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _derive_confidence_labels(
+    y_muPlus: np.ndarray,
+    y_muMinus: np.ndarray,
+) -> np.ndarray:
+    """Derive binary confidence labels from ground-truth hit arrays.
+
+    A label of **1** indicates at least one valid (non-zero) element-ID exists
+    across both muon hit arrays for that event.  A label of **0** indicates
+    the event contains no reconstructable tracks.
+
+    Supports both single-track arrays of shape ``(N, 62)`` and multi-track
+    arrays of shape ``(N, P, 62)``.
+
+    Args:
+        y_muPlus: Ground-truth hit array for μ⁺.
+        y_muMinus: Ground-truth hit array for μ⁻.
+
+    Returns:
+        Binary float32 array of shape ``(N,)``.
+    """
+    if y_muPlus.ndim == 2:
+        # Single track: (N, 62)
+        has_hits = np.any(y_muPlus != 0, axis=1) | np.any(y_muMinus != 0, axis=1)
+    elif y_muPlus.ndim == 3:
+        # Multi track: (N, P, 62)
+        has_hits = np.any(y_muPlus != 0, axis=(1, 2)) | np.any(
+            y_muMinus != 0, axis=(1, 2)
+        )
+    else:
+        raise ValueError(
+            f"Unexpected y_muPlus shape {y_muPlus.shape}; expected 2-D or 3-D."
+        )
+
+    return has_hits.astype(np.float32)

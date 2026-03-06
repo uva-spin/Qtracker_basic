@@ -1,5 +1,6 @@
-import tensorflow as tf
 from typing import Callable
+
+import tensorflow as tf
 
 OVERLAP_LAMBDA = 0.1
 DISTANCE_LAMBDA = 5e-4
@@ -136,3 +137,147 @@ def weighted_bce(pos_weight: float = 1.0) -> Callable:
         return tf.reduce_mean(bce_loss)
 
     return loss
+
+
+# ---------------------------------------------------------------------------
+# Confidence head losses (Proposals A and B)
+# ---------------------------------------------------------------------------
+
+
+def compute_track_f1(
+    seg_pred: tf.Tensor,
+    gt_labels: tf.Tensor,
+) -> tf.Tensor:
+    """Compute per-event F1 overlap between predicted and ground-truth tracks.
+
+    This implements the overlap metric described in Proposal B.  For every
+    event the predicted element-IDs (argmax of *seg_pred*) are compared with
+    the ground-truth element-IDs in *gt_labels*.  A hit is considered a
+    true-positive when the predicted element-ID equals the ground-truth
+    element-ID **and** both are non-zero (element-ID 0 encodes "no hit").
+
+    The F1 score is computed jointly over both muon charges (μ⁺ and μ⁻)
+    so that the single scalar reflects the overall quality of the dimuon
+    reconstruction.
+
+    Args:
+        seg_pred: Segmentation softmax output of shape ``(B, 2, 62, C)``
+            where *C* is the number of element-ID classes (typically 201).
+        gt_labels: Ground-truth element-IDs of shape ``(B, 2, 62)`` with
+            integer values in ``[0, C)``.
+
+    Returns:
+        A float32 tensor of shape ``(B,)`` containing the F1 score for each
+        event.  Values are in ``[0, 1]``.
+    """
+
+    # Predicted element-IDs via argmax (not differentiable – that is fine
+    # because this tensor is only used as a *target*, never back-propagated).
+    pred_hits = tf.cast(tf.argmax(seg_pred, axis=-1), tf.int32)  # (B, 2, 62)
+    gt_hits = tf.cast(gt_labels, tf.int32)  # (B, 2, 62)
+
+    pred_nonzero = tf.cast(tf.not_equal(pred_hits, 0), tf.float32)
+    true_nonzero = tf.cast(tf.not_equal(gt_hits, 0), tf.float32)
+
+    # A match requires *both* sides to be non-zero and to agree on the
+    # element-ID.
+    match = (
+        tf.cast(tf.equal(pred_hits, gt_hits), tf.float32) * pred_nonzero * true_nonzero
+    )
+
+    # Aggregate over muon charge and detector axes → per-event scalars.
+    precision = tf.reduce_sum(match, axis=[1, 2]) / (
+        tf.reduce_sum(pred_nonzero, axis=[1, 2]) + EPSILON
+    )
+    recall = tf.reduce_sum(match, axis=[1, 2]) / (
+        tf.reduce_sum(true_nonzero, axis=[1, 2]) + EPSILON
+    )
+    f1 = 2.0 * precision * recall / (precision + recall + EPSILON)
+
+    return f1  # (B,)
+
+
+def confidence_bce(
+    confidence_weight: float = 0.1,
+    pos_weight: float = 1.0,
+) -> Callable:
+    """Binary cross-entropy loss for the **event-level** confidence head
+    (Proposal A – "Stop-or-Go").
+
+    The target is a scalar label per event:
+      * **1** – at least one valid track is present in the event.
+      * **0** – no valid tracks remain.
+
+    An optional *pos_weight* > 1 up-weights the positive class so that the
+    model is biased towards recall (it is safer to predict "tracks present"
+    than to miss them).
+
+    The returned scalar is **pre-multiplied** by *confidence_weight* so that
+    the caller can add it directly to the total loss without an extra
+    ``loss_weights`` entry.
+
+    Args:
+        confidence_weight: Multiplicative factor applied to the loss before
+            returning.  Use this to balance the confidence objective against
+            the denoising and segmentation losses.
+        pos_weight: Up-weighting factor for the positive class (label = 1).
+
+    Returns:
+        A loss function with signature ``(y_true, y_pred) -> scalar``.
+    """
+
+    def loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
+        """
+        Args:
+            y_true: Binary presence labels of shape ``(B, 1)`` or ``(B,)``.
+            y_pred: Sigmoid confidence scores of shape ``(B, 1)`` or ``(B,)``.
+        """
+        y_true = tf.cast(tf.reshape(y_true, (-1, 1)), tf.float32)
+        y_pred = tf.cast(tf.reshape(y_pred, (-1, 1)), tf.float32)
+
+        # Per-sample weights: up-weight positives to improve recall.
+        sample_weights = 1.0 + (pos_weight - 1.0) * y_true
+
+        bce = tf.keras.losses.binary_crossentropy(y_true, y_pred)  # (B,)
+        weighted = bce * tf.squeeze(sample_weights, axis=-1)
+
+        return confidence_weight * tf.reduce_mean(weighted)
+
+    return loss
+
+
+def confidence_f1_loss(
+    seg_pred: tf.Tensor,
+    confidence_pred: tf.Tensor,
+    gt_labels: tf.Tensor,
+    confidence_weight: float = 0.1,
+) -> tf.Tensor:
+    """Confidence loss for Proposal B – "Track Correctness".
+
+    Computes a soft F1 target from the segmentation predictions and the
+    ground-truth labels, then trains the confidence head to regress that
+    target via binary cross-entropy.
+
+    This function is intended to be called **inside a custom ``train_step``**
+    because it requires simultaneous access to the segmentation output, the
+    confidence output, and the ground-truth segmentation labels – something
+    that is not possible with Keras' standard per-output loss API.
+
+    Args:
+        seg_pred: Segmentation softmax output, shape ``(B, 2, 62, C)``.
+        confidence_pred: Confidence sigmoid output, shape ``(B, 1)``.
+        gt_labels: Ground-truth element-IDs, shape ``(B, 2, 62)``.
+        confidence_weight: Multiplicative scaling factor for the loss.
+
+    Returns:
+        Scalar loss tensor.
+    """
+
+    f1_target = tf.stop_gradient(compute_track_f1(seg_pred, gt_labels))  # (B,)
+    f1_target = tf.reshape(f1_target, (-1, 1))  # (B, 1)
+
+    confidence_pred = tf.cast(tf.reshape(confidence_pred, (-1, 1)), tf.float32)
+
+    bce = tf.keras.losses.binary_crossentropy(f1_target, confidence_pred)  # (B,)
+
+    return confidence_weight * tf.reduce_mean(bce)
