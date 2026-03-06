@@ -1,3 +1,5 @@
+from typing import Literal, Optional, Union
+
 import numpy as np
 import tensorflow as tf
 
@@ -52,6 +54,7 @@ class MultiTrackFinder:
             model_path: Path to the single track finder checkpoint.  When
                 ``None`` the default from ``src.config`` is used.
         """
+        path = model_path or SINGLE_TRACK_FINDER_PATH
         self.track_finder = tf.keras.models.load_model(
             path,
             compile=False,
@@ -226,7 +229,6 @@ class MultiTrackFinder:
         if any(v is None for v in [X, y_mu_plus, y_mu_minus]):
             raise ValueError("No data found in the provided ROOT file.")
 
-        # Predict tracks using the multi-track finder model
         refined_mu_plus_pred, refined_mu_minus_pred, _, _ = self.run(input_root_file)
 
         # Prepare true labels – shape (N, 2, 62) or (N, T, 2, 62)
@@ -238,7 +240,6 @@ class MultiTrackFinder:
         mu_plus_residuals = mu_plus_true - refined_mu_plus_pred
         mu_minus_residuals = mu_minus_true - refined_mu_minus_pred
 
-        # Calculate evaluation metrics
         mask = y_mu_plus != 0
 
         mu_plus_accuracy = np.mean(mu_plus_residuals[mask] == 0)
@@ -256,13 +257,10 @@ class MultiTrackFinder:
         # Per-event metrics
         mu_plus_accuracy_per_track = []
         mu_minus_accuracy_per_track = []
-
         mu_plus_within_two_per_track = []
         mu_minus_within_two_per_track = []
-
         mu_plus_mean_per_track = []
         mu_minus_mean_per_track = []
-
         mu_plus_std_per_track = []
         mu_minus_std_per_track = []
 
@@ -275,21 +273,17 @@ class MultiTrackFinder:
             if np.any(evt_mask):
                 mu_plus_accuracy_per_track.append(np.mean(mu_plus_evt[evt_mask] == 0))
                 mu_minus_accuracy_per_track.append(np.mean(mu_minus_evt[evt_mask] == 0))
-
                 mu_plus_within_two_per_track.append(
                     np.mean(np.abs(mu_plus_evt[evt_mask]) <= 2)
                 )
                 mu_minus_within_two_per_track.append(
                     np.mean(np.abs(mu_minus_evt[evt_mask]) <= 2)
                 )
-
                 mu_plus_mean_per_track.append(np.mean(np.abs(mu_plus_evt[evt_mask])))
                 mu_minus_mean_per_track.append(np.mean(np.abs(mu_minus_evt[evt_mask])))
-
                 mu_plus_std_per_track.append(np.std(np.abs(mu_plus_evt[evt_mask])))
                 mu_minus_std_per_track.append(np.std(np.abs(mu_minus_evt[evt_mask])))
             else:
-                # no real hits in this event
                 mu_plus_accuracy_per_track.append(np.nan)
                 mu_minus_accuracy_per_track.append(np.nan)
                 mu_plus_within_two_per_track.append(np.nan)

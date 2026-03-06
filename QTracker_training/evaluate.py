@@ -14,13 +14,10 @@ import numpy as np
 import QTracker
 import ROOT  # noqa: F401
 import tensorflow as tf
-import matplotlib.pyplot as plt
-from typing import Callable, Dict
 
 # core TrackFinder loaders / custom loss
 from models import data_loader
 from models.layers import AxialAttention
-import QTracker
 from refine import refine_hit_arrays
 
 

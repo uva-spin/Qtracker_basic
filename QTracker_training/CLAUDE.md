@@ -67,6 +67,7 @@ python3 models/Qmetric_training.py qtracker_reco.root
 python3 QTracker.py mc_events_val.root --output_file qtracker_reco.root
 
 # Evaluate TrackFinder performance (residual distributions)
+# Also evaluates confidence head if present (auto-detected)
 python3 evaluate.py mc_events_val.root checkpoints/track_finder.keras
 
 # Run multi-track finder (auto-regressive, uses confidence-based stopping)
