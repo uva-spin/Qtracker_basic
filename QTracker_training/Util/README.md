@@ -6,6 +6,66 @@ This repository provides a suite of Python-based tools to explore, visualize, an
 analyses. Each script is specialized for a task such as file structure inspection, event skimming, plotting invariant masses, and merging or visualizing
 detector hit matrices.
 
+---
+
+## 🎬 NEW: Animation Tools
+
+### Single-Track Pipeline Visualization
+
+**`visualize_single_track.py`** - Visualize the complete single-track finding pipeline
+
+**Shows 5 frames:**
+1. Noisy input hit matrix
+2. Ground truth vs denoised output
+3. μ+ segmentation with softmax probabilities
+4. μ− segmentation with softmax probabilities  
+5. Final predictions vs ground truth with metrics
+
+**Usage:**
+```bash
+# Create MP4 video (recommended)
+python3 Util/visualize_single_track.py test_data.root checkpoints/track_finder.keras \
+    --event 42 --format mp4
+
+# Create GIF animation
+python3 Util/visualize_single_track.py test_data.root checkpoints/track_finder.keras \
+    --event 42 --format gif --output my_track.gif
+```
+
+### Multi-Track Iterative Process Visualization
+
+**`visualize_multitrack.py`** - Visualize the auto-regressive multi-track finding process
+
+**Features:**
+- Shows hit matrix evolution at each iteration
+- Overlays predicted mu+ and mu- tracks
+- Displays softmax probability distributions
+- Shows confidence scores (if model has confidence head)
+- Visualizes soft track subtraction in real-time
+
+**Usage:**
+```bash
+# Create MP4 video (recommended)
+python3 Util/visualize_multitrack.py test_data.root checkpoints/track_finder.keras \
+    --event 42 --max_steps 5 --format mp4
+
+# Create GIF animation
+python3 Util/visualize_multitrack.py test_data.root checkpoints/track_finder.keras \
+    --event 42 --format gif
+
+# With custom confidence threshold
+python3 Util/visualize_multitrack.py test_data.root checkpoints/track_finder.keras \
+    --event 42 --confidence_threshold 0.7 --output my_event.mp4
+```
+
+**Output:** Videos/GIFs saved to `plots/animations/`
+
+**Requirements:** `ffmpeg` (for MP4) or `pillow` (for GIF)
+
+---
+
+## ROOT Utility Scripts for Dimuon and Detector Analysis
+
 ## Requirements
 
 - Python 3.x
