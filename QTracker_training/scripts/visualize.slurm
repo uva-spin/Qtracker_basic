@@ -3,16 +3,15 @@
 #SBATCH --output=viz_%j.out
 #SBATCH --error=viz_%j.err
 #SBATCH --time=00:30:00
-#SBATCH --partition=standard
-#SBATCH --account=spinquest
 #SBATCH --mem=8GB
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
 
-# Load apptainer module
-module load apptainer
+# Load apptainer
+module purge
 
 # Paths
+APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
 IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 CODEDIR=${SLURM_SUBMIT_DIR}
 
@@ -43,7 +42,7 @@ echo "========================================="
 # Run visualization
 if [ "$VIZ_TYPE" == "single" ]; then
     echo "Creating single-track visualization..."
-    apptainer exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
         python3 /mnt/code/Util/visualize_single_track.py \
         "${DATA_FILE}" \
         "${MODEL_PATH}" \
@@ -54,7 +53,7 @@ elif [ "$VIZ_TYPE" == "multi" ]; then
     MAX_STEPS=${MAX_STEPS:-5}
     CONF_THRESH=${CONF_THRESH:-0.5}
     
-    apptainer exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+    ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
         python3 /mnt/code/Util/visualize_multitrack.py \
         "${DATA_FILE}" \
         "${MODEL_PATH}" \
