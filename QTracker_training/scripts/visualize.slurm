@@ -4,7 +4,7 @@
 #SBATCH --error=viz_%j.err
 #SBATCH --time=00:30:00
 #SBATCH --partition=standard
-#SBATCH --account=ptgroup
+#SBATCH --account=spinquest
 #SBATCH --mem=8GB
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
