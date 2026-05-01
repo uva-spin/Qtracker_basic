@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras import layers, regularizers
+from tensorflow.keras.saving import register_keras_serializable
 from typing import Any
 
 
@@ -78,6 +79,7 @@ def upsample(x: tf.Tensor) -> tf.Tensor:
     return x
 
 
+@register_keras_serializable(package="layers", name="AxialAttention")
 class AxialAttention(layers.Layer):
     """
     Axial Attention Layer as described in "Axial Attention in Multidimensional Transformers"
@@ -199,3 +201,17 @@ class AxialAttention(layers.Layer):
             x = self.add([x, skip])
 
         return x
+
+    def get_config(self):
+        """
+        Returns the configuration of the layer for serialization.
+        """
+        config = super().get_config()
+        config.update({
+            "embed_dim": self.attention.key_dim * self.attention.num_heads,
+            "num_heads": self.attention.num_heads,
+            "axis": self.axis,
+            "dropout": self.dropout.rate,
+            "use_ffn": self.use_ffn,
+        })
+        return config

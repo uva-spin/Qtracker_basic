@@ -380,11 +380,41 @@ def main():
     
     # Load model
     print(f"Loading model from {args.model_path}...")
-    model = tf.keras.models.load_model(
-        args.model_path,
-        compile=False,
-        custom_objects={'AxialAttention': AxialAttention}
-    )
+    # Import AxialAttention before loading to ensure it's registered
+    from models.layers import AxialAttention
+    
+    # Try loading with custom_objects
+    try:
+        model = tf.keras.models.load_model(
+            args.model_path,
+            compile=False,
+            custom_objects={'AxialAttention': AxialAttention}
+        )
+        print("Model loaded successfully!")
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        print("Attempting to load with alternative custom_objects...")
+        # Register under both possible module paths
+        import sys
+        import os
+        # Add models directory to path if not already there
+        models_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models')
+        if models_dir not in sys.path:
+            sys.path.insert(0, models_dir)
+        
+        # Import directly from layers module (as used during training)
+        from layers import AxialAttention as AxialAttentionDirect
+        
+        model = tf.keras.models.load_model(
+            args.model_path,
+            compile=False,
+            custom_objects={
+                'AxialAttention': AxialAttentionDirect,
+                'layers>AxialAttention': AxialAttentionDirect
+            }
+        )
+        print("Model loaded successfully with alternative import!")
+
     
     # Load event
     print(f"Loading event {args.event} from {args.root_file}...")
