@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH -A spinquest_standard
 #SBATCH -p gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:a100:1
+#SBATCH -C gpupod
 #SBATCH -c 4
 #SBATCH -t 2:00:00
 #SBATCH -J eval_multi_track
@@ -10,7 +11,6 @@
 #SBATCH --mem=256000
 
 module purge
-module load cuda/12.2.2
 
 # For apptainer exec
 APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
@@ -27,6 +27,7 @@ MODEL=${MODEL:-${DATADIR}/checkpoints/multi_track_finder.keras}
 ### Main Body ###
 # --- Evaluating Multi-Track Finder ---
 ${APPTAINER} exec --nv \
+    --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
     --bind ${CODEDIR}:/mnt/code \
     --bind ${DATADIR}:/mnt/data \
     "${IMAGE}" \
