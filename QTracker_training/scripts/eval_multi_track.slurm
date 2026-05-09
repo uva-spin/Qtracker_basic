@@ -10,6 +10,7 @@
 #SBATCH --mem=256000
 
 module purge
+module load cuda/12.2.2
 
 # For apptainer exec
 APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
