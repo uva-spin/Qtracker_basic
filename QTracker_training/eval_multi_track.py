@@ -123,7 +123,7 @@ def evaluate_model(args):
             max_pairs=args.max_pairs,
             base=args.base,
             denoise_base=32,  # checkpoint was trained with denoise_base=32
-            use_bn=bool(args.batch_norm),
+            use_bn=True,      # checkpoint was trained with batch normalization
             use_attn=True,
             use_attn_ffn=False,
             dropout_attn=0.1,
