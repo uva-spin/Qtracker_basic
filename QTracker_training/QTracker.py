@@ -4,7 +4,11 @@ import tensorflow as tf
 import argparse
 import os
 from ROOT import TTree, TMatrixD
-from numba import njit, prange
+try:
+    from numba import njit, prange
+except ImportError:
+    njit = lambda f, **kwargs: f  # noqa: E731
+    prange = range
 from tensorflow.keras.losses import MeanSquaredError
 
 
