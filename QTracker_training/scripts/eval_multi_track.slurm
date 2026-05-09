@@ -14,14 +14,21 @@ module purge
 # For apptainer exec
 APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
 IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
-CODEDIR=${CODEDIR:-/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training}
 
-DATA=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training/data/processed_files/mc_events_val.root
-MODEL=${MODEL:-/mnt/code/checkpoints/multi_track_finder.keras}
+# Override any of these at submission time, e.g.:
+#   CODEDIR=... DATADIR=... MODEL=... sbatch scripts/eval_multi_track.slurm
+_DEFAULT_BASE=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training
+CODEDIR=${CODEDIR:-${_DEFAULT_BASE}}
+DATADIR=${DATADIR:-${_DEFAULT_BASE}}
+DATA=${DATA:-${DATADIR}/data/processed_files/mc_events_val.root}
+MODEL=${MODEL:-${DATADIR}/checkpoints/multi_track_finder.keras}
 
 ### Main Body ###
 # --- Evaluating Multi-Track Finder ---
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+${APPTAINER} exec --nv \
+    --bind ${CODEDIR}:/mnt/code \
+    --bind ${DATADIR}:/mnt/data \
+    "${IMAGE}" \
     python3 /mnt/code/eval_multi_track.py \
         ${DATA} \
         ${MODEL} \
