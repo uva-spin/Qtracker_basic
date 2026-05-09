@@ -121,74 +121,52 @@ def evaluate_model(args):
             custom_objects=custom_objects,
         )
     except (TypeError, Exception):
-        # Keras 2 .keras checkpoints can't be deserialized by Keras 3.
-        # Rebuild from source and load only the weights from the zip.
-        print("Falling back to build_model + load_weights for Keras2 checkpoint...")
+        # Keras 2 .keras checkpoints can't be deserialized by Keras 3 directly.
+        # Strategy: patch the config.json class paths so Keras 3 can reconstruct
+        # the model from config, then load weights by exact name from the H5.
+        print("Falling back to config-patched load for Keras2 checkpoint...")
         mixed_precision.set_global_policy("mixed_float16")
-        model = _build_multi_track_model(
-            max_pairs=args.max_pairs,
-            base=args.base,
-            denoise_base=32,  # checkpoint was trained with denoise_base=32
-            use_bn=True,      # checkpoint was trained with batch normalization
-            use_attn=True,
-            use_attn_ffn=False,
-            dropout_attn=0.1,
-        )
-        # Trigger weight initialization with a dummy forward pass
-        _ = model(tf.zeros([1, 62, 201, 1], dtype=tf.float32))
-        # Extract model.weights.h5 from the .keras zip and load weights.
-        # Layer names differ between Keras 2 (H5) and Keras 3 (rebuilt model),
-        # so match by layer-type + creation-order position instead of exact name.
-        import h5py, re
-        from collections import defaultdict
+        import h5py, json
         with zipfile.ZipFile(args.model_path, "r") as zf:
+            config_str = zf.read("config.json").decode()
             with tempfile.TemporaryDirectory() as tmpdir:
                 zf.extract("model.weights.h5", tmpdir)
                 h5_path = os.path.join(tmpdir, "model.weights.h5")
 
-                # --- collect H5 vars grouped by layer type, sorted by numeric suffix ---
-                h5_by_type = defaultdict(list)
+                # Patch Keras 2 module paths -> Keras 3 equivalents
+                config_str = config_str.replace(
+                    "keras.src.engine.functional", "keras.src.models.functional"
+                ).replace(
+                    "keras.engine.functional", "keras.src.models.functional"
+                )
+                config = json.loads(config_str)
+
+                # Reconstruct model from patched config
+                model = tf.keras.models.model_from_json(
+                    json.dumps(config),
+                    custom_objects=custom_objects,
+                )
+                # Trigger build
+                _ = model(tf.zeros([1, 62, 201, 1], dtype=tf.float32))
+
+                # Load weights by exact name match (config ensures same names)
+                loaded, skipped = 0, 0
                 with h5py.File(h5_path, "r") as f:
-                    for lname in f["layers"].keys():
-                        m = re.match(r'^([a-z][a-z0-9_]*?)(?:_(\d+))?$', lname)
-                        if not m:
+                    h5_layers = f["layers"]
+                    for layer in model.layers:
+                        if layer.name not in h5_layers:
                             continue
-                        ltype, lnum = m.group(1), int(m.group(2) or 0)
-                        grp = f["layers"][lname]
+                        grp = h5_layers[layer.name]
                         if "vars" not in grp or len(grp["vars"]) == 0:
                             continue
-                        vals = [grp["vars"][k][:] for k in sorted(grp["vars"].keys(), key=int)]
-                        h5_by_type[ltype].append((lnum, lname, vals))
-                for ltype in h5_by_type:
-                    h5_by_type[ltype].sort(key=lambda x: x[0])
-
-                # --- collect model vars grouped by layer type, sorted by numeric suffix ---
-                model_by_type = defaultdict(list)
-                for layer in model.layers:
-                    m = re.match(r'^([a-z][a-z0-9_]*?)(?:_(\d+))?$', layer.name)
-                    if not m:
-                        continue
-                    ltype, lnum = m.group(1), int(m.group(2) or 0)
-                    if not layer.variables:
-                        continue
-                    model_by_type[ltype].append((lnum, layer.name, layer.variables))
-                for ltype in model_by_type:
-                    model_by_type[ltype].sort(key=lambda x: x[0])
-
-                # --- match by type + position ---
-                loaded, skipped = 0, 0
-                for ltype, h5_list in h5_by_type.items():
-                    if ltype not in model_by_type:
-                        print(f"  WARNING: layer type '{ltype}' in H5 not found in model")
-                        continue
-                    m_list = model_by_type[ltype]
-                    for (h5_num, h5_name, h5_vals), (m_num, m_name, m_vars) in zip(h5_list, m_list):
-                        for h5_val, m_var in zip(h5_vals, m_vars):
-                            if m_var.shape == h5_val.shape:
-                                m_var.assign(h5_val)
+                        var_keys = sorted(grp["vars"].keys(), key=int)
+                        for vi, var in zip(var_keys, layer.variables):
+                            val = grp["vars"][vi][:]
+                            if var.shape == val.shape:
+                                var.assign(val)
                                 loaded += 1
                             else:
-                                print(f"  SKIP {ltype}[{h5_name}->{m_name}]: model{m_var.shape} vs h5{h5_val.shape}")
+                                print(f"  SKIP {layer.name}: model{var.shape} vs h5{val.shape}")
                                 skipped += 1
                 print(f"Weights loaded: {loaded} vars assigned, {skipped} skipped.")
 
