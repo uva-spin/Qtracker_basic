@@ -57,10 +57,15 @@ def chi_squared(y_true, y_pred):
 
 
 def evaluate_model(args):
-    # Load data - existing loader handles both formats
-    load_result = data_loader.load_data(
-        args.root_file, multi_track=True, max_pairs=args.max_pairs
-    )
+    # Try multi-track format first; fall back to single-track if reshape fails
+    try:
+        load_result = data_loader.load_data(
+            args.root_file, multi_track=True, max_pairs=args.max_pairs
+        )
+    except ValueError:
+        load_result = data_loader.load_data(
+            args.root_file, multi_track=False
+        )
     X_test, y_muPlus_test, y_muMinus_test = load_result[:3]
 
     if X_test is None:
