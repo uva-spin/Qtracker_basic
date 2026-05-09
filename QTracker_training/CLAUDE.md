@@ -81,6 +81,18 @@ results = mtf.evaluate('path/to/test_file.root')
 print(results)
 "
 
+# Evaluate Multi-Track Finder (single-track data works; auto-detected)
+python3 eval_multi_track.py mc_events_val.root checkpoints/multi_track_finder.keras
+
+# On HPC (SLURM) — submits eval_multi_track.py via Apptainer
+# Results saved to results/multi_track_results.txt
+sbatch scripts/eval_multi_track.slurm
+
+# Override CODEDIR or MODEL at submission time:
+# CODEDIR=/scratch/am4qw/Qtracker_basic/QTracker_training \
+# MODEL=/mnt/code/checkpoints/multi_track_finder.keras \
+# sbatch scripts/eval_multi_track.slurm
+
 # Evaluate Momentum reconstruction
 python3 evaluate_momentum.py qtracker_reco.root
 
