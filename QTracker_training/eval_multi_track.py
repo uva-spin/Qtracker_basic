@@ -122,53 +122,73 @@ def evaluate_model(args):
         )
     except (TypeError, Exception):
         # Keras 2 .keras checkpoints can't be deserialized by Keras 3 directly.
-        # Strategy: patch the config.json class paths so Keras 3 can reconstruct
-        # the model from config, then load weights by exact name from the H5.
-        print("Falling back to config-patched load for Keras2 checkpoint...")
+        # Strategy: read config.json to get the exact architecture hyperparameters,
+        # then rebuild the model from source with those exact params.
+        # Load weights by flat position: both model.weights and H5 (read in
+        # config.json layer order) represent the same weight sequence.
+        print("Falling back to config-order flat weight loading for Keras2 checkpoint...")
         mixed_precision.set_global_policy("mixed_float16")
         import h5py, json
         with zipfile.ZipFile(args.model_path, "r") as zf:
-            config_str = zf.read("config.json").decode()
+            cfg = json.loads(zf.read("config.json").decode())
             with tempfile.TemporaryDirectory() as tmpdir:
                 zf.extract("model.weights.h5", tmpdir)
                 h5_path = os.path.join(tmpdir, "model.weights.h5")
 
-                # Patch Keras 2 module paths -> Keras 3 equivalents
-                config_str = config_str.replace(
-                    "keras.src.engine.functional", "keras.src.models.functional"
-                ).replace(
-                    "keras.engine.functional", "keras.src.models.functional"
-                )
-                config = json.loads(config_str)
+                # Determine actual max_pairs from config (conv2d_90 filters = max_pairs*2)
+                cfg_layers = cfg["config"]["layers"]
+                last_conv_filters = None
+                for l in cfg_layers:
+                    if l.get("class_name") == "Conv2D":
+                        last_conv_filters = l["config"]["filters"]
+                actual_max_pairs = last_conv_filters // 2 if last_conv_filters else args.max_pairs
+                print(f"Detected max_pairs={actual_max_pairs} from checkpoint config")
 
-                # Reconstruct model from patched config
-                model = tf.keras.models.model_from_json(
-                    json.dumps(config),
-                    custom_objects=custom_objects,
+                # Determine denoise_base from first conv2d filters
+                first_conv_filters = next(
+                    (l["config"]["filters"] for l in cfg_layers if l.get("class_name") == "Conv2D"),
+                    64
                 )
-                # Trigger build
+                print(f"Detected denoise_base={first_conv_filters} from checkpoint config")
+
+                model = _build_multi_track_model(
+                    max_pairs=actual_max_pairs,
+                    base=args.base,
+                    denoise_base=first_conv_filters,
+                    use_bn=True,
+                    use_attn=True,
+                    use_attn_ffn=False,
+                    dropout_attn=0.1,
+                )
                 _ = model(tf.zeros([1, 62, 201, 1], dtype=tf.float32))
 
-                # Load weights by exact name match (config ensures same names)
-                loaded, skipped = 0, 0
+                # Collect H5 weights in config-layer order (same order as model.weights)
+                h5_weights_flat = []
                 with h5py.File(h5_path, "r") as f:
-                    h5_layers = f["layers"]
-                    for layer in model.layers:
-                        if layer.name not in h5_layers:
+                    h5_layers_grp = f["layers"]
+                    for layer_cfg in cfg_layers:
+                        lname = layer_cfg["name"]
+                        if lname not in h5_layers_grp:
                             continue
-                        grp = h5_layers[layer.name]
+                        grp = h5_layers_grp[lname]
                         if "vars" not in grp or len(grp["vars"]) == 0:
                             continue
-                        var_keys = sorted(grp["vars"].keys(), key=int)
-                        for vi, var in zip(var_keys, layer.variables):
-                            val = grp["vars"][vi][:]
-                            if var.shape == val.shape:
-                                var.assign(val)
-                                loaded += 1
-                            else:
-                                print(f"  SKIP {layer.name}: model{var.shape} vs h5{val.shape}")
-                                skipped += 1
-                print(f"Weights loaded: {loaded} vars assigned, {skipped} skipped.")
+                        for k in sorted(grp["vars"].keys(), key=int):
+                            h5_weights_flat.append((lname, k, grp["vars"][k][:]))
+
+                # model.weights is in weight-creation order = config-layer order
+                model_weights = model.weights
+                print(f"H5 weights: {len(h5_weights_flat)}, Model weights: {len(model_weights)}")
+
+                loaded, skipped = 0, 0
+                for (lname, k, h5_val), m_var in zip(h5_weights_flat, model_weights):
+                    if m_var.shape == h5_val.shape:
+                        m_var.assign(h5_val)
+                        loaded += 1
+                    else:
+                        print(f"  MISMATCH {lname}/{k}: model{m_var.shape} vs h5{h5_val.shape} ({m_var.name})")
+                        skipped += 1
+                print(f"Weights loaded: {loaded} assigned, {skipped} mismatches.")
 
     # Run predictions
     preds = []
