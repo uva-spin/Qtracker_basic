@@ -130,11 +130,33 @@ def evaluate_model(args):
         )
         # Trigger weight initialization with a dummy forward pass
         _ = model(tf.zeros([1, 62, 201, 1], dtype=tf.float32))
-        # Extract model.weights.h5 from the .keras zip and load weights
+        # Extract model.weights.h5 from the .keras zip and load weights.
+        # Use a manual name-based assignment to bypass Keras 3's broken
+        # load_weights when reading Keras 2-format HDF5 files.
+        import h5py
         with zipfile.ZipFile(args.model_path, "r") as zf:
             with tempfile.TemporaryDirectory() as tmpdir:
                 zf.extract("model.weights.h5", tmpdir)
-                model.load_weights(os.path.join(tmpdir, "model.weights.h5"))
+                h5_path = os.path.join(tmpdir, "model.weights.h5")
+                loaded, skipped = 0, 0
+                with h5py.File(h5_path, "r") as f:
+                    h5_layers = f["layers"]
+                    for layer in model.layers:
+                        if layer.name not in h5_layers:
+                            continue
+                        grp = h5_layers[layer.name]
+                        if "vars" not in grp or len(grp["vars"]) == 0:
+                            continue
+                        var_keys = sorted(grp["vars"].keys(), key=lambda x: int(x))
+                        layer_vars = layer.variables
+                        for vi, var in zip(var_keys, layer_vars):
+                            val = grp["vars"][vi][:]
+                            if var.shape == val.shape:
+                                var.assign(val)
+                                loaded += 1
+                            else:
+                                skipped += 1
+                print(f"Weights loaded: {loaded} vars assigned, {skipped} skipped (shape mismatch).")
 
     # Run predictions
     preds = []
