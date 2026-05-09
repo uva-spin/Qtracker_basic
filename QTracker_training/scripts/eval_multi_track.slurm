@@ -21,7 +21,7 @@ IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 _DEFAULT_BASE=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training
 CODEDIR=${CODEDIR:-${_DEFAULT_BASE}}
 DATADIR=${DATADIR:-${_DEFAULT_BASE}}
-DATA=${DATA:-${DATADIR}/data/processed_files/mc_events_val.root}
+DATA=${DATA:-${DATADIR}/data/multi_track/processed_files/mc_events_val.root}
 MODEL=${MODEL:-${DATADIR}/checkpoints/multi_track_finder.keras}
 
 ### Main Body ###

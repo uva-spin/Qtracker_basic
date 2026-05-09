@@ -161,6 +161,7 @@ def evaluate_model(args):
                                 var.assign(val)
                                 loaded += 1
                             else:
+                                print(f"  SKIP {layer.name}/{var.name}: model{var.shape} vs h5{val.shape}")
                                 skipped += 1
                 print(f"Weights loaded: {loaded} vars assigned, {skipped} skipped (shape mismatch).")
 
