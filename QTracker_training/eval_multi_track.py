@@ -4,6 +4,7 @@ import os
 import absl.logging
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["TF_USE_LEGACY_KERAS"] = "1"  # Load Keras2-format .keras checkpoints
 absl.logging.set_verbosity("error")
 
 import argparse
