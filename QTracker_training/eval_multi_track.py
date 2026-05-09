@@ -122,6 +122,7 @@ def evaluate_model(args):
         model = _build_multi_track_model(
             max_pairs=args.max_pairs,
             base=args.base,
+            denoise_base=32,  # checkpoint was trained with denoise_base=32
             use_bn=bool(args.batch_norm),
             use_attn=True,
             use_attn_ffn=False,
