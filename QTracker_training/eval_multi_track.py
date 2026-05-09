@@ -8,9 +8,13 @@ os.environ["TF_USE_LEGACY_KERAS"] = "1"  # Load Keras2-format .keras checkpoints
 absl.logging.set_verbosity("error")
 
 import argparse
+import sys
+import zipfile
+import tempfile
 import ROOT  # noqa: F401
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras import mixed_precision
 import matplotlib.pyplot as plt
 
 # core TrackFinder loaders / custom loss
@@ -18,6 +22,12 @@ from models import data_loader
 from models.layers import AxialAttention
 import QTracker
 from refine import refine_hit_arrays
+
+# Add models/ to path so MultiTrackFinder.py can import backbones etc.
+_models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+if _models_dir not in sys.path:
+    sys.path.insert(0, _models_dir)
+from MultiTrackFinder import build_model as _build_multi_track_model
 
 
 def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
@@ -98,11 +108,32 @@ def evaluate_model(args):
     mask[54:62] = False
 
     custom_objects = {"AxialAttention": AxialAttention}
-    model = tf.keras.models.load_model(
-        args.model_path,
-        compile=False,
-        custom_objects=custom_objects,
-    )
+    try:
+        model = tf.keras.models.load_model(
+            args.model_path,
+            compile=False,
+            custom_objects=custom_objects,
+        )
+    except (TypeError, Exception):
+        # Keras 2 .keras checkpoints can't be deserialized by Keras 3.
+        # Rebuild from source and load only the weights from the zip.
+        print("Falling back to build_model + load_weights for Keras2 checkpoint...")
+        mixed_precision.set_global_policy("mixed_float16")
+        model = _build_multi_track_model(
+            max_pairs=args.max_pairs,
+            base=args.base,
+            use_bn=bool(args.batch_norm),
+            use_attn=True,
+            use_attn_ffn=False,
+            dropout_attn=0.1,
+        )
+        # Trigger weight initialization with a dummy forward pass
+        _ = model(tf.zeros([1, 62, 201, 1], dtype=tf.float32))
+        # Extract model.weights.h5 from the .keras zip and load weights
+        with zipfile.ZipFile(args.model_path, "r") as zf:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                zf.extract("model.weights.h5", tmpdir)
+                model.load_weights(os.path.join(tmpdir, "model.weights.h5"))
 
     # Run predictions
     preds = []
