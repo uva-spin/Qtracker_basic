@@ -82,6 +82,12 @@ def evaluate_model(args):
     if X_test is None:
         return
 
+    if args.num_events is not None:
+        X_test = X_test[: args.num_events]
+        y_muPlus_test = y_muPlus_test[: args.num_events]
+        y_muMinus_test = y_muMinus_test[: args.num_events]
+        print(f"Limiting evaluation to {args.num_events} events.")
+
     # Detect format from shape
     is_multi_track = len(y_muPlus_test.shape) == 3  # (num_events, max_pairs, 62)
 
@@ -368,6 +374,12 @@ if __name__ == "__main__":
         type=int,
         default=5,
         help="Maximum number of dimuon pairs (for multi-track files).",
+    )
+    parser.add_argument(
+        "--num_events",
+        type=int,
+        default=None,
+        help="Limit evaluation to this many events (useful for quick tests).",
     )
     args = parser.parse_args()
 
