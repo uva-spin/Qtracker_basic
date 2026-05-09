@@ -7,7 +7,10 @@ from ROOT import TTree, TMatrixD
 try:
     from numba import njit, prange
 except ImportError:
-    njit = lambda f, **kwargs: f  # noqa: E731
+    def njit(f=None, **kwargs):
+        if f is not None:
+            return f
+        return lambda fn: fn
     prange = range
 from tensorflow.keras.losses import MeanSquaredError
 
