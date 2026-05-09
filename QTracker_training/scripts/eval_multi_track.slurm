@@ -26,6 +26,9 @@ MODEL=${MODEL:-${DATADIR}/checkpoints/multi_track_finder.keras}
 
 ### Main Body ###
 # --- Evaluating Multi-Track Finder ---
+EVAL_ARGS=""
+[ -n "${NUM_EVENTS}" ] && EVAL_ARGS="--num_events ${NUM_EVENTS}"
+
 ${APPTAINER} exec --nv \
     --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
     --env PYTHONUNBUFFERED=1 \
@@ -34,4 +37,6 @@ ${APPTAINER} exec --nv \
     "${IMAGE}" \
     python3 -u /mnt/code/eval_multi_track.py \
         ${DATA} \
-        ${MODEL} \        ${NUM_EVENTS:+--num_events $NUM_EVENTS} \        2>&1 | tee ${CODEDIR}/results/multi_track_results.txt
+        ${MODEL} \
+        ${EVAL_ARGS} \
+        2>&1 | tee ${CODEDIR}/results/multi_track_results.txt
