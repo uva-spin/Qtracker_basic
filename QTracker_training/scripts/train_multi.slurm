@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -A spinquest_standard
 #SBATCH -p gpu
-#SBATCH --gres=gpu:a40:1
+#SBATCH --gres=gpu:1
 #SBATCH --ntasks-per-node=1
 #SBATCH -c 4
 #SBATCH -t 72:00:00
@@ -32,7 +32,7 @@ USE_ATTENTION_FFN=0
 MAX_PAIRS=5
 
 # Denoise-base 16 and 32 are not too different in performance
-${APPTAINER} exec --nv \
+${APPTAINER} exec --nvccli \
     --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns \
     --bind ${CODEDIR}:/mnt/code \
     --bind ${DATADIR}:/mnt/data \
@@ -66,7 +66,7 @@ ${APPTAINER} exec --nv \
      --mlflow_experiment multi_track_training \
      --mlflow_run_name "slurm_${SLURM_JOB_ID}"
 
-${APPTAINER} exec --nv \
+${APPTAINER} exec --nvccli \
     --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns \
     --env MLFLOW_EXPERIMENT=multi_track_training \
     --env MLFLOW_RUN_NAME="eval_slurm_${SLURM_JOB_ID}" \
