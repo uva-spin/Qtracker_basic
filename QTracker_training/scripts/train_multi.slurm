@@ -18,7 +18,8 @@ APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
 IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 _DEFAULT_CODEDIR=/scratch/am4qw/Qtracker_basic/QTracker_training
 CODEDIR=${CODEDIR:-${_DEFAULT_CODEDIR}}
-DATADIR=${DATADIR:-/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training}
+# Anvesh's own copy of the training data — stable, versioned, in personal project storage
+DATADIR=${DATADIR:-/project/ptgroup/spinquest/Anvesh/QTracker_training}
 
 
 ### Main Body ###
@@ -37,8 +38,11 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "
 
 # Denoise-base 16 and 32 are not too different in performance
 ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
-    --env MLFLOW_TRACKING_URI=file:///mnt/code/mlruns \
-    --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
+    --env MLFLOW_TRACKING_URI=file:///mnt/project/mlruns \
+    --bind ${CODEDIR}:/mnt/code \
+    --bind ${DATADIR}:/mnt/data \
+    --bind /project/ptgroup/spinquest/Anvesh/QTracker_training:/mnt/project \
+    "${IMAGE}" \
     python3 /mnt/code/models/MultiTrackFinder.py \
      /mnt/data/data/multi_track/processed_files/mc_events_train_low.root \
      /mnt/data/data/multi_track/processed_files/mc_events_val.root \
@@ -69,10 +73,13 @@ ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
      --mlflow_run_name "slurm_${SLURM_JOB_ID}"
 
 ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
-    --env MLFLOW_TRACKING_URI=file:///mnt/code/mlruns \
+    --env MLFLOW_TRACKING_URI=file:///mnt/project/mlruns \
     --env MLFLOW_EXPERIMENT=multi_track_training \
     --env MLFLOW_RUN_NAME="eval_slurm_${SLURM_JOB_ID}" \
-    --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
+    --bind ${CODEDIR}:/mnt/code \
+    --bind ${DATADIR}:/mnt/data \
+    --bind /project/ptgroup/spinquest/Anvesh/QTracker_training:/mnt/project \
+    "${IMAGE}" \
     python3 /mnt/code/eval_multi_track.py \
      /mnt/data/data/multi_track/processed_files/mc_events_val.root \
      /mnt/code/checkpoints/multi_track_finder.keras \

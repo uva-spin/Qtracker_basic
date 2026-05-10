@@ -175,6 +175,22 @@ def train_model(args: argparse.Namespace) -> None:
         mlflow.set_experiment(getattr(args, "mlflow_experiment", "multi_track_training"))
         mlflow.start_run(run_name=getattr(args, "mlflow_run_name", None))
         mlflow.log_params(vars(args))
+        # Log MD5 hashes of every input data file for reproducibility
+        import hashlib
+        _data_files = {
+            "data_train_low":  getattr(args, "train_root_file_low", None),
+            "data_train_med":  getattr(args, "train_root_file_med", None),
+            "data_train_high": getattr(args, "train_root_file_high", None),
+            "data_val":        getattr(args, "val_root_file", None),
+        }
+        for tag, path in _data_files.items():
+            if path and os.path.exists(path):
+                h = hashlib.md5()
+                with open(path, "rb") as _f:
+                    for _chunk in iter(lambda: _f.read(8 * 1024 * 1024), b""):
+                        h.update(_chunk)
+                mlflow.set_tag(tag + "_md5", h.hexdigest())
+                mlflow.set_tag(tag + "_path", path)
 
     mlflow_cb = MLflowEpochCallback()
     _all_histories: list[dict] = []  # accumulate across curriculum phases
