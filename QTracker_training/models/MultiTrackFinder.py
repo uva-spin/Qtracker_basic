@@ -24,6 +24,7 @@ from losses import multi_track_loss, weighted_bce
 try:
     import mlflow
     import mlflow.tensorflow
+    from mlflow.tracking import MlflowClient
     MLFLOW_AVAILABLE = True
 except ImportError:
     MLFLOW_AVAILABLE = False
@@ -48,11 +49,20 @@ mixed_precision.set_global_policy("mixed_float16")
 
 
 class MLflowEpochCallback(tf.keras.callbacks.Callback):
-    """Log per-epoch metrics to an active MLflow run."""
+    """Log per-epoch metrics via MlflowClient (thread-safe; avoids active_run() thread-local issues)."""
+
+    def __init__(self, run_id: str):
+        super().__init__()
+        self._run_id = run_id
+        self._client = MlflowClient() if MLFLOW_AVAILABLE else None
 
     def on_epoch_end(self, epoch, logs=None):
-        if MLFLOW_AVAILABLE and logs and mlflow.active_run():
-            mlflow.log_metrics(logs, step=epoch)
+        if self._client and logs:
+            for key, val in logs.items():
+                try:
+                    self._client.log_metric(self._run_id, key, float(val), step=epoch)
+                except Exception as e:
+                    print(f"MLflow metric log failed ({key}={val}): {e}", flush=True)
 
 
 def _plot_loss_curves(all_history: list[dict], output_path: str) -> None:
@@ -192,7 +202,8 @@ def train_model(args: argparse.Namespace) -> None:
                 mlflow.set_tag(tag + "_md5", h.hexdigest())
                 mlflow.set_tag(tag + "_path", path)
 
-    mlflow_cb = MLflowEpochCallback()
+    _active_run_id = mlflow.active_run().info.run_id if (MLFLOW_AVAILABLE and mlflow.active_run()) else None
+    mlflow_cb = MLflowEpochCallback(run_id=_active_run_id) if _active_run_id else tf.keras.callbacks.Callback()
     _all_histories: list[dict] = []  # accumulate across curriculum phases
 
     gpus = tf.config.list_physical_devices("GPU")
@@ -270,6 +281,7 @@ def train_model(args: argparse.Namespace) -> None:
                 "denoise": [Precision(name="precision"), Recall(name="recall")],
                 "segment": ["accuracy"],
             },
+            jit_compile=True,
         )
 
     if (
