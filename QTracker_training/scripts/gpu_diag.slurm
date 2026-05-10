@@ -19,25 +19,20 @@ nvidia-smi
 
 echo "=== CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES ==="
 
-echo "=== TF GPU check (verbose) ==="
-${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true --env TF_CPP_MIN_LOG_LEVEL=0 "${IMAGE}" \
-    python3 -c "
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
-import tensorflow as tf
-print('TF version:', tf.__version__)
-print('GPUs:', tf.config.list_physical_devices('GPU'))
-"
+echo "=== CUDA version in container ==="
+${APPTAINER} exec --nv "${IMAGE}" nvcc --version 2>/dev/null || echo "nvcc not found"
+${APPTAINER} exec --nv "${IMAGE}" python3 -c "import tensorflow as tf; bi=tf.sysconfig.get_build_info(); print('TF CUDA:', bi.get('cuda_version','?'), 'cuDNN:', bi.get('cudnn_version','?'))"
 
-echo "=== LD_DEBUG check for missing libs ==="
+echo "=== TF GPU check with --nv (current) ==="
 ${APPTAINER} exec --nv "${IMAGE}" \
-    python3 -c "
-import ctypes, sys
-libs = ['libcuda.so.1', 'libcudart.so', 'libcudnn.so', 'libcublas.so']
-for lib in libs:
-    try:
-        ctypes.CDLL(lib)
-        print(f'OK: {lib}')
-    except OSError as e:
-        print(f'MISSING: {lib} -> {e}')
-"
+    python3 -c "import tensorflow as tf; print('GPUs (--nv):', tf.config.list_physical_devices('GPU'))"
+
+echo "=== TF GPU check with --cleanenv + --nv ==="
+${APPTAINER} exec --nv --cleanenv \
+    --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
+    --env HOME=$HOME \
+    "${IMAGE}" \
+    python3 -c "import tensorflow as tf; print('GPUs (--cleanenv):', tf.config.list_physical_devices('GPU'))"
+
+echo "=== Container CUDA lib path ==="
+${APPTAINER} exec "${IMAGE}" find /usr/local -name "libcudart.so*" 2>/dev/null | head -5
