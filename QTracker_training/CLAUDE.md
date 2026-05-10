@@ -235,23 +235,15 @@ This is the approach currently being trained and developed. Rather than running 
 - More expensive per-event at inference; easier to tune since it reuses the single-track model
 - Falls back to fixed `max_steps` if no confidence head is present
 
-**Ensemble U-Net (proposed, not yet implemented)**:
+**Ensemble U-Net** (`models/MultiTrackFinder.py`) — *current active approach*:
 
-An alternative to the one-shot joint model being explored. Instead of one large dual-backbone model predicting all pairs simultaneously, run an **ensemble of independent U-Net++ models** — one per pair slot or one per track type — and aggregate their outputs.
+Shifting away from the single joint model (Proposals A/B) toward an **ensemble architecture**: one shared U-Net++ denoiser backbone, then `max_pairs` independent segmentation decoders branching off. Each decoder is responsible for one pair slot, with its own loss signal.
 
-- **Motivation**: The joint model (~48M params) may struggle to disentangle all pairs in a single pass, especially in high-occupancy events. Smaller specialized models may converge more reliably and are easier to tune individually
-- **Possible designs**:
-  - *Per-pair ensemble*: Train `max_pairs` separate U-Net++ models, each responsible for one pair slot. At inference, run all models in parallel and concatenate outputs
-  - *Shared encoder, independent decoders*: One shared U-Net++ encoder (denoiser), then `max_pairs` independent segmentation decoders branching off — intermediate between joint and full ensemble
-  - *Boosted ensemble*: Sequential models where each successive model receives the residual hit matrix (after subtracting previous predictions), similar to auto-regressive but with independently trained models
-- **Key tradeoffs vs joint model**:
-  - ✅ Each model is smaller and simpler to tune
-  - ✅ Per-model loss signals are cleaner (no multi-pair ambiguity in loss)
-  - ✅ Can train models independently or fine-tune individual pair slots
-  - ❌ No cross-pair information sharing during inference
-  - ❌ Risk of duplicate track predictions across ensemble members (needs de-duplication post-processing)
-  - ❌ N forward passes at inference unless parallelized
-- **Status**: Exploratory — not yet implemented. Current priority is completing the joint model training run and evaluating metrics first
+- **Motivation**: The joint model (~48M params, single forward pass) struggled with multi-pair ambiguity in the loss and OOM at batch_size=64 on a single A40. Independent decoders give cleaner per-pair gradients and smaller effective model size per slot
+- **Current implementation** (`MultiTrackFinder.py`): Shared denoiser → `max_pairs` independent segmentation heads. Still trained jointly (end-to-end) but each head optimized independently
+- **Status**: Training on Rivanna A40 (1 GPU, batch_size=16, curriculum learning). GPU confirmed working with `TfRootBuild_v2.sif` (v1 has CUDA 13.0 double-registration bug)
+- **Checkpoint**: `/scratch/am4qw/Qtracker_basic/QTracker_training/checkpoints/multi_track_finder.keras`
+- **MLflow tracking**: Runs log to `/project/ptgroup/spinquest/Anvesh/mlruns/` (or `/scratch/.../mlruns/` for current job; sync locally via rsync)
 
 **refine.py**: Matches predicted element IDs to actual recorded hits by finding closest matches
 

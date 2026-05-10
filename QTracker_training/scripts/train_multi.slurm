@@ -45,7 +45,7 @@ ${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKIN
      --denoise_base 32 \
      --base 64 \
      --epochs 60 \
-     --batch_size 64 \
+     --batch_size 16 \
      --dropout_bn 0.5 \
      --dropout_enc 0.4 \
      --dropout_attn 0.1 \
