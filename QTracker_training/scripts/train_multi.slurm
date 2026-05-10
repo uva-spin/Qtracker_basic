@@ -16,7 +16,9 @@ module purge
 # For apptainer exec
 APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
 IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
-CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training/
+_DEFAULT_CODEDIR=/scratch/am4qw/Qtracker_basic/QTracker_training
+CODEDIR=${CODEDIR:-${_DEFAULT_CODEDIR}}
+DATADIR=${DATADIR:-/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training}
 
 
 ### Main Body ###
@@ -27,16 +29,17 @@ USE_ATTENTION_FFN=0
 MAX_PAIRS=5
 
 # GPU validation
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
     echo $CUDA_VISIBLE_DEVICES
 
 # Denoise-base 16 and 32 are not too different in performance
-${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
+    --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
     python3 /mnt/code/models/MultiTrackFinder.py \
-     /mnt/code/data/multi_track/processed_files/mc_events_train_low.root \
-     /mnt/code/data/multi_track/processed_files/mc_events_val.root \
-     --train_root_file_med /mnt/code/data/multi_track/processed_files/mc_events_train_med.root \
-     --train_root_file_high /mnt/code/data/multi_track/processed_files/mc_events_train_high.root \
+     /mnt/data/data/multi_track/processed_files/mc_events_train_low.root \
+     /mnt/data/data/multi_track/processed_files/mc_events_val.root \
+     --train_root_file_med /mnt/data/data/multi_track/processed_files/mc_events_train_med.root \
+     --train_root_file_high /mnt/data/data/multi_track/processed_files/mc_events_train_high.root \
      --output_model /mnt/code/checkpoints/multi_track_finder.keras \
      --lr_low 0.0003 \
      --lr_med 0.0001 \
@@ -59,8 +62,9 @@ ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind $
      --lambda_presence 0.2 \
      --pos_weight_presence 5.0
 
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
+    --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
     python3 /mnt/code/eval_multi_track.py \
-     /mnt/code/data/multi_track/processed_files/mc_events_val.root \
+     /mnt/data/data/multi_track/processed_files/mc_events_val.root \
      /mnt/code/checkpoints/multi_track_finder.keras \
      --max_pairs $MAX_PAIRS

@@ -4,17 +4,13 @@ import os
 import absl.logging
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-os.environ["TF_USE_LEGACY_KERAS"] = "1"  # Load Keras2-format .keras checkpoints
 absl.logging.set_verbosity("error")
 
 import argparse
 import sys
-import zipfile
-import tempfile
 import ROOT  # noqa: F401
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import mixed_precision
 import matplotlib.pyplot as plt
 
 # core TrackFinder loaders / custom loss
@@ -23,11 +19,6 @@ from models.layers import AxialAttention
 import QTracker
 from refine import refine_hit_arrays
 
-# Add models/ to path so MultiTrackFinder.py can import backbones etc.
-_models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
-if _models_dir not in sys.path:
-    sys.path.insert(0, _models_dir)
-from MultiTrackFinder import build_model as _build_multi_track_model
 
 
 def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
@@ -114,63 +105,11 @@ def evaluate_model(args):
     mask[54:62] = False
 
     custom_objects = {"AxialAttention": AxialAttention}
-    try:
-        model = tf.keras.models.load_model(
-            args.model_path,
-            compile=False,
-            custom_objects=custom_objects,
-        )
-    except (TypeError, Exception) as _e0:
-        # Keras 2 .keras checkpoints can't be deserialized by Keras 3 directly.
-        # Strategy: reconstruct the EXACT original model topology from the checkpoint's
-        # own config.json via model_from_json (patching Keras-2 module paths → Keras-3),
-        # then load weights by exact layer name from model.weights.h5.
-        print(f"load_model failed: {_e0}")
-        print("Trying model_from_json with patched config + name-based weight loading...")
-        mixed_precision.set_global_policy("mixed_float16")
-        import h5py, json
-        with zipfile.ZipFile(args.model_path, "r") as zf:
-            config_str = zf.read("config.json").decode()
-            with tempfile.TemporaryDirectory() as tmpdir:
-                zf.extract("model.weights.h5", tmpdir)
-                h5_path = os.path.join(tmpdir, "model.weights.h5")
-
-                # Patch Keras 2 internal module paths → Keras 3 equivalents
-                config_str = (
-                    config_str
-                    .replace('"keras.src.engine.functional"', '"keras.src.models.functional"')
-                    .replace('"keras.engine.functional"', '"keras.src.models.functional"')
-                )
-                config = json.loads(config_str)
-
-                model = tf.keras.models.model_from_json(
-                    json.dumps(config),
-                    custom_objects=custom_objects,
-                )
-                print(f"model_from_json succeeded! Layers: {len(model.layers)}")
-                _ = model(tf.zeros([1, 62, 201, 1], dtype=tf.float32))
-
-                # Load weights by exact layer name — both model and H5 share the same
-                # layer names because both come from the same original config.json.
-                loaded, skipped = 0, 0
-                with h5py.File(h5_path, "r") as f:
-                    h5_top = f["layers"]
-                    for layer in model.layers:
-                        if layer.name not in h5_top:
-                            continue
-                        grp = h5_top[layer.name]
-                        if "vars" not in grp or len(grp["vars"]) == 0:
-                            continue
-                        var_keys = sorted(grp["vars"].keys(), key=int)
-                        for vi, var in zip(var_keys, layer.variables):
-                            val = grp["vars"][vi][:]
-                            if var.shape == val.shape:
-                                var.assign(val)
-                                loaded += 1
-                            else:
-                                print(f"  SKIP {layer.name}/{vi}: model{var.shape} vs h5{val.shape}")
-                                skipped += 1
-                print(f"Weights loaded: {loaded} assigned, {skipped} mismatches.")
+    model = tf.keras.models.load_model(
+        args.model_path,
+        compile=False,
+        custom_objects=custom_objects,
+    )
 
     # Run predictions
     preds = []
