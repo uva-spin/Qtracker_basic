@@ -22,21 +22,12 @@ DATADIR=${DATADIR:-/project/ptgroup/spinquest/Anvesh}
 
 
 ### Main Body ###
-# Install mlflow into user's home (persists across runs via Apptainer home bind)
-${APPTAINER} exec "${IMAGE}" pip install --user mlflow --quiet
-
-# --- Training and Evaluating Track Finder ---
 BATCH_NORM=1
 USE_ATTENTION=1
 USE_ATTENTION_FFN=0
 MAX_PAIRS=5
 
-# Denoise-base 16 and 32 are not too different in performance
-${APPTAINER} exec --nvccli \
-    --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns \
-    --bind ${CODEDIR}:/mnt/code \
-    --bind ${DATADIR}:/mnt/data \
-    "${IMAGE}" \
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
     python3 /mnt/code/models/MultiTrackFinder.py \
      /mnt/data/data/multi_track/processed_files/mc_events_train_low.root \
      /mnt/data/data/multi_track/processed_files/mc_events_val.root \
@@ -66,13 +57,7 @@ ${APPTAINER} exec --nvccli \
      --mlflow_experiment multi_track_training \
      --mlflow_run_name "slurm_${SLURM_JOB_ID}"
 
-${APPTAINER} exec --nvccli \
-    --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns \
-    --env MLFLOW_EXPERIMENT=multi_track_training \
-    --env MLFLOW_RUN_NAME="eval_slurm_${SLURM_JOB_ID}" \
-    --bind ${CODEDIR}:/mnt/code \
-    --bind ${DATADIR}:/mnt/data \
-    "${IMAGE}" \
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
     python3 /mnt/code/eval_multi_track.py \
      /mnt/data/data/multi_track/processed_files/mc_events_val.root \
      /mnt/code/checkpoints/multi_track_finder.keras \
