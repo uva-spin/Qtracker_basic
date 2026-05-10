@@ -210,14 +210,30 @@ Final Reconstructed Tracks
 6. Optionally predicts χ² quality metric
 7. Writes results to compressed ROOT file
 
-**Multi-Track Finder** (`QTracker_main/src/models/multi_track_finder.py`):
-- Auto-regressive multi-track reconstruction that iteratively invokes the single track finder
-- After each track extraction, performs **soft hit subtraction**: subtracts the softmax probability of the predicted element-ID from the hit matrix (vectorized with numpy advanced indexing)
-- Subtraction formula: `new_value = max(0.0, old_value - softmax_value)` — prevents negative values when overlapping tracks share detector elements
-- Uses the confidence head's score as **stopping criterion**: events with confidence < threshold (default 0.5) are marked inactive
-- Backward compatible: falls back to fixed `max_steps` iterations if the loaded model has no confidence head
-- Handles 4D input tensors (with channel dim) transparently
-- Supports `"evaluation"` mode (runs all steps for uniform output shapes) and `"production"` mode (allows early termination)
+**Joint Multi-Track Finder** (`models/MultiTrackFinder.py`) — *current active approach*:
+
+This is the approach currently being trained and developed. Rather than running the single-track model iteratively (auto-regressive), this model predicts **all tracks simultaneously in a single forward pass**.
+
+- **Key difference from single-track TrackFinder**: TrackFinder reconstructs one dimuon pair per call; MultiTrackFinder outputs up to `max_pairs=5` pairs at once from the same hit matrix, with no iteration or hit subtraction needed
+- **Key difference from auto-regressive (QTracker_main)**: No confidence head, no stop-or-go logic, no soft hit subtraction loop — the model learns to segment all pairs jointly
+- Architecture: **Dual U-Net++ backbones in series** (~48M params total)
+  - Backbone 1 (denoise): Removes background noise from raw hit matrix
+  - Backbone 2 (segment): Takes denoised output and predicts all pair tracks simultaneously
+  - Segmentation head reshapes to `(batch, max_pairs, 2, 62, 201)` with softmax over elementID
+  - Custom `AxialAttention` layers on segmentation backbone for structured spatial reasoning
+- **Loss**: Multi-task — weighted BCE for hit segmentation + presence detection term (`lambda_presence`, `pos_weight_presence`) to handle empty pair slots
+- **Training**: Curriculum learning (low → med → high complexity), `ReduceLROnPlateau` + `EarlyStopping`, 4×A100 MirroredStrategy
+- **Checkpoint**: `/scratch/am4qw/Qtracker_basic/QTracker_training/checkpoints/multi_track_finder.keras`
+- **MLflow tracking**: All runs log to `/project/ptgroup/spinquest/Anvesh/mlruns/` with full params, per-epoch metrics, loss curve plots, data MD5 hashes, and model registry entry (`MultiTrackFinder`)
+- **Data store**: Versioned copy of training data owned by Anvesh at `/project/ptgroup/spinquest/Anvesh/data/multi_track/processed_files/`
+- **Status**: Currently training (job 12727851 on Rivanna, submitted May 10 2026)
+- **Known risks**: Large model may require hyperparameter tuning on `pos_weight`, `lambda_presence`, and dropout if convergence is poor
+
+**Auto-regressive Multi-Track Finder** (`QTracker_main/src/models/multi_track_finder.py`) — *alternative approach, not currently in use*:
+- Iteratively invokes the single-track TrackFinder, subtracting found tracks between steps
+- Requires a confidence head (`--confidence_mode event_level` or `track_quality`) for learned stopping
+- More expensive per-event at inference; easier to tune since it reuses the single-track model
+- Falls back to fixed `max_steps` if no confidence head is present
 
 **refine.py**: Matches predicted element IDs to actual recorded hits by finding closest matches
 
@@ -322,10 +338,10 @@ Pre-commit hook configured with ruff (v0.14.4):
    - Split → Skim → Separate → Combine → Generate → Inject backgrounds → Inject noise
 
 4. **Model training order**:
-   - TrackFinder must be trained first (optionally with confidence head via `--confidence_mode`)
-   - Momentum models trained on clean truth data (no interdependence with TrackFinder yet)
+   - **Joint multi-track path** (current): Train `MultiTrackFinder.py` directly — no prior single-track model needed
+   - **Auto-regressive path** (alternative): Train `TrackFinder.py` with `--confidence_mode event_level` or `track_quality` first, then use via `QTracker_main`
+   - Momentum models trained on clean truth data (no interdependence with either track finder)
    - χ² model requires output from both TrackFinder and Momentum models
-   - For multi-track auto-regressive usage, the TrackFinder should be trained with a confidence head (`event_level` or `track_quality`)
 
 5. **Evaluation workflow**:
    - TrackFinder: Residual distributions (difference between predicted and true element IDs)

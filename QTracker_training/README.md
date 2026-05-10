@@ -160,3 +160,46 @@ sbatch scripts/momentum.slurm
 ```
 
 This script is designed to preprocess input ROOT files, train currently available TrackFinder models, and evaluate each of them using a distribution of residuals. The evaluation logic can be found under `evaluate.py`. Directly modify the shell script to train your custom TrackFinder model or use it as reference.
+
+---
+
+## Multi-Track Reconstruction
+
+Two approaches exist for reconstructing multiple dimuon pairs per event. They differ fundamentally in how they handle multiple tracks:
+
+### Approach 1: Joint Multi-Track Model (current, `models/MultiTrackFinder.py`)
+
+Predicts **all pairs simultaneously** in a single forward pass. No iteration, no hit subtraction, no confidence head needed.
+
+| | Single-Track (`TrackFinder.py`) | Joint Multi-Track (`MultiTrackFinder.py`) |
+|---|---|---|
+| Pairs per forward pass | 1 | Up to `max_pairs` (default 5) |
+| Architecture | 2 U-Net++ backbones | 2 U-Net++ backbones (larger) |
+| Confidence head | Optional (A or B) | None |
+| Stopping mechanism | Confidence threshold or fixed steps | N/A — all pairs in one shot |
+| Hit subtraction | Soft subtraction between iterations | None |
+| Model size | ~24M params | ~48M params |
+| Output shape | `(batch, 2, 62, 201)` | `(batch, max_pairs, 2, 62, 201)` |
+| Loss | Weighted BCE + overlap penalty | Multi-task: hit BCE + presence detection |
+
+To train:
+```bash
+CODEDIR=/scratch/am4qw/Qtracker_basic/QTracker_training sbatch scripts/train_multi.slurm
+```
+
+To evaluate:
+```bash
+sbatch scripts/eval_multi_track.slurm
+```
+
+All experiments are tracked in MLflow at `/project/ptgroup/spinquest/Anvesh/mlruns/`. To view locally:
+```bash
+rsync -av am4qw@login.hpc.virginia.edu:/project/ptgroup/spinquest/Anvesh/mlruns/ ./mlruns/
+mlflow ui --backend-store-uri ./mlruns
+```
+
+### Approach 2: Auto-regressive Multi-Track (`QTracker_main/`)
+
+Runs the single-track `TrackFinder` iteratively, subtracting each found track from the hit matrix before the next step. Requires a confidence head for learned stopping.
+
+See `QTracker_main/README.md` for usage.
