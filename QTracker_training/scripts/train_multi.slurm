@@ -22,6 +22,9 @@ DATADIR=${DATADIR:-/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_tr
 
 
 ### Main Body ###
+# Install mlflow into user's home (persists across runs via Apptainer home bind)
+${APPTAINER} exec "${IMAGE}" pip install --user mlflow --quiet
+
 # --- Training and Evaluating Track Finder ---
 BATCH_NORM=1
 USE_ATTENTION=1
@@ -34,6 +37,7 @@ ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "
 
 # Denoise-base 16 and 32 are not too different in performance
 ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
+    --env MLFLOW_TRACKING_URI=file:///mnt/code/mlruns \
     --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
     python3 /mnt/code/models/MultiTrackFinder.py \
      /mnt/data/data/multi_track/processed_files/mc_events_train_low.root \
@@ -60,7 +64,9 @@ ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
      --pos_weight 20.0 \
      --max_pairs $MAX_PAIRS \
      --lambda_presence 0.2 \
-     --pos_weight_presence 5.0
+     --pos_weight_presence 5.0 \
+     --mlflow_experiment multi_track_training \
+     --mlflow_run_name "slurm_${SLURM_JOB_ID}"
 
 ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
     --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \

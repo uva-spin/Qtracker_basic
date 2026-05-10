@@ -21,6 +21,12 @@ from backbones import unetpp_backbone
 from data_loader import load_data_denoise
 from losses import multi_track_loss, weighted_bce
 
+try:
+    import mlflow
+    MLFLOW_AVAILABLE = True
+except ImportError:
+    MLFLOW_AVAILABLE = False
+
 # Set seeds
 tf.random.set_seed(42)
 np.random.seed(42)
@@ -30,6 +36,15 @@ os.makedirs("checkpoints", exist_ok=True)
 
 # Set mixed precision policy for better performance
 mixed_precision.set_global_policy("mixed_float16")
+
+
+class MLflowEpochCallback(tf.keras.callbacks.Callback):
+    """Log per-epoch metrics to an active MLflow run."""
+
+    def on_epoch_end(self, epoch, logs=None):
+        if MLFLOW_AVAILABLE and logs and mlflow.active_run():
+            mlflow.log_metrics(logs, step=epoch)
+
 
 NUM_DETECTORS = 62
 NUM_ELEMENT_IDS = 201
@@ -125,6 +140,13 @@ def train_model(args: argparse.Namespace) -> None:
     Args:
         args (argparse.Namespace): Command-line arguments for training configuration.
     """
+
+    if MLFLOW_AVAILABLE:
+        mlflow.set_experiment(getattr(args, "mlflow_experiment", "multi_track_training"))
+        mlflow.start_run(run_name=getattr(args, "mlflow_run_name", None))
+        mlflow.log_params(vars(args))
+
+    mlflow_cb = MLflowEpochCallback()
 
     # Distributed Training
     strategy = tf.distribute.MirroredStrategy()
@@ -232,7 +254,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_low,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, early_stopping],
+            callbacks=[lr_scheduler, early_stopping, mlflow_cb],
             verbose=2,
         )
         del X_train_low, X_clean_train_low, y_train_low
@@ -269,7 +291,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_med,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, early_stopping],
+            callbacks=[lr_scheduler, early_stopping, mlflow_cb],
             verbose=2,
         )
         del X_train_med, X_clean_train_med, y_train_med
@@ -307,7 +329,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_high,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, early_stopping],
+            callbacks=[lr_scheduler, early_stopping, mlflow_cb],
             verbose=2,
         )
         del X_train_high, X_clean_train_high, y_train_high
@@ -332,12 +354,15 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=args.epochs,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, early_stopping],
+            callbacks=[lr_scheduler, early_stopping, mlflow_cb],
             verbose=2,
         )
 
     model.save(args.output_model)
     print(f"Model saved to {args.output_model}")
+    if MLFLOW_AVAILABLE and mlflow.active_run():
+        mlflow.log_artifact(args.output_model)
+        mlflow.end_run()
 
 
 if __name__ == "__main__":
@@ -508,6 +533,18 @@ if __name__ == "__main__":
         type=float,
         default=5.0,
         help="Positive class weight for presence term in multi-track loss.",
+    )
+    parser.add_argument(
+        "--mlflow_experiment",
+        type=str,
+        default="multi_track_training",
+        help="MLflow experiment name.",
+    )
+    parser.add_argument(
+        "--mlflow_run_name",
+        type=str,
+        default=None,
+        help="MLflow run name (e.g. slurm job ID).",
     )
     args = parser.parse_args()
 
