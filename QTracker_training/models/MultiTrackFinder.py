@@ -13,7 +13,7 @@ import ROOT  # noqa: F401
 import tensorflow as tf
 from tensorflow.keras import layers, mixed_precision
 import tensorflow.keras.backend as K
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras.optimizers import AdamW
 from tensorflow.keras.metrics import Precision, Recall
 
@@ -300,6 +300,14 @@ def train_model(args: argparse.Namespace) -> None:
         epochs_med = int(args.epochs * args.med_ratio)
         epochs_high = args.epochs
 
+        best_ckpt_path = args.output_model.replace(".keras", "_best.keras")
+        checkpoint = ModelCheckpoint(
+            best_ckpt_path,
+            monitor="val_loss",
+            save_best_only=True,
+            verbose=1,
+        )
+
         lr_scheduler = ReduceLROnPlateau(
             monitor="val_loss",
             factor=args.factor,
@@ -316,7 +324,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_low,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, early_stopping, mlflow_cb],
+            callbacks=[lr_scheduler, early_stopping, checkpoint, mlflow_cb],
             verbose=2,
         )
         _all_histories.append(hist_low.history)
@@ -354,7 +362,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_med,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, early_stopping, mlflow_cb],
+            callbacks=[lr_scheduler, early_stopping, checkpoint, mlflow_cb],
             verbose=2,
         )
         _all_histories.append(hist_med.history)
@@ -393,7 +401,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_high,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, early_stopping, mlflow_cb],
+            callbacks=[lr_scheduler, early_stopping, checkpoint, mlflow_cb],
             verbose=2,
         )
         _all_histories.append(hist_high.history)
@@ -403,6 +411,13 @@ def train_model(args: argparse.Namespace) -> None:
     else:  # standard training without curriculum learning
         print("Standard training without curriculum learning.")
 
+        best_ckpt_path = args.output_model.replace(".keras", "_best.keras")
+        checkpoint = ModelCheckpoint(
+            best_ckpt_path,
+            monitor="val_loss",
+            save_best_only=True,
+            verbose=1,
+        )
         lr_scheduler = ReduceLROnPlateau(
             monitor="val_loss",
             factor=args.factor,
@@ -419,7 +434,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=args.epochs,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, early_stopping, mlflow_cb],
+            callbacks=[lr_scheduler, early_stopping, checkpoint, mlflow_cb],
             verbose=2,
         )
         _all_histories.append(hist_std.history)
