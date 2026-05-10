@@ -1,9 +1,8 @@
 #!/bin/bash
 #SBATCH -A spinquest_standard
 #SBATCH -p gpu
-#SBATCH --gres=gpu:a100:4
+#SBATCH --gres=gpu:a6000:4
 #SBATCH --ntasks-per-node=1
-#SBATCH -C gpupod
 #SBATCH -c 4
 #SBATCH -t 72:00:00
 #SBATCH -J multi-track-finder
