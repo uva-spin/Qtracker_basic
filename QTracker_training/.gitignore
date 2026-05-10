@@ -7,3 +7,4 @@ local/
 run.sh
 
 __pycache__/
+mlruns/
