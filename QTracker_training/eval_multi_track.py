@@ -19,6 +19,12 @@ from models.layers import AxialAttention
 import QTracker
 from refine import refine_hit_arrays
 
+try:
+    import mlflow
+    _MLFLOW = True
+except ImportError:
+    _MLFLOW = False
+
 
 
 def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
@@ -41,8 +47,10 @@ def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
     fname = f"{base}_{stage_label}_residuals.png"
     plot_dir = os.path.join(os.path.dirname(__file__), "plots", "multi_track")
     os.makedirs(plot_dir, exist_ok=True)
-    plt.savefig(os.path.join(plot_dir, fname))
+    plot_path = os.path.join(plot_dir, fname)
+    plt.savefig(plot_path)
     plt.show()
+    return plot_path
 
 
 def chi_squared(y_true, y_pred):
@@ -59,6 +67,14 @@ def chi_squared(y_true, y_pred):
 
 
 def evaluate_model(args):
+    # Attach to an existing active MLflow run if one is open, otherwise start a
+    # detached eval run so metrics always land somewhere.
+    _owns_run = False
+    if _MLFLOW:
+        if not mlflow.active_run():
+            mlflow.set_experiment(os.environ.get("MLFLOW_EXPERIMENT", "multi_track_training"))
+            mlflow.start_run(run_name=os.environ.get("MLFLOW_RUN_NAME", f"eval_{os.path.basename(args.model_path)}"))
+            _owns_run = True
     # Try multi-track format first; fall back to single-track if reshape fails
     try:
         load_result = data_loader.load_data(
@@ -216,7 +232,7 @@ def evaluate_model(args):
 
         # Plot residuals with pair index in filename
         dets_used = np.where(mask)[0] + 1
-        plot_residuals(
+        plot_path_raw = plot_residuals(
             dets_used,
             raw_p_res[:, mask],
             raw_m_res[:, mask],
@@ -242,7 +258,7 @@ def evaluate_model(args):
             print(f"{det + 1:3d} | {m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
 
         # Plot refined residuals
-        plot_residuals(
+        plot_path_refined = plot_residuals(
             dets_used,
             ref_p_res[:, mask],
             ref_m_res[:, mask],
@@ -293,6 +309,31 @@ def evaluate_model(args):
         m_p, s_p = np.mean(np.abs(ref_p_res)), np.std(np.abs(ref_p_res))
         m_m, s_m = np.mean(np.abs(ref_m_res)), np.std(np.abs(ref_m_res))
         print(f"{m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
+
+        # --- Log metrics and plots to MLflow ---
+        if _MLFLOW and mlflow.active_run():
+            p = pair_idx
+            mlflow.log_metrics({
+                f"pair{p}_precision":          precision,
+                f"pair{p}_recall":             recall,
+                f"pair{p}_f1":                 f1,
+                f"pair{p}_specificity":        specificity,
+                f"pair{p}_raw_chi2_mup":       float(chi_squared(y_p_true, y_p_raw)),
+                f"pair{p}_raw_chi2_mum":       float(chi_squared(y_m_true, y_m_raw)),
+                f"pair{p}_refined_chi2_mup":   float(chi2_p),
+                f"pair{p}_refined_chi2_mum":   float(chi2_m),
+                f"pair{p}_raw_res_mup_mean":   float(np.mean(np.abs(raw_p_res))),
+                f"pair{p}_raw_res_mum_mean":   float(np.mean(np.abs(raw_m_res))),
+                f"pair{p}_refined_res_mup_mean": float(np.mean(np.abs(ref_p_res))),
+                f"pair{p}_refined_res_mum_mean": float(np.mean(np.abs(ref_m_res))),
+            }, step=p)
+            if plot_path_raw and os.path.exists(plot_path_raw):
+                mlflow.log_artifact(plot_path_raw, artifact_path="plots/residuals")
+            if plot_path_refined and os.path.exists(plot_path_refined):
+                mlflow.log_artifact(plot_path_refined, artifact_path="plots/residuals")
+
+    if _MLFLOW and _owns_run and mlflow.active_run():
+        mlflow.end_run()
 
 
 if __name__ == "__main__":

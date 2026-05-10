@@ -69,6 +69,9 @@ ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
      --mlflow_run_name "slurm_${SLURM_JOB_ID}"
 
 ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
+    --env MLFLOW_TRACKING_URI=file:///mnt/code/mlruns \
+    --env MLFLOW_EXPERIMENT=multi_track_training \
+    --env MLFLOW_RUN_NAME="eval_slurm_${SLURM_JOB_ID}" \
     --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
     python3 /mnt/code/eval_multi_track.py \
      /mnt/data/data/multi_track/processed_files/mc_events_val.root \

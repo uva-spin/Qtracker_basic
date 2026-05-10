@@ -23,9 +23,18 @@ from losses import multi_track_loss, weighted_bce
 
 try:
     import mlflow
+    import mlflow.tensorflow
     MLFLOW_AVAILABLE = True
 except ImportError:
     MLFLOW_AVAILABLE = False
+
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
 
 # Set seeds
 tf.random.set_seed(42)
@@ -44,6 +53,27 @@ class MLflowEpochCallback(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
         if MLFLOW_AVAILABLE and logs and mlflow.active_run():
             mlflow.log_metrics(logs, step=epoch)
+
+
+def _plot_loss_curves(all_history: list[dict], output_path: str) -> None:
+    """Merge curriculum history dicts and save a train/val loss PNG."""
+    if not MATPLOTLIB_AVAILABLE:
+        return
+    train_loss, val_loss = [], []
+    for h in all_history:
+        train_loss.extend(h.get("loss", []))
+        val_loss.extend(h.get("val_loss", []))
+    epochs = range(1, len(train_loss) + 1)
+    fig, ax = plt.subplots(figsize=(9, 5))
+    ax.plot(epochs, train_loss, label="train loss")
+    ax.plot(epochs, val_loss, label="val loss")
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Loss")
+    ax.set_title("Training & Validation Loss")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(output_path)
+    plt.close(fig)
 
 
 NUM_DETECTORS = 62
@@ -147,6 +177,7 @@ def train_model(args: argparse.Namespace) -> None:
         mlflow.log_params(vars(args))
 
     mlflow_cb = MLflowEpochCallback()
+    _all_histories: list[dict] = []  # accumulate across curriculum phases
 
     # Distributed Training
     strategy = tf.distribute.MirroredStrategy()
@@ -247,7 +278,7 @@ def train_model(args: argparse.Namespace) -> None:
         early_stopping = EarlyStopping(
             monitor="val_loss", patience=args.patience, restore_best_weights=False
         )
-        model.fit(
+        hist_low = model.fit(
             X_train_low,
             {"denoise": X_clean_train_low, "segment": y_train_low},
             initial_epoch=0,
@@ -257,6 +288,7 @@ def train_model(args: argparse.Namespace) -> None:
             callbacks=[lr_scheduler, early_stopping, mlflow_cb],
             verbose=2,
         )
+        _all_histories.append(hist_low.history)
         del X_train_low, X_clean_train_low, y_train_low
         gc.collect()
 
@@ -284,7 +316,7 @@ def train_model(args: argparse.Namespace) -> None:
         early_stopping = EarlyStopping(
             monitor="val_loss", patience=args.patience, restore_best_weights=False
         )
-        model.fit(
+        hist_med = model.fit(
             X_train_med,
             {"denoise": X_clean_train_med, "segment": y_train_med},
             initial_epoch=epochs_low,
@@ -294,6 +326,7 @@ def train_model(args: argparse.Namespace) -> None:
             callbacks=[lr_scheduler, early_stopping, mlflow_cb],
             verbose=2,
         )
+        _all_histories.append(hist_med.history)
         del X_train_med, X_clean_train_med, y_train_med
         gc.collect()
 
@@ -322,7 +355,7 @@ def train_model(args: argparse.Namespace) -> None:
             monitor="val_loss", patience=args.patience, restore_best_weights=True
         )
 
-        model.fit(
+        hist_high = model.fit(
             X_train_high,
             {"denoise": X_clean_train_high, "segment": y_train_high},
             initial_epoch=epochs_med,
@@ -332,6 +365,7 @@ def train_model(args: argparse.Namespace) -> None:
             callbacks=[lr_scheduler, early_stopping, mlflow_cb],
             verbose=2,
         )
+        _all_histories.append(hist_high.history)
         del X_train_high, X_clean_train_high, y_train_high
         gc.collect()
 
@@ -347,7 +381,7 @@ def train_model(args: argparse.Namespace) -> None:
         early_stopping = EarlyStopping(
             monitor="val_loss", patience=args.patience, restore_best_weights=False
         )
-        model.fit(
+        hist_std = model.fit(
             X_train_low,
             {"denoise": X_clean_train_low, "segment": y_train_low},
             initial_epoch=0,
@@ -357,11 +391,28 @@ def train_model(args: argparse.Namespace) -> None:
             callbacks=[lr_scheduler, early_stopping, mlflow_cb],
             verbose=2,
         )
+        _all_histories.append(hist_std.history)
 
     model.save(args.output_model)
     print(f"Model saved to {args.output_model}")
     if MLFLOW_AVAILABLE and mlflow.active_run():
-        mlflow.log_artifact(args.output_model)
+        # Loss curve plot
+        loss_plot_path = os.path.join(
+            os.path.dirname(args.output_model), "loss_curves.png"
+        )
+        _plot_loss_curves(_all_histories, loss_plot_path)
+        if os.path.exists(loss_plot_path):
+            mlflow.log_artifact(loss_plot_path, artifact_path="plots")
+
+        # Log model artifact and register in the Model Registry
+        mlflow.log_artifact(args.output_model, artifact_path="model")
+        run_id = mlflow.active_run().info.run_id
+        artifact_uri = f"runs:/{run_id}/model/{os.path.basename(args.output_model)}"
+        try:
+            mlflow.register_model(artifact_uri, "MultiTrackFinder")
+            print("Model registered in MLflow registry as 'MultiTrackFinder'")
+        except Exception as e:
+            print(f"Model registry registration skipped: {e}")
         mlflow.end_run()
 
 
