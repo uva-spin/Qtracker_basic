@@ -31,12 +31,8 @@ USE_ATTENTION=1
 USE_ATTENTION_FFN=0
 MAX_PAIRS=5
 
-# GPU validation
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
-    echo $CUDA_VISIBLE_DEVICES
-
 # Denoise-base 16 and 32 are not too different in performance
-${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
+${APPTAINER} exec --nv \
     --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns \
     --bind ${CODEDIR}:/mnt/code \
     --bind ${DATADIR}:/mnt/data \
@@ -70,7 +66,7 @@ ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
      --mlflow_experiment multi_track_training \
      --mlflow_run_name "slurm_${SLURM_JOB_ID}"
 
-${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
+${APPTAINER} exec --nv \
     --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns \
     --env MLFLOW_EXPERIMENT=multi_track_training \
     --env MLFLOW_RUN_NAME="eval_slurm_${SLURM_JOB_ID}" \
