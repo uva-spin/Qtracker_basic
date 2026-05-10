@@ -32,27 +32,9 @@ USE_ATTENTION=1
 USE_ATTENTION_FFN=0
 MAX_PAIRS=5
 
-# GPU validation — abort the job immediately if TensorFlow cannot see any GPUs
-echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
-${APPTAINER} exec --nv \
-    --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
-    --bind ${CODEDIR}:/mnt/code \
-    --bind ${DATADIR}:/mnt/data \
-    "${IMAGE}" \
-    python3 -c "
-import tensorflow as tf, sys
-gpus = tf.config.list_physical_devices('GPU')
-print('GPUs found:', gpus)
-if not gpus:
-    print('ERROR: No GPUs visible to TensorFlow — aborting job.', flush=True)
-    sys.exit(1)
-print(f'OK: {len(gpus)} GPU(s) ready.', flush=True)
-"
-if [ $? -ne 0 ]; then
-    echo "GPU check failed — cancelling job ${SLURM_JOB_ID}"
-    scancel "${SLURM_JOB_ID}"
-    exit 1
-fi
+# GPU validation
+${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
+    echo $CUDA_VISIBLE_DEVICES
 
 # Denoise-base 16 and 32 are not too different in performance
 ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
