@@ -3,6 +3,7 @@
 import argparse
 import gc
 import os
+import sys
 
 os.environ["TF_GPU_ALLOCATOR"] = (
     "cuda_malloc_async"  # Enable asynchronous GPU memory allocation for better performance
@@ -194,6 +195,18 @@ def train_model(args: argparse.Namespace) -> None:
 
     mlflow_cb = MLflowEpochCallback()
     _all_histories: list[dict] = []  # accumulate across curriculum phases
+
+    # GPU guard — abort immediately if no GPUs are visible to TensorFlow
+    gpus = tf.config.list_physical_devices("GPU")
+    if not gpus:
+        print(
+            "ERROR: No GPUs detected by TensorFlow. "
+            "Training on CPU is not supported. "
+            "Check --nv flag and CUDA library compatibility.",
+            flush=True,
+        )
+        sys.exit(1)
+    print(f"GPUs available: {len(gpus)} — {[g.name for g in gpus]}", flush=True)
 
     # Distributed Training
     strategy = tf.distribute.MirroredStrategy()
