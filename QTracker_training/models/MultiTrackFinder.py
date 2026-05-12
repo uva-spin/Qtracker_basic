@@ -281,7 +281,6 @@ def train_model(args: argparse.Namespace) -> None:
                 "denoise": [Precision(name="precision"), Recall(name="recall")],
                 "segment": ["accuracy"],
             },
-            jit_compile=True,
         )
 
     if (
