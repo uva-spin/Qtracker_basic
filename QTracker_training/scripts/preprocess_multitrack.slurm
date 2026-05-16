@@ -10,144 +10,67 @@
 
 module purge
 
-# For apptainer exec
 APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
-IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
-CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training/
+IMAGE=/project/ptgroup/spinquest/David/TfRootBuild_v2.sif
+CODEDIR=/scratch/am4qw/Qtracker_basic/QTracker_training
+DONGHWA=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training
+OUTDIR=/project/ptgroup/spinquest/Anvesh/data/multi_track/processed_files
 
-# # --- 0. Create train/val/test sets ---
-# echo "Split dimuon file into train, val, and test sets"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/split.py \
-#         /project/ptgroup/spinquest/QTracker-Data/Dimuons-Target_19M.rus.root \
-#         --train_output data/raw_files/Dimuons_Train.root \
-#         --val_output data/raw_files/Dimuons_Val.root \
-#         --test_output data/raw_files/Dimuons_Test.root
+mkdir -p ${OUTDIR}
 
-# echo "Split muon positive file into train, val, and test sets"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/split.py \
-#         /project/ptgroup/spinquest/QTracker-Data/MUP-Dump_500M.rus.root \
-#         --train_output data/raw_files/MUP_Dump_Train.root \
-#         --val_output data/raw_files/MUP_Dump_Val.root \
-#         --test_output data/raw_files/MUP_Dump_Test.root
+RUN="${APPTAINER} exec --bind ${CODEDIR}:/mnt/code --bind ${DONGHWA}:/mnt/donghwa --bind /project/ptgroup/spinquest/Anvesh:/mnt/anvesh ${IMAGE}"
 
-# echo "Split muon negative file into train, val, and test sets"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/split.py \
-#         /project/ptgroup/spinquest/QTracker-Data/MUM-Dump_500M.rus.root \
-#         --train_output data/raw_files/MUM_Dump_Train.root \
-#         --val_output data/raw_files/MUM_Dump_Val.root \
-#         --test_output data/raw_files/MUM_Dump_Test.root
+# --- Generate signal training data ---
+echo "Generate finder training data (train set)"
+${RUN} python3 /mnt/code/data/multi_track/gen_training_random.py \
+    /mnt/donghwa/data/raw_files/Dimuons_Train_500K_track1.root \
+    /mnt/donghwa/data/raw_files/Dimuons_Train_500K_track2.root \
+    --output /mnt/anvesh/data/multi_track/processed_files/finder_training_train.root \
+    --pairsmup 5 \
+    --pairsmum 5 \
+    --random
 
-# # --- 1. Skim train and val files to reduce sample size (for downstream ML) ---
-# echo "Sample 500,000 events from raw train file (stratified)"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/skim_flat.py \
-#         data/raw_files/Dimuons_Train.root \
-#         data/raw_files/Dimuons_Train_500K.root
+echo "Generate finder training data (val set)"
+${RUN} python3 /mnt/code/data/multi_track/gen_training_random.py \
+    /mnt/donghwa/data/raw_files/Dimuons_Val_200K_track1.root \
+    /mnt/donghwa/data/raw_files/Dimuons_Val_200K_track2.root \
+    --output /mnt/anvesh/data/multi_track/processed_files/finder_training_val.root \
+    --pairsmup 5 \
+    --pairsmum 5 \
+    --random
 
-# echo "Sample 200,000 events from raw val file (simple random)"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/skim.py \
-#         data/raw_files/Dimuons_Val.root \
-#         --output_file data/raw_files/Dimuons_Val_200K.root \
-#         --max_events 200000 \
-#         --random 1
+# --- Inject background tracks (low/med/high complexity) ---
+echo "Inject low-level background (train)"
+${RUN} python3 /mnt/code/data/multi_track/messy_gen.py \
+    /mnt/anvesh/data/multi_track/processed_files/finder_training_train.root \
+    /mnt/donghwa/data/processed_files/single_muons_train.root \
+    --output /mnt/anvesh/data/multi_track/processed_files/mc_events_train_low.root \
+    --uniform_tracks 0 \
+    --lower_bound 0 \
+    --num_tracks 16
 
-# # --- 2. Split signal ROOT file into μ⁺ and μ⁻ tracks ---
-# echo "Separate dimuons train set"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/separate.py data/raw_files/Dimuons_Train_500K.root
+echo "Inject mid-level background (train)"
+${RUN} python3 /mnt/code/data/multi_track/messy_gen.py \
+    /mnt/anvesh/data/multi_track/processed_files/finder_training_train.root \
+    /mnt/donghwa/data/processed_files/single_muons_train.root \
+    --output /mnt/anvesh/data/multi_track/processed_files/mc_events_train_med.root \
+    --uniform_tracks 0 \
+    --lower_bound 17 \
+    --num_tracks 33
 
-# echo "Separate dimuons val set"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/separate.py data/raw_files/Dimuons_Val_200K.root
+echo "Inject high-level background (train)"
+${RUN} python3 /mnt/code/data/multi_track/messy_gen.py \
+    /mnt/anvesh/data/multi_track/processed_files/finder_training_train.root \
+    /mnt/donghwa/data/processed_files/single_muons_train.root \
+    --output /mnt/anvesh/data/multi_track/processed_files/mc_events_train_high.root \
+    --uniform_tracks 0 \
+    --lower_bound 34 \
+    --num_tracks 50
 
-# echo "Separate dimuons test set"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/separate.py data/raw_files/Dimuons_Test.root
+echo "Inject background (val)"
+${RUN} python3 /mnt/code/data/multi_track/messy_gen.py \
+    /mnt/anvesh/data/multi_track/processed_files/finder_training_val.root \
+    /mnt/donghwa/data/processed_files/single_muons_val.root \
+    --output /mnt/anvesh/data/multi_track/processed_files/mc_events_val.root
 
-# # --- 3. Merge two single-muon ROOT files ---
-# echo "Combine MUP and MUM train set"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/combine.py data/raw_files/MUP_Dump_Train.root data/raw_files/MUM_Dump_Train.root \
-#         --output data/processed_files/single_muons_train.root \
-#         --max_output_events 220000000
-
-# echo "Combine MUP and MUM val set"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/combine.py data/raw_files/MUP_Dump_Val.root data/raw_files/MUM_Dump_Val.root \
-#         --output data/processed_files/single_muons_val.root \
-#         --max_output_events 27500000
-
-# echo "Combine MUP and MUM test set"
-# ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-#     python3 data/combine.py data/raw_files/MUP_Dump_Test.root data/raw_files/MUM_Dump_Test.root \
-#         --output data/processed_files/single_muons_test.root \
-#         --max_output_events 27500000
-
-# --- 4. Generate training data by combining μ⁺ and μ⁻ signal tracks ---
-echo "Generate training data for train set"
-${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 data/multi_track/gen_training_random.py \
-        data/raw_files/Dimuons_Train_500K_track1.root \
-        data/raw_files/Dimuons_Train_500K_track2.root \
-        --output data/multi_track/processed_files/finder_training_train.root \
-        --pairsmup 5 \
-        --pairsmum 5 \
-        --random
-
-mv momentum_training-1.root data/multi_track/processed_files/momentum_training-1_train.root 
-mv momentum_training-2.root data/multi_track/processed_files/momentum_training-2_train.root
-
-echo "Generate training data for val set"
-${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 data/multi_track/gen_training_random.py \
-        data/raw_files/Dimuons_Val_200K_track1.root \
-        data/raw_files/Dimuons_Val_200K_track2.root \
-        --output data/multi_track/processed_files/finder_training_val.root \
-        --pairsmup 5 \
-        --pairsmum 5 \
-        --random
-
-mv momentum_training-1.root data/multi_track/processed_files/momentum_training-1_val.root 
-mv momentum_training-2.root data/multi_track/processed_files/momentum_training-2_val.root
-
-# --- 5. Inject background muon tracks to signal file from 4 ---
-echo "Inject low-level background tracks into train set"
-${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 data/multi_track/messy_gen.py \
-        data/multi_track/processed_files/finder_training_train.root \
-        data/multi_track/processed_files/single_muons_train.root \
-        --output data/multi_track/processed_files/mc_events_train_low.root \
-        --uniform_tracks 0 \
-        --lower_bound 0 \
-        --num_tracks 16
-
-echo "Inject mid-level background tracks into train set"
-${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 data/multi_track/messy_gen.py \
-        data/multi_track/processed_files/finder_training_train.root \
-        data/multi_track/processed_files/single_muons_train.root \
-        --output data/multi_track/processed_files/mc_events_train_med.root \
-        --uniform_tracks 0 \
-        --lower_bound 17 \
-        --num_tracks 33
-        
-echo "Inject high-level background tracks into train set"
-${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 data/multi_track/messy_gen.py \
-        data/multi_track/processed_files/finder_training_train.root \
-        data/multi_track/processed_files/single_muons_train.root \
-        --output data/multi_track/processed_files/mc_events_train_high.root \
-        --uniform_tracks 0 \
-        --lower_bound 34 \
-        --num_tracks 50
-
-echo "Inject background tracks into val set"
-${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 data/multi_track/messy_gen.py \
-        data/multi_track/processed_files/finder_training_val.root \
-        data/multi_track/processed_files/single_muons_val.root \
-        --output data/multi_track/processed_files/mc_events_val.root
+echo "Preprocessing complete. Output in ${OUTDIR}"
