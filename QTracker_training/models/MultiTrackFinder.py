@@ -355,7 +355,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_med,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, early_stopping, checkpoint, mlflow_cb],
+            callbacks=[lr_scheduler, checkpoint, mlflow_cb],
             verbose=2,
         )
         _all_histories.append(hist_med.history)
