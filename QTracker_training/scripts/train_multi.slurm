@@ -54,7 +54,7 @@ ${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKIN
      --max_pairs $MAX_PAIRS \
      --lambda_presence 0.2 \
      --pos_weight_presence 5.0 \
-     --mlflow_experiment multi_track_training \
+     --mlflow_experiment multi_track_v2 \
      --mlflow_run_name "slurm_${SLURM_JOB_ID}"
 
 ${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
