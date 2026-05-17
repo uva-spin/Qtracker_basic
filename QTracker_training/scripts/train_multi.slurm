@@ -37,8 +37,8 @@ ${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKIN
      --lr_low 0.0003 \
      --lr_med 0.0001 \
      --lr_high 0.00003 \
-     --patience 10 \
-     --lr_patience 3 \
+     --patience 20 \
+     --lr_patience 5 \
      --batch_norm $BATCH_NORM \
      --use_attn $USE_ATTENTION \
      --use_attn_ffn $USE_ATTENTION_FFN \
@@ -49,7 +49,7 @@ ${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKIN
      --dropout_bn 0.5 \
      --dropout_enc 0.4 \
      --dropout_attn 0.1 \
-     --factor 0.3 \
+     --factor 0.5 \
      --pos_weight 20.0 \
      --max_pairs $MAX_PAIRS \
      --lambda_presence 0.2 \

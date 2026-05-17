@@ -274,7 +274,7 @@ def train_model(args: argparse.Namespace) -> None:
                 ),
             },
             loss_weights={
-                "denoise": 10.0,
+                "denoise": 3.0,
                 "segment": 1.0,
             },
             metrics={
@@ -313,9 +313,6 @@ def train_model(args: argparse.Namespace) -> None:
             patience=args.lr_patience,
             min_lr=1e-6,
         )
-        early_stopping = EarlyStopping(
-            monitor="val_loss", patience=args.patience, restore_best_weights=False
-        )
         hist_low = model.fit(
             X_train_low,
             {"denoise": X_clean_train_low, "segment": y_train_low},
@@ -323,7 +320,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_low,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, early_stopping, checkpoint, mlflow_cb],
+            callbacks=[lr_scheduler, checkpoint, mlflow_cb],
             verbose=2,
         )
         _all_histories.append(hist_low.history)
@@ -350,9 +347,6 @@ def train_model(args: argparse.Namespace) -> None:
             factor=args.factor,
             patience=args.lr_patience,
             min_lr=1e-6,
-        )
-        early_stopping = EarlyStopping(
-            monitor="val_loss", patience=args.patience, restore_best_weights=False
         )
         hist_med = model.fit(
             X_train_med,
