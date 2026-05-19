@@ -15,7 +15,7 @@ from tensorflow.keras import layers, mixed_precision
 import tensorflow.keras.backend as K
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras.optimizers import AdamW
-from tensorflow.keras.metrics import Precision, Recall
+from tensorflow.keras.metrics import Precision, Recall, Mean
 
 from backbones import unetpp_backbone
 from data_loader import load_data_denoise
@@ -63,6 +63,56 @@ class MLflowEpochCallback(tf.keras.callbacks.Callback):
                     self._client.log_metric(self._run_id, key, float(val), step=epoch)
                 except Exception as e:
                     print(f"MLflow metric log failed ({key}={val}): {e}", flush=True)
+
+
+class SegmentNonEmptyAccuracy(tf.keras.metrics.Metric):
+    """Accuracy on non-empty pair slots only (true elementID != 0)."""
+
+    def __init__(self, name="segment_nonempty_acc", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self._correct = self.add_weight(name="correct", initializer="zeros")
+        self._total = self.add_weight(name="total", initializer="zeros")
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        # y_true: (batch, max_pairs, 2, 62)  integer elementIDs
+        # y_pred: (batch, max_pairs, 2, 62, 201) softmax probabilities
+        y_true = tf.cast(y_true, tf.int32)
+        pred_ids = tf.cast(tf.argmax(y_pred, axis=-1), tf.int32)  # (batch, pairs, 2, 62)
+        non_empty = tf.not_equal(y_true, 0)
+        correct = tf.logical_and(tf.equal(pred_ids, y_true), non_empty)
+        self._correct.assign_add(tf.cast(tf.reduce_sum(tf.cast(correct, tf.int32)), tf.float32))
+        self._total.assign_add(tf.cast(tf.reduce_sum(tf.cast(non_empty, tf.int32)), tf.float32))
+
+    def result(self):
+        return tf.math.divide_no_nan(self._correct, self._total)
+
+    def reset_state(self):
+        self._correct.assign(0.0)
+        self._total.assign(0.0)
+
+
+class SegmentMeanResidual(tf.keras.metrics.Metric):
+    """Mean |predicted_elementID - true_elementID| on non-empty slots."""
+
+    def __init__(self, name="segment_mean_residual", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self._residual_sum = self.add_weight(name="residual_sum", initializer="zeros")
+        self._total = self.add_weight(name="total", initializer="zeros")
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        y_true = tf.cast(y_true, tf.float32)
+        pred_ids = tf.cast(tf.argmax(y_pred, axis=-1), tf.float32)
+        non_empty = tf.not_equal(y_true, 0.0)
+        residual = tf.abs(pred_ids - y_true)
+        self._residual_sum.assign_add(tf.reduce_sum(tf.where(non_empty, residual, 0.0)))
+        self._total.assign_add(tf.cast(tf.reduce_sum(tf.cast(non_empty, tf.int32)), tf.float32))
+
+    def result(self):
+        return tf.math.divide_no_nan(self._residual_sum, self._total)
+
+    def reset_state(self):
+        self._residual_sum.assign(0.0)
+        self._total.assign(0.0)
 
 
 def _plot_loss_curves(all_history: list[dict], output_path: str) -> None:
@@ -279,7 +329,10 @@ def train_model(args: argparse.Namespace) -> None:
             },
             metrics={
                 "denoise": [Precision(name="precision"), Recall(name="recall")],
-                "segment": ["accuracy"],
+                "segment": [
+                    SegmentNonEmptyAccuracy(),
+                    SegmentMeanResidual(),
+                ],
             },
         )
 
