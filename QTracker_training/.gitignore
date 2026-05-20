@@ -8,3 +8,5 @@ run.sh
 
 __pycache__/
 mlruns/
+CLAUDE.md
+INFRASTRUCTURE.md
