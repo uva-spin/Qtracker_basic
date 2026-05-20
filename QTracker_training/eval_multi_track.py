@@ -121,8 +121,16 @@ def evaluate_model(args):
     mask[54:62] = False
 
     custom_objects = {"AxialAttention": AxialAttention}
+    model_path = args.model_path
+    if not os.path.exists(model_path):
+        best_path = model_path.replace(".keras", "_best.keras")
+        if os.path.exists(best_path):
+            print(f"Main checkpoint not found, loading best checkpoint: {best_path}")
+            model_path = best_path
+        else:
+            raise FileNotFoundError(f"Neither {model_path} nor {best_path} found.")
     model = tf.keras.models.load_model(
-        args.model_path,
+        model_path,
         compile=False,
         custom_objects=custom_objects,
     )

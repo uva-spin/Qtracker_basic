@@ -12,7 +12,6 @@ import numpy as np
 import ROOT  # noqa: F401
 import tensorflow as tf
 from tensorflow.keras import layers, mixed_precision
-import tensorflow.keras.backend as K
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras.optimizers import AdamW
 from tensorflow.keras.metrics import Precision, Recall, Mean
@@ -394,7 +393,7 @@ def train_model(args: argparse.Namespace) -> None:
             [y_muPlus_train_med, y_muMinus_train_med], axis=2
         )  # Shape: (num_events, max_pairs, 2, 62)
 
-        K.set_value(model.optimizer.learning_rate, args.lr_med)
+        model.optimizer.learning_rate.assign(args.lr_med)
         lr_scheduler = ReduceLROnPlateau(
             monitor="val_loss",
             factor=args.factor,
@@ -429,7 +428,7 @@ def train_model(args: argparse.Namespace) -> None:
             [y_muPlus_train_high, y_muMinus_train_high], axis=2
         )  # Shape: (num_events, max_pairs, 2, 62)
 
-        K.set_value(model.optimizer.learning_rate, args.lr_high)
+        model.optimizer.learning_rate.assign(args.lr_high)
         lr_scheduler = ReduceLROnPlateau(
             monitor="val_loss",
             factor=args.factor,
