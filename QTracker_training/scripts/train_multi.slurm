@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -A spinquest_standard
 #SBATCH -p gpu
-#SBATCH --gres=gpu:a100:2
+#SBATCH --gres=gpu:a100:1
 #SBATCH --ntasks-per-node=1
-#SBATCH -c 8
+#SBATCH -c 4
 #SBATCH -t 72:00:00
 #SBATCH -J multi-track-finder
 #SBATCH -o Slurm_Files/multi-track-finder.out
@@ -45,7 +45,7 @@ ${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKIN
      --denoise_base 32 \
      --base 64 \
      --epochs 60 \
-     --batch_size 64 \
+     --batch_size 32 \
      --dropout_bn 0.5 \
      --dropout_enc 0.4 \
      --dropout_attn 0.1 \
