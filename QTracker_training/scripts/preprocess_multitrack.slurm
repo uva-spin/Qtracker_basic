@@ -96,7 +96,7 @@ ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
         --output data/multi_track/processed_files/finder_training_train.root \
         --pairsmup 5 \
         --pairsmum 5 \
-        --random
+        --random --pair_dist skewed --at_least_one_pair
 
 mv momentum_training-1.root data/multi_track/processed_files/momentum_training-1_train.root 
 mv momentum_training-2.root data/multi_track/processed_files/momentum_training-2_train.root
@@ -109,7 +109,7 @@ ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
         --output data/multi_track/processed_files/finder_training_val.root \
         --pairsmup 5 \
         --pairsmum 5 \
-        --random
+        --random --pair_dist skewed --at_least_one_pair
 
 mv momentum_training-1.root data/multi_track/processed_files/momentum_training-1_val.root 
 mv momentum_training-2.root data/multi_track/processed_files/momentum_training-2_val.root
