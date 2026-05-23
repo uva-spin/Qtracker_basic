@@ -76,6 +76,23 @@ def evaluate_model(args):
         print(f"{'=' * 70}\n")
         y_test = np.stack([y_muPlus_test, y_muMinus_test], axis=2)
         # Shape: (num_events, max_pairs, 2, 62)
+
+        # Apply canonical ordering to GT pairs so evaluation matches training ordering
+        for ev_idx in range(len(y_test)):
+            n_active = 0
+            for k in range(y_test.shape[1]):
+                if np.any(y_test[ev_idx, k] != 0):
+                    n_active = k + 1
+                else:
+                    break
+            if n_active > 1:
+                active_indices = np.arange(n_active)
+                sort_keys = [
+                    np.sum(y_test[ev_idx, k, 0, :][y_test[ev_idx, k, 0, :] > 0])
+                    for k in active_indices
+                ]
+                sorted_order = active_indices[np.argsort(sort_keys)]
+                y_test[ev_idx, :n_active] = y_test[ev_idx, sorted_order]
     else:
         print("\n" + "=" * 70)
         print("Single-track format detected")
