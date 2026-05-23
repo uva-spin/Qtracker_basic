@@ -19,7 +19,7 @@ from tensorflow.keras.metrics import Precision, Recall
 
 from backbones import unetpp_backbone
 from data_loader import load_data_denoise
-from losses import multi_track_loss, weighted_bce
+from losses import hungarian_multi_track_loss, weighted_bce
 
 # Set seeds
 tf.random.set_seed(42)
@@ -185,9 +185,11 @@ def train_model(args: argparse.Namespace) -> None:
             optimizer=optimizer,
             loss={
                 "denoise": weighted_bce(pos_weight=args.pos_weight),
-                "segment": multi_track_loss(
+                "segment": hungarian_multi_track_loss(
                     lambda_presence=args.lambda_presence,
                     pos_weight_presence=args.pos_weight_presence,
+                    focal_gamma=args.focal_gamma,
+                    lambda_diversity=args.lambda_diversity,
                 ),
             },
             loss_weights={
@@ -508,6 +510,18 @@ if __name__ == "__main__":
         type=float,
         default=5.0,
         help="Positive class weight for presence term in multi-track loss.",
+    )
+    parser.add_argument(
+        "--focal_gamma",
+        type=float,
+        default=2.0,
+        help="Gamma for focal loss in presence term (0 = standard BCE).",
+    )
+    parser.add_argument(
+        "--lambda_diversity",
+        type=float,
+        default=0.05,
+        help="Weight for inter-pair diversity penalty.",
     )
     args = parser.parse_args()
 
