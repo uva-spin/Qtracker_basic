@@ -25,7 +25,6 @@ def _get_value(x):
 def combine_files(
     file1, file2, output_file, pairsmup, pairsmum, use_random, at_least_one_pair
 ):
-
     if os.path.exists(output_file):
         os.remove(output_file)
 
@@ -108,7 +107,6 @@ def combine_files(
     ev = 0
 
     while idx_mup < n1 and idx_mum < n2:
-
         if use_random:
             lower_bound = 1 if at_least_one_pair else 0
             max_possible_pairs = min(pairsmup, pairsmum)
@@ -156,7 +154,6 @@ def combine_files(
 
         # -------- Fill paired tracks --------
         for k in range(current_pairs):
-
             tree1.GetEntry(idx_mup)
             tree2.GetEntry(idx_mum)
 
@@ -202,6 +199,15 @@ def combine_files(
 
             idx_mup += 1
             idx_mum += 1
+
+        # --- Canonical ordering: sort filled pair slots by mu+ element ID sum ---
+        if current_pairs > 1:
+            pair_indices = list(range(current_pairs))
+            pair_indices.sort(
+                key=lambda k: int(np.sum(hitarray_mup[k][hitarray_mup[k] > 0]))
+            )
+            hitarray_mup[:current_pairs] = hitarray_mup[pair_indices]
+            hitarray_mum[:current_pairs] = hitarray_mum[pair_indices]
 
         # -------- Extra mu+ --------
         for _ in range(extra_mup):
