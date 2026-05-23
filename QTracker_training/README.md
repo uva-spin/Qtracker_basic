@@ -165,38 +165,79 @@ This script is designed to preprocess input ROOT files, train currently availabl
 
 ## Multi-Track Reconstruction
 
-Two approaches exist for reconstructing multiple dimuon pairs per event. They differ fundamentally in how they handle multiple tracks:
+Two approaches exist for reconstructing multiple dimuon pairs per event:
 
-### Approach 1: Joint Multi-Track Model (current, `models/MultiTrackFinder.py`)
+### Approach 1: Ensemble MultiTrackFinder (current, `models/MultiTrackFinder.py`)
 
-Predicts **all pairs simultaneously** in a single forward pass. No iteration, no hit subtraction, no confidence head needed.
+Predicts all dimuon pairs simultaneously in a single forward pass using an ensemble architecture: a shared U-Net++ denoising backbone feeding into `max_pairs` independent segmentation heads, one per pair slot.
 
-| | Single-Track (`TrackFinder.py`) | Joint Multi-Track (`MultiTrackFinder.py`) |
+| | Single-Track (`TrackFinder.py`) | Ensemble Multi-Track (`MultiTrackFinder.py`) |
 |---|---|---|
 | Pairs per forward pass | 1 | Up to `max_pairs` (default 5) |
-| Architecture | 2 U-Net++ backbones | 2 U-Net++ backbones (larger) |
-| Confidence head | Optional (A or B) | None |
-| Stopping mechanism | Confidence threshold or fixed steps | N/A — all pairs in one shot |
-| Hit subtraction | Soft subtraction between iterations | None |
+| Architecture | 2 U-Net++ backbones | Shared denoiser + independent per-pair heads |
+| Confidence head | Optional | None |
+| Stopping mechanism | Confidence threshold | N/A — all pairs in one shot |
+| Hit subtraction | Soft subtraction between steps | None |
 | Model size | ~24M params | ~48M params |
 | Output shape | `(batch, 2, 62, 201)` | `(batch, max_pairs, 2, 62, 201)` |
-| Loss | Weighted BCE + overlap penalty | Multi-task: hit BCE + presence detection |
+| Loss | Weighted BCE + overlap penalty | Weighted BCE + presence detection per pair |
 
-To train:
+**Why independent heads?** A single joint decoder struggles to attribute hits across multiple indistinguishable pair slots — the loss is ambiguous about which predicted slot corresponds to which true track. Independent heads give each slot its own gradient signal, resolving this ambiguity.
+
+**Architecture details:**
+- Input: binary hit matrix `(batch, 62, 201, 1)`
+- Stage 1 — Denoiser (U-Net++, `denoise_base=32`): suppresses background tracks, outputs clean hit matrix
+- Stage 2 — Segmenter (U-Net++ with AxialAttention, `base=64`): `max_pairs` independent heads, each outputs softmax over 201 elementIDs per detector per muon charge
+- Output `denoise`: `(batch, 62, 201, 1)`
+- Output `segment`: `(batch, max_pairs, 2, 62, 201)` — softmax probabilities over elementIDs
+
+**Loss functions:**
+- Denoiser: weighted BCE (`pos_weight=20`) with loss weight 3.0
+- Segmenter: sparse cross-entropy over elementIDs + presence detection term for empty slots, loss weight 1.0
+
+**Training:**
 ```bash
-CODEDIR=/scratch/am4qw/Qtracker_basic/QTracker_training sbatch scripts/train_multi.slurm
+cd /scratch/am4qw/Qtracker_basic/QTracker_training
+git pull origin AnveshTrackFinderWork
+sbatch scripts/train_multi.slurm
 ```
 
-To evaluate:
+Curriculum learning: low complexity (0–16 background tracks) → medium (17–33) → high (34–50), across 60 total epochs.
+
+**Evaluation:**
 ```bash
 sbatch scripts/eval_multi_track.slurm
 ```
 
-All experiments are tracked in MLflow at `/project/ptgroup/spinquest/Anvesh/mlruns/`. To view locally:
+**Checkpoints:**
+- `checkpoints/multi_track_finder_best.keras` — best val_loss model, saved each epoch
+- `checkpoints/multi_track_finder.keras` — final model after all curriculum phases
+
+**MLflow tracking** (experiment `multi_track_v2`):
 ```bash
-rsync -av am4qw@login.hpc.virginia.edu:/project/ptgroup/spinquest/Anvesh/mlruns/ ./mlruns/
-mlflow ui --backend-store-uri ./mlruns
+# View on Rivanna (requires SSH tunnel to the specific login node):
+apptainer exec ... python3 -m mlflow ui \
+    --backend-store-uri file:///project/ptgroup/spinquest/Anvesh/mlruns \
+    --host 127.0.0.1 --port 5000
 ```
+
+---
+
+### Metrics
+
+> **Do NOT use `segment_accuracy`** — it is inflated by empty pair slots (events with fewer than `max_pairs` true pairs have padded slots with elementID=0, which are trivially predicted correctly).
+
+Use these instead:
+
+| Metric | Description | What to look for |
+|--------|-------------|-----------------|
+| `segment_nonempty_acc` | Accuracy on non-empty pair slots only (true elementID ≠ 0) | Increasing over training |
+| `segment_mean_residual` | Mean \|predicted − true elementID\| on non-empty slots (in detector channels) | Decreasing; <5 is good reconstruction |
+| `denoise_recall` | Fraction of true signal hits recovered by denoiser | Should be >0.99 |
+| `denoise_precision` | Fraction of denoiser predictions that are true hits | Increasing with training |
+| `val_loss` | Combined validation loss across denoiser + segmenter | Primary training signal |
+
+---
 
 ### Approach 2: Auto-regressive Multi-Track (`QTracker_main/`)
 
