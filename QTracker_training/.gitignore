@@ -3,7 +3,12 @@
 checkpoints/
 Slurm_Files/
 local/
+docs/
 
 run.sh
 
 __pycache__/
+
+.cursor/settings.json
+.claude/settings.local.json
+CLAUDE.local.md
