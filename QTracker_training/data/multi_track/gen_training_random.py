@@ -23,7 +23,14 @@ def _get_value(x):
 
 
 def combine_files(
-    file1, file2, output_file, pairsmup, pairsmum, use_random, at_least_one_pair
+    file1,
+    file2,
+    output_file,
+    pairsmup,
+    pairsmum,
+    use_random,
+    at_least_one_pair,
+    pair_dist="uniform",
 ):
     if os.path.exists(output_file):
         os.remove(output_file)
@@ -110,7 +117,12 @@ def combine_files(
         if use_random:
             lower_bound = 1 if at_least_one_pair else 0
             max_possible_pairs = min(pairsmup, pairsmum)
-            current_pairs = random.randint(lower_bound, max_possible_pairs)
+            if pair_dist == "skewed":
+                pair_range = list(range(lower_bound, max_possible_pairs + 1))
+                weights = [2.0 ** (-k) for k in pair_range]
+                current_pairs = random.choices(pair_range, weights=weights, k=1)[0]
+            else:
+                current_pairs = random.randint(lower_bound, max_possible_pairs)
 
             extra_mup = random.randint(0, pairsmup - current_pairs)
             extra_mum = random.randint(0, pairsmum - current_pairs)
@@ -370,6 +382,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Ensure at least one pair of mu+ and mu- in each event",
     )
+    parser.add_argument(
+        "--pair_dist",
+        type=str,
+        default="uniform",
+        choices=["uniform", "skewed"],
+        help="Distribution for random pair count: 'uniform' or 'skewed' (favors lower counts).",
+    )
 
     args = parser.parse_args()
 
@@ -405,6 +424,7 @@ if __name__ == "__main__":
         pairsmum,
         args.random,
         args.at_least_one_pair,
+        args.pair_dist,
     )
     end_time = time.time()
 
