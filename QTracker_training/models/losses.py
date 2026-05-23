@@ -6,7 +6,6 @@ from scipy.optimize import linear_sum_assignment
 OVERLAP_LAMBDA = 0.1
 DISTANCE_LAMBDA = 5e-4
 EPSILON = 1e-7
-DIVERSITY_LAMBDA = 0.05
 
 
 def custom_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:

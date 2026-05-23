@@ -502,7 +502,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--lambda_presence",
         type=float,
-        default=0.2,
+        default=1.0,
         help="Weight for presence term in multi-track loss.",
     )
     parser.add_argument(

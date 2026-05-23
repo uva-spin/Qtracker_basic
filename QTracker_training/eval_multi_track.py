@@ -79,12 +79,14 @@ def evaluate_model(args):
 
         # Apply canonical ordering to GT pairs so evaluation matches training ordering
         for ev_idx in range(len(y_test)):
-            n_active = 0
-            for k in range(y_test.shape[1]):
-                if np.any(y_test[ev_idx, k] != 0):
-                    n_active = k + 1
-                else:
-                    break
+            n_active = max(
+                (
+                    k + 1
+                    for k in range(y_test.shape[1])
+                    if np.any(y_test[ev_idx, k] != 0)
+                ),
+                default=0,
+            )
             if n_active > 1:
                 active_indices = np.arange(n_active)
                 sort_keys = [
