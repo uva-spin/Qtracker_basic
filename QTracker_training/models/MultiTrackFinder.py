@@ -19,7 +19,7 @@ from tensorflow.keras.metrics import Precision, Recall
 
 from backbones import unetpp_backbone
 from data_loader import load_data_denoise
-from losses import hungarian_multi_track_loss, weighted_bce
+from losses import min_perm_multi_track_loss, weighted_bce
 
 # Set seeds
 tf.random.set_seed(42)
@@ -185,7 +185,8 @@ def train_model(args: argparse.Namespace) -> None:
             optimizer=optimizer,
             loss={
                 "denoise": weighted_bce(pos_weight=args.pos_weight),
-                "segment": hungarian_multi_track_loss(
+                "segment": min_perm_multi_track_loss(
+                    max_pairs=args.max_pairs,
                     lambda_presence=args.lambda_presence,
                     pos_weight_presence=args.pos_weight_presence,
                     focal_gamma=args.focal_gamma,

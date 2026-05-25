@@ -1,11 +1,25 @@
-import numpy as np
+import itertools
+
 import tensorflow as tf
 from typing import Callable
-from scipy.optimize import linear_sum_assignment
 
 OVERLAP_LAMBDA = 0.1
 DISTANCE_LAMBDA = 5e-4
 EPSILON = 1e-7
+
+MAX_PERMS_P = (
+    5  # P (max_pairs) should not exceed this; beyond that, P! becomes impractical.
+)
+
+
+def _build_perm_table(p: int) -> tf.Tensor:
+    """Build permutation index table for a given number of slots."""
+    if p > MAX_PERMS_P:
+        raise ValueError(
+            f"max_pairs={p} exceeds limit of {MAX_PERMS_P} "
+            f"(would require {p}! = {len(list(itertools.permutations(range(p))))} permutations)"
+        )
+    return tf.constant(list(itertools.permutations(range(p))), dtype=tf.int32)
 
 
 def custom_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
@@ -43,80 +57,31 @@ def custom_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
     return tf.reduce_mean(loss_mup + loss_mum + OVERLAP_LAMBDA * overlap_penalty)
 
 
-def _hungarian_match_np(cost_matrix: np.ndarray) -> np.ndarray:
-    row_ind, col_ind = linear_sum_assignment(cost_matrix)
-    P = cost_matrix.shape[0]
-    perm = np.arange(P, dtype=np.int32)
-    perm[row_ind] = col_ind.astype(np.int32)
-    return perm
-
-
-def _compute_matching_indices(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
-    """
-    Compute Hungarian matching for a batch of events.
-
-    Args:
-        y_true: (B, P, 2, 62) int32 ground truth element IDs
-        y_pred: (B, P, 2, 62, C) float32 softmax predictions
-
-    Returns:
-        perms: (B, P) int32 tensor of GT permutation indices per event
-    """
-
-    def _match_single(args):
-        yt, yp = args  # yt: (P, 2, 62), yp: (P, 2, 62, C)
-        P = tf.shape(yt)[0]
-
-        # Cost matrix: CE between each predicted slot i and GT slot j
-        yt_exp = tf.cast(tf.expand_dims(yt, 0), tf.int32)  # (1, P, 2, 62)
-        yp_exp = tf.expand_dims(yp, 1)  # (P, 1, 2, 62, C)
-
-        # Tile for pairwise
-        yt_tile = tf.tile(yt_exp, [P, 1, 1, 1])  # (P, P, 2, 62)
-        yp_tile = tf.tile(yp_exp, [1, P, 1, 1, 1])  # (P, P, 2, 62, C)
-
-        # Sparse CE per (pred_slot, gt_slot, charge, detector)
-        ce = tf.keras.losses.sparse_categorical_crossentropy(
-            yt_tile, yp_tile
-        )  # (P, P, 2, 62)
-
-        # Sum over charge and detector dims to get (P, P) cost matrix
-        cost = tf.reduce_sum(ce, axis=[-2, -1])  # (P, P)
-
-        # Run Hungarian matching via numpy
-        perm = tf.py_function(
-            func=lambda c: _hungarian_match_np(c.numpy()),
-            inp=[cost],
-            Tout=tf.int32,
-        )
-        perm.set_shape([None])
-        return perm
-
-    # Map over batch
-    perms = tf.map_fn(
-        _match_single,
-        (y_true, y_pred),
-        fn_output_signature=tf.int32,
-    )
-    return perms
-
-
-def hungarian_multi_track_loss(
+def min_perm_multi_track_loss(
+    max_pairs: int = 5,
     lambda_presence: float = 1.0,
     pos_weight_presence: float = 5.0,
     focal_gamma: float = 2.0,
     lambda_diversity: float = 0.05,
 ) -> Callable:
     """
-    Multi-track segmentation loss with Hungarian matching, focal presence, and diversity penalty.
+    Multi-track segmentation loss with min-over-permutations matching,
+    focal presence, and diversity penalty.
+
+    Uses brute-force enumeration of all P! permutations to find the optimal
+    assignment between predicted slots and GT slots. For P<=5 (at most 120
+    perms), this is negligible compute vs the model forward pass and avoids
+    the tf.py_function required by Hungarian matching (which is brittle under
+    MirroredStrategy multi-GPU training).
 
     Components:
-      1) Hungarian-matched sparse categorical cross-entropy on nonzero targets.
-      2) Focal BCE for hit presence (replaces vanilla weighted BCE).
-      3) Inter-pair diversity penalty to prevent slot collapse.
+      1) Min-over-permutations sparse categorical CE on nonzero targets.
+      2) Focal BCE for hit presence (inside the permutation min).
+      3) Inter-pair diversity penalty (outside the min — depends only on y_pred).
 
     Args:
-        lambda_presence: weight for presence/focal term (increased from 0.2 to 1.0)
+        max_pairs: number of output pair slots (must not exceed MAX_PERMS_P=5)
+        lambda_presence: weight for presence/focal term
         pos_weight_presence: weight multiplier for positive presence labels
         focal_gamma: gamma parameter for focal loss (0 = standard BCE)
         lambda_diversity: weight for inter-pair diversity penalty
@@ -124,6 +89,7 @@ def hungarian_multi_track_loss(
     Returns:
         Loss function with signature (y_true, y_pred) -> scalar.
     """
+    all_perms = _build_perm_table(max_pairs)  # (P!, P)
 
     def loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
         """
@@ -133,55 +99,55 @@ def hungarian_multi_track_loss(
         y_true = tf.cast(y_true, tf.int32)
         y_pred = tf.cast(y_pred, tf.float32)
 
-        # --- Step 1: Hungarian matching ---
-        perms = _compute_matching_indices(y_true, y_pred)  # (B, P)
+        # --- Step 1: Evaluate loss for all P! permutations ---
+        # Gather produces (B, P!, P, 2, 62); transpose to (P!, B, P, 2, 62)
+        y_true_all = tf.transpose(
+            tf.gather(y_true, all_perms, axis=1), perm=[1, 0, 2, 3, 4]
+        )
 
-        # Reorder y_true to match optimal assignment
-        y_true_matched = tf.gather(y_true, perms, batch_dims=1)  # (B, P, 2, 62)
+        # Broadcast predictions: (1, B, P, 2, 62, C)
+        y_pred_exp = tf.expand_dims(y_pred, 0)
 
-        # --- Step 2: Masked sparse CE (classification) ---
-        mask_hit = tf.cast(tf.not_equal(y_true_matched, 0), tf.float32)
-        ce = tf.keras.losses.sparse_categorical_crossentropy(
-            y_true_matched, y_pred
-        )  # (B, P, 2, 62)
-        ce_masked = ce * mask_hit
-        num_hits = tf.reduce_sum(mask_hit)
-        cls_loss = tf.reduce_sum(ce_masked) / (num_hits + EPSILON)
+        # Hit mask for all perms
+        mask_all = tf.cast(tf.not_equal(y_true_all, 0), tf.float32)
 
-        # --- Step 3: Focal presence loss ---
-        y_hit = mask_hit  # binary: does this position have a nonzero GT?
-        p0 = tf.clip_by_value(y_pred[..., 0], EPSILON, 1.0 - EPSILON)
-        p_hit = 1.0 - p0  # probability that a hit exists
+        # Masked sparse CE: (120, B, P, 2, 62)
+        ce_all = tf.keras.losses.sparse_categorical_crossentropy(y_true_all, y_pred_exp)
+        ce_masked = ce_all * mask_all
+        num_hits = tf.reduce_sum(mask_all, axis=[2, 3, 4])  # (120, B)
+        cls_per_perm = tf.reduce_sum(ce_masked, axis=[2, 3, 4]) / (num_hits + EPSILON)
 
-        # Focal modulating factor: (1 - p_t)^gamma
+        # Focal presence loss per perm
+        y_hit = mask_all
+        p0 = tf.clip_by_value(y_pred_exp[..., 0], EPSILON, 1.0 - EPSILON)
+        p_hit = 1.0 - p0
         p_t = y_hit * p_hit + (1.0 - y_hit) * (1.0 - p_hit)
         focal_weight = tf.pow(1.0 - p_t, focal_gamma)
-
-        # Class weighting (amplify positive examples)
         class_weight = 1.0 + (pos_weight_presence - 1.0) * y_hit
-
         bce = tf.keras.backend.binary_crossentropy(y_hit, p_hit)
-        presence_loss = tf.reduce_mean(bce * focal_weight * class_weight)
+        presence_per_perm = tf.reduce_mean(
+            bce * focal_weight * class_weight, axis=[2, 3, 4]
+        )  # (120, B)
 
-        # --- Step 4: Inter-pair diversity penalty ---
+        # --- Step 2: Min over permutations ---
+        total_per_perm = cls_per_perm + lambda_presence * presence_per_perm
+        best_loss = tf.reduce_min(total_per_perm, axis=0)  # (B,)
+        matched_loss = tf.reduce_mean(best_loss)
+
+        # --- Step 3: Diversity penalty (y_pred only, outside min) ---
         C = tf.shape(y_pred)[-1]
-        elem_indices = tf.cast(tf.range(C), tf.float32)  # (C,)
-
-        # Soft expected element ID per position
+        elem_indices = tf.cast(tf.range(C), tf.float32)
         soft_ids = tf.reduce_sum(y_pred * elem_indices, axis=-1)  # (B, P, 2, 62)
 
-        # Pairwise L2 distance between all slot pairs
         soft_i = tf.expand_dims(soft_ids, 2)
         soft_j = tf.expand_dims(soft_ids, 1)
         pairwise_dist = tf.reduce_sum(
             tf.square(soft_i - soft_j), axis=[-2, -1]
         )  # (B, P, P)
 
-        # Mask diagonal (self-pairs)
         P = tf.shape(soft_ids)[1]
-        diag_mask = 1.0 - tf.eye(P, dtype=tf.float32)  # (P, P)
+        diag_mask = 1.0 - tf.eye(P, dtype=tf.float32)
 
-        # Penalty: encourage large distances between different slots
         diversity_penalty = tf.reduce_sum(
             tf.exp(-pairwise_dist / 1000.0) * diag_mask
         ) / (
@@ -189,11 +155,7 @@ def hungarian_multi_track_loss(
             + EPSILON
         )
 
-        return (
-            cls_loss
-            + lambda_presence * presence_loss
-            + lambda_diversity * diversity_penalty
-        )
+        return matched_loss + lambda_diversity * diversity_penalty
 
     return loss
 

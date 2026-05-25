@@ -28,7 +28,7 @@ MAX_PAIRS=5
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     echo $CUDA_VISIBLE_DEVICES
 
-# Training with improved loss (Hungarian matching + focal + diversity)
+# Training with improved loss (min-perm matching + focal + diversity)
 ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/models/MultiTrackFinder.py \
      /mnt/code/data/multi_track/processed_files/mc_events_train_low.root \
