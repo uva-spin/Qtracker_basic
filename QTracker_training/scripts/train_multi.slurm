@@ -25,7 +25,7 @@ DATADIR=${DATADIR:-/project/ptgroup/spinquest/Anvesh}
 BATCH_NORM=1
 USE_ATTENTION=1
 USE_ATTENTION_FFN=0
-MAX_PAIRS=5
+MAX_PAIRS=3
 
 ${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
     python3 /mnt/code/models/MultiTrackFinder.py \
