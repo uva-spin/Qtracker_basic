@@ -34,6 +34,7 @@ mkdir -p ${CODEDIR}/results
 
 ${APPTAINER} exec --nv \
     --env TF_FORCE_GPU_ALLOW_GROWTH=true \
+    --env TF_GPU_ALLOCATOR=cuda_malloc_async \
     --env PYTHONUNBUFFERED=1 \
     --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns \
     --bind ${CODEDIR}:/mnt/code \
