@@ -14,20 +14,22 @@ module purge
 
 # For apptainer exec
 APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
-IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
+IMAGE=/project/ptgroup/spinquest/David/TfRootBuild_v2.sif
 
 # Override any of these at submission time, e.g.:
 #   CODEDIR=... DATADIR=... MODEL=... sbatch scripts/eval_multi_track.slurm
-_DEFAULT_BASE=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training
-CODEDIR=${CODEDIR:-${_DEFAULT_BASE}}
-DATADIR=${DATADIR:-${_DEFAULT_BASE}}
+_DEFAULT_CODEDIR=/scratch/am4qw/Qtracker_basic/QTracker_training
+_DEFAULT_DATADIR=/project/ptgroup/spinquest/Anvesh
+CODEDIR=${CODEDIR:-${_DEFAULT_CODEDIR}}
+DATADIR=${DATADIR:-${_DEFAULT_DATADIR}}
 DATA=${DATA:-${DATADIR}/data/multi_track/processed_files/mc_events_val.root}
-MODEL=${MODEL:-${DATADIR}/checkpoints/multi_track_finder.keras}
+MODEL=${MODEL:-/mnt/code/checkpoints/multi_track_finder_best.keras}
+MAX_PAIRS=${MAX_PAIRS:-3}
 
 ### Main Body ###
 # --- Evaluating Multi-Track Finder ---
-EVAL_ARGS=""
-[ -n "${NUM_EVENTS}" ] && EVAL_ARGS="--num_events ${NUM_EVENTS}"
+EVAL_ARGS="--max_pairs ${MAX_PAIRS}"
+[ -n "${NUM_EVENTS}" ] && EVAL_ARGS="${EVAL_ARGS} --num_events ${NUM_EVENTS}"
 
 ${APPTAINER} exec --nv \
     --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
@@ -36,7 +38,7 @@ ${APPTAINER} exec --nv \
     --bind ${DATADIR}:/mnt/data \
     "${IMAGE}" \
     python3 -u /mnt/code/eval_multi_track.py \
-        ${DATA} \
+        /mnt/data/data/multi_track/processed_files/mc_events_val.root \
         ${MODEL} \
         ${EVAL_ARGS} \
-        2>&1 | tee ${CODEDIR}/results/multi_track_results.txt
+        2>&1 | tee /mnt/code/results/multi_track_results.txt

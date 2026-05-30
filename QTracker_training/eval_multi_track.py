@@ -12,6 +12,7 @@ import ROOT  # noqa: F401
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
+from scipy.optimize import linear_sum_assignment
 
 # core TrackFinder loaders / custom loss
 from models import data_loader
@@ -64,6 +65,29 @@ def chi_squared(y_true, y_pred):
     chi2 = np.sum((res_norm**2), axis=1)  # Chi-squared per event
     chi2_mean = np.mean(chi2)  # Mean chi-squared over all events
     return chi2_mean
+
+
+def find_best_permutation(y_pred_argmax, y_test):
+    """
+    For each event, find the optimal assignment of predicted slots to true pairs
+    using the Hungarian algorithm (minimizes total mean absolute residual).
+    Returns reassigned predictions aligned to true pair ordering.
+    """
+    num_events, max_pairs, _, _ = y_pred_argmax.shape
+    y_pred_reassigned = np.zeros_like(y_pred_argmax)
+
+    for ev in range(num_events):
+        cost = np.zeros((max_pairs, max_pairs))
+        for i in range(max_pairs):
+            for j in range(max_pairs):
+                cost[i, j] = np.mean(np.abs(
+                    y_pred_argmax[ev, i].astype(float) - y_test[ev, j].astype(float)
+                ))
+        row_ind, col_ind = linear_sum_assignment(cost)
+        for k in range(len(row_ind)):
+            y_pred_reassigned[ev, col_ind[k]] = y_pred_argmax[ev, row_ind[k]]
+
+    return y_pred_reassigned
 
 
 def evaluate_model(args):
@@ -339,6 +363,71 @@ def evaluate_model(args):
                 mlflow.log_artifact(plot_path_raw, artifact_path="plots/residuals")
             if plot_path_refined and os.path.exists(plot_path_refined):
                 mlflow.log_artifact(plot_path_refined, artifact_path="plots/residuals")
+
+    # ============================================================
+    # Best Permutation Evaluation (Hungarian Matching)
+    # ============================================================
+    if is_multi_track and max_pairs > 1:
+        print(f"\n{'=' * 70}")
+        print("Best Permutation Evaluation (Hungarian Matching)")
+        print("Finding optimal slot-to-pair assignment per event...")
+        print(f"{'=' * 70}\n")
+
+        y_pred_best = find_best_permutation(y_pred_argmax, y_test)
+
+        for pair_idx in range(max_pairs):
+            valid_mask = np.any(y_test[:, pair_idx, :, :] != 0, axis=(1, 2))
+            num_valid = np.sum(valid_mask)
+            if num_valid == 0:
+                continue
+
+            y_p_best = y_pred_best[valid_mask, pair_idx, 0, :]
+            y_m_best = y_pred_best[valid_mask, pair_idx, 1, :]
+            y_p_true = y_test[valid_mask, pair_idx, 0, :].astype(np.int32)
+            y_m_true = y_test[valid_mask, pair_idx, 1, :].astype(np.int32)
+
+            res_p = y_p_true - y_p_best
+            res_m = y_m_true - y_m_best
+
+            acc_exact_p = np.mean(np.abs(res_p) == 0)
+            acc_exact_m = np.mean(np.abs(res_m) == 0)
+            acc_w2_p = np.mean(np.abs(res_p) <= 2)
+            acc_w2_m = np.mean(np.abs(res_m) <= 2)
+            mean_res_p = np.mean(np.abs(res_p))
+            mean_res_m = np.mean(np.abs(res_m))
+
+            print(f"Pair {pair_idx} | valid={num_valid} | "
+                  f"acc μ+/μ-: {acc_exact_p:.4f}/{acc_exact_m:.4f} | "
+                  f"within-2 μ+/μ-: {acc_w2_p:.4f}/{acc_w2_m:.4f} | "
+                  f"mean residual μ+/μ-: {mean_res_p:.3f}/{mean_res_m:.3f} ch")
+
+            if _MLFLOW and mlflow.active_run():
+                mlflow.log_metrics({
+                    f"perm_pair{pair_idx}_acc_mup":     float(acc_exact_p),
+                    f"perm_pair{pair_idx}_acc_mum":     float(acc_exact_m),
+                    f"perm_pair{pair_idx}_w2_mup":      float(acc_w2_p),
+                    f"perm_pair{pair_idx}_w2_mum":      float(acc_w2_m),
+                    f"perm_pair{pair_idx}_res_mup":     float(mean_res_p),
+                    f"perm_pair{pair_idx}_res_mum":     float(mean_res_m),
+                }, step=pair_idx)
+
+        # Overall best-permutation accuracy across all pairs and events
+        all_res_p = []
+        all_res_m = []
+        for pair_idx in range(max_pairs):
+            valid_mask = np.any(y_test[:, pair_idx, :, :] != 0, axis=(1, 2))
+            if np.sum(valid_mask) == 0:
+                continue
+            all_res_p.append(np.abs(y_test[valid_mask, pair_idx, 0, :].astype(int) - y_pred_best[valid_mask, pair_idx, 0, :]))
+            all_res_m.append(np.abs(y_test[valid_mask, pair_idx, 1, :].astype(int) - y_pred_best[valid_mask, pair_idx, 1, :]))
+
+        if all_res_p:
+            all_res_p = np.concatenate(all_res_p)
+            all_res_m = np.concatenate(all_res_m)
+            print(f"\nOverall best-permutation | "
+                  f"acc μ+/μ-: {np.mean(all_res_p==0):.4f}/{np.mean(all_res_m==0):.4f} | "
+                  f"within-2 μ+/μ-: {np.mean(all_res_p<=2):.4f}/{np.mean(all_res_m<=2):.4f} | "
+                  f"mean residual μ+/μ-: {np.mean(all_res_p):.3f}/{np.mean(all_res_m):.3f} ch")
 
     if _MLFLOW and _owns_run and mlflow.active_run():
         mlflow.end_run()
