@@ -72,14 +72,18 @@ def find_best_permutation(y_pred_argmax, y_test):
     For each event, find the optimal assignment of predicted slots to true pairs
     using the Hungarian algorithm (minimizes total mean absolute residual).
     Returns reassigned predictions aligned to true pair ordering.
+    Handles mismatched pred/gt pair counts by matching up to min(pred, gt) pairs.
     """
-    num_events, max_pairs, _, _ = y_pred_argmax.shape
+    num_events, pred_pairs, _, _ = y_pred_argmax.shape
+    gt_pairs = y_test.shape[1]
+    n = min(pred_pairs, gt_pairs)
+
     y_pred_reassigned = np.zeros_like(y_pred_argmax)
 
     for ev in range(num_events):
-        cost = np.zeros((max_pairs, max_pairs))
-        for i in range(max_pairs):
-            for j in range(max_pairs):
+        cost = np.zeros((n, n))
+        for i in range(n):
+            for j in range(n):
                 cost[i, j] = np.mean(np.abs(
                     y_pred_argmax[ev, i].astype(float) - y_test[ev, j].astype(float)
                 ))
