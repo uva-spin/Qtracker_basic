@@ -31,9 +31,12 @@ MAX_PAIRS=${MAX_PAIRS:-3}
 EVAL_ARGS="--max_pairs ${MAX_PAIRS}"
 [ -n "${NUM_EVENTS}" ] && EVAL_ARGS="${EVAL_ARGS} --num_events ${NUM_EVENTS}"
 
+mkdir -p ${CODEDIR}/results
+
 ${APPTAINER} exec --nv \
     --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
     --env PYTHONUNBUFFERED=1 \
+    --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns \
     --bind ${CODEDIR}:/mnt/code \
     --bind ${DATADIR}:/mnt/data \
     "${IMAGE}" \
@@ -41,4 +44,4 @@ ${APPTAINER} exec --nv \
         /mnt/data/data/multi_track/processed_files/mc_events_val.root \
         ${MODEL} \
         ${EVAL_ARGS} \
-        2>&1 | tee /mnt/code/results/multi_track_results.txt
+        2>&1 | tee ${CODEDIR}/results/multi_track_results.txt
