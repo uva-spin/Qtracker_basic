@@ -2,7 +2,6 @@
 #SBATCH -A spinquest_standard
 #SBATCH -p gpu
 #SBATCH --gres=gpu:a100:1
-#SBATCH -C gpupod
 #SBATCH -c 4
 #SBATCH -t 2:00:00
 #SBATCH -J eval_multi_track
@@ -34,7 +33,7 @@ EVAL_ARGS="--max_pairs ${MAX_PAIRS}"
 mkdir -p ${CODEDIR}/results
 
 ${APPTAINER} exec --nv \
-    --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES \
+    --env TF_FORCE_GPU_ALLOW_GROWTH=true \
     --env PYTHONUNBUFFERED=1 \
     --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns \
     --bind ${CODEDIR}:/mnt/code \
