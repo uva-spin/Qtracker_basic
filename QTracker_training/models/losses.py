@@ -1,5 +1,6 @@
 from typing import Callable
 
+import numpy as np
 import tensorflow as tf
 
 OVERLAP_LAMBDA = 0.1
@@ -45,6 +46,7 @@ def custom_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
 def multi_track_loss(
     lambda_presence: float = 0.2,
     pos_weight_presence: float = 5.0,
+    mup_station2_weight: float = 1.0,
 ) -> Callable:
     """
     Multi-track segmentation loss.
@@ -56,10 +58,19 @@ def multi_track_loss(
     Args:
         lambda_presence: weight for presence term
         pos_weight_presence: weight multiplier for positive presence labels
+        mup_station2_weight: extra loss weight for mu+ at Station 2 detectors
+            (det 19-30, 0-indexed 18-29). Use >1.0 to focus learning on the
+            mu+ Station 2 asymmetry. 1.0 = no effect (default).
 
     Returns:
         Loss function.
     """
+    # Per-position weight tensor shape (1, 1, 2, 62) — broadcasts over (B, P, 2, 62).
+    # Axis 2 index 0 = mu+, index 1 = mu-.
+    # Station 2 = detectors 19-30 (1-indexed) = indices 18-29 (0-indexed).
+    _w = np.ones((1, 1, 2, 62), dtype=np.float32)
+    _w[0, 0, 0, 18:30] = mup_station2_weight  # upweight mu+ Station 2 only
+    _det_weights = tf.constant(_w, dtype=tf.float32)
 
     def loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
         """
@@ -78,10 +89,12 @@ def multi_track_loss(
             y_true, y_pred
         )  # (B,P,2,62)
 
-        ce_masked = ce * mask_hit
+        # Apply per-detector weights before summing; normalize by weighted hit count
+        # so the scale stays comparable regardless of mup_station2_weight.
+        ce_masked = ce * mask_hit * _det_weights
 
         # Normalize by number of true hits
-        num_hits = tf.reduce_sum(mask_hit)  # (B,P,2,62) -> scalar
+        num_hits = tf.reduce_sum(mask_hit * _det_weights)  # (B,P,2,62) -> scalar
         cls_loss = tf.reduce_sum(ce_masked) / (num_hits + EPSILON)
 
         # --- Presence term (weighted BCE): penalize false positives and negatives ---

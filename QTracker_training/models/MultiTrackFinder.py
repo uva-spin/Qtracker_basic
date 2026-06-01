@@ -320,6 +320,7 @@ def train_model(args: argparse.Namespace) -> None:
                 "segment": multi_track_loss(
                     lambda_presence=args.lambda_presence,
                     pos_weight_presence=args.pos_weight_presence,
+                    mup_station2_weight=args.mup_station2_weight,
                 ),
             },
             loss_weights={
@@ -675,6 +676,12 @@ if __name__ == "__main__":
         type=float,
         default=5.0,
         help="Positive class weight for presence term in multi-track loss.",
+    )
+    parser.add_argument(
+        "--mup_station2_weight",
+        type=float,
+        default=1.0,
+        help="Extra loss weight for mu+ at Station 2 detectors (det 19-30). >1.0 oversamples those positions.",
     )
     parser.add_argument(
         "--mlflow_experiment",

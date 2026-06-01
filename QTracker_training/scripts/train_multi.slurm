@@ -44,16 +44,17 @@ ${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKIN
      --use_attn_ffn $USE_ATTENTION_FFN \
      --denoise_base 32 \
      --base 64 \
-     --epochs 60 \
+     --epochs 80 \
      --batch_size 32 \
      --dropout_bn 0.5 \
-     --dropout_enc 0.4 \
+     --dropout_enc 0.2 \
      --dropout_attn 0.1 \
      --factor 0.5 \
      --pos_weight 20.0 \
      --max_pairs $MAX_PAIRS \
      --lambda_presence 0.2 \
      --pos_weight_presence 5.0 \
+     --mup_station2_weight 2.0 \
      --mlflow_experiment multi_track_v2 \
      --mlflow_run_name "slurm_${SLURM_JOB_ID}"
 
