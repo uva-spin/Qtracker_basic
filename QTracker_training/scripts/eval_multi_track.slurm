@@ -10,9 +10,10 @@
 #SBATCH --mem=256000
 
 module purge
+module load apptainer
 
 # For apptainer exec
-APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
+APPTAINER=$(which apptainer)
 IMAGE=/project/ptgroup/spinquest/David/TfRootBuild_v2.sif
 
 # Override any of these at submission time, e.g.:
