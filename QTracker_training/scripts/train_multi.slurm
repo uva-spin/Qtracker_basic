@@ -11,10 +11,9 @@
 #SBATCH --mem=256000
 
 module purge
-module load apptainer
 
 # For apptainer exec
-APPTAINER=$(which apptainer)
+APPTAINER=/apps/software/standard/core/apptainer/1.4.5/bin/apptainer
 IMAGE=/project/ptgroup/spinquest/David/TfRootBuild_v2.sif
 _DEFAULT_CODEDIR=/scratch/am4qw/Qtracker_basic/QTracker_training
 CODEDIR=${CODEDIR:-${_DEFAULT_CODEDIR}}
