@@ -25,9 +25,6 @@ from losses import min_perm_multi_track_loss, weighted_bce
 tf.random.set_seed(42)
 np.random.seed(42)
 
-# Ensure the checkpoints directory exists
-os.makedirs("checkpoints", exist_ok=True)
-
 # Set mixed precision policy for better performance
 mixed_precision.set_global_policy("mixed_float16")
 
@@ -339,6 +336,9 @@ def train_model(args: argparse.Namespace) -> None:
             verbose=2,
         )
 
+    output_dir = os.path.dirname(args.output_model)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     model.save(args.output_model)
     print(f"Model saved to {args.output_model}")
 

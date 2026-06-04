@@ -105,8 +105,9 @@ def min_perm_multi_track_loss(
             tf.gather(y_true, all_perms, axis=1), perm=[1, 0, 2, 3, 4]
         )
 
-        # Broadcast predictions: (1, B, P, 2, 62, C)
-        y_pred_exp = tf.expand_dims(y_pred, 0)
+        # Tile predictions across all P! permutations: (P!, B, P, 2, 62, C)
+        num_perms = tf.shape(y_true_all)[0]
+        y_pred_exp = tf.tile(tf.expand_dims(y_pred, 0), [num_perms, 1, 1, 1, 1, 1])
 
         # Hit mask for all perms
         mask_all = tf.cast(tf.not_equal(y_true_all, 0), tf.float32)

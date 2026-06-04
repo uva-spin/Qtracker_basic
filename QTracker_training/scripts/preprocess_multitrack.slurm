@@ -90,64 +90,66 @@ CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training/
 # --- 4. Generate training data by combining μ⁺ and μ⁻ signal tracks ---
 echo "Generate training data for train set"
 ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 data/multi_track/gen_training_random.py \
-        data/raw_files/Dimuons_Train_500K_track1.root \
-        data/raw_files/Dimuons_Train_500K_track2.root \
-        --output data/multi_track/processed_files/finder_training_train.root \
+    python3 /mnt/code/data/multi_track/gen_training_random.py \
+        /mnt/code/data/raw_files/Dimuons_Train_500K_track1.root \
+        /mnt/code/data/raw_files/Dimuons_Train_500K_track2.root \
+        --output /mnt/code/data/multi_track/processed_files/finder_training_train.root \
         --pairsmup 5 \
         --pairsmum 5 \
-        --random --pair_dist skewed --at_least_one_pair
-
-mv momentum_training-1.root data/multi_track/processed_files/momentum_training-1_train.root 
-mv momentum_training-2.root data/multi_track/processed_files/momentum_training-2_train.root
+        --random \
+        --pair_dist skewed \
+        --at_least_one_pair \
+        --output_mom1 /mnt/code/data/multi_track/processed_files/momentum_training-1_train.root \
+        --output_mom2 /mnt/code/data/multi_track/processed_files/momentum_training-2_train.root
 
 echo "Generate training data for val set"
 ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 data/multi_track/gen_training_random.py \
-        data/raw_files/Dimuons_Val_200K_track1.root \
-        data/raw_files/Dimuons_Val_200K_track2.root \
-        --output data/multi_track/processed_files/finder_training_val.root \
+    python3 /mnt/code/data/multi_track/gen_training_random.py \
+        /mnt/code/data/raw_files/Dimuons_Val_200K_track1.root \
+        /mnt/code/data/raw_files/Dimuons_Val_200K_track2.root \
+        --output /mnt/code/data/multi_track/processed_files/finder_training_val.root \
         --pairsmup 5 \
         --pairsmum 5 \
-        --random --pair_dist skewed --at_least_one_pair
-
-mv momentum_training-1.root data/multi_track/processed_files/momentum_training-1_val.root 
-mv momentum_training-2.root data/multi_track/processed_files/momentum_training-2_val.root
+        --random \
+        --pair_dist skewed \
+        --at_least_one_pair \
+        --output_mom1 /mnt/code/data/multi_track/processed_files/momentum_training-1_val.root \
+        --output_mom2 /mnt/code/data/multi_track/processed_files/momentum_training-2_val.root
 
 # --- 5. Inject background muon tracks to signal file from 4 ---
 echo "Inject low-level background tracks into train set"
 ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 data/multi_track/messy_gen.py \
-        data/multi_track/processed_files/finder_training_train.root \
-        data/multi_track/processed_files/single_muons_train.root \
-        --output data/multi_track/processed_files/mc_events_train_low.root \
+    python3 /mnt/code/data/multi_track/messy_gen.py \
+        /mnt/code/data/multi_track/processed_files/finder_training_train.root \
+        /mnt/code/data/processed_files/single_muons_train.root \
+        --output /mnt/code/data/multi_track/processed_files/mc_events_train_low.root \
         --uniform_tracks 0 \
         --lower_bound 0 \
         --num_tracks 16
 
 echo "Inject mid-level background tracks into train set"
 ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 data/multi_track/messy_gen.py \
-        data/multi_track/processed_files/finder_training_train.root \
-        data/multi_track/processed_files/single_muons_train.root \
-        --output data/multi_track/processed_files/mc_events_train_med.root \
+    python3 /mnt/code/data/multi_track/messy_gen.py \
+        /mnt/code/data/multi_track/processed_files/finder_training_train.root \
+        /mnt/code/data/processed_files/single_muons_train.root \
+        --output /mnt/code/data/multi_track/processed_files/mc_events_train_med.root \
         --uniform_tracks 0 \
         --lower_bound 17 \
         --num_tracks 33
         
 echo "Inject high-level background tracks into train set"
 ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 data/multi_track/messy_gen.py \
-        data/multi_track/processed_files/finder_training_train.root \
-        data/multi_track/processed_files/single_muons_train.root \
-        --output data/multi_track/processed_files/mc_events_train_high.root \
+    python3 /mnt/code/data/multi_track/messy_gen.py \
+        /mnt/code/data/multi_track/processed_files/finder_training_train.root \
+        /mnt/code/data/processed_files/single_muons_train.root \
+        --output /mnt/code/data/multi_track/processed_files/mc_events_train_high.root \
         --uniform_tracks 0 \
         --lower_bound 34 \
         --num_tracks 50
 
 echo "Inject background tracks into val set"
 ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 data/multi_track/messy_gen.py \
-        data/multi_track/processed_files/finder_training_val.root \
-        data/multi_track/processed_files/single_muons_val.root \
-        --output data/multi_track/processed_files/mc_events_val.root
+    python3 /mnt/code/data/multi_track/messy_gen.py \
+        /mnt/code/data/multi_track/processed_files/finder_training_val.root \
+        /mnt/code/data/processed_files/single_muons_val.root \
+        --output /mnt/code/data/multi_track/processed_files/mc_events_val.root

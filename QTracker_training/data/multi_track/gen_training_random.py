@@ -389,6 +389,18 @@ if __name__ == "__main__":
         choices=["uniform", "skewed"],
         help="Distribution for random pair count: 'uniform' or 'skewed' (favors lower counts).",
     )
+    parser.add_argument(
+        "--output_mom1",
+        type=str,
+        default="momentum_training-1.root",
+        help="Output path for mu+ momentum training file",
+    )
+    parser.add_argument(
+        "--output_mom2",
+        type=str,
+        default="momentum_training-2.root",
+        help="Output path for mu- momentum training file",
+    )
 
     args = parser.parse_args()
 
@@ -408,8 +420,8 @@ if __name__ == "__main__":
     if pairsmup <= 0 or pairsmum <= 0:
         raise ValueError("pairsmup and pairsmum must be >= 1")
 
-    file1_array_output = "momentum_training-1.root"
-    file2_array_output = "momentum_training-2.root"
+    file1_array_output = args.output_mom1
+    file2_array_output = args.output_mom2
     for file_name in [args.output, file1_array_output, file2_array_output]:
         if os.path.exists(file_name):
             os.remove(file_name)
