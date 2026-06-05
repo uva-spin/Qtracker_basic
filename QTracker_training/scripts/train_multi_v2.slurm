@@ -22,7 +22,7 @@ CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training/
 BATCH_NORM=1
 USE_ATTENTION=1
 USE_ATTENTION_FFN=0
-MAX_PAIRS=5
+MAX_PAIRS=3
 
 # GPU validation
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \

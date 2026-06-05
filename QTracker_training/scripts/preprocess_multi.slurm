@@ -94,11 +94,9 @@ ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
         /mnt/code/data/raw_files/Dimuons_Train_500K_track1.root \
         /mnt/code/data/raw_files/Dimuons_Train_500K_track2.root \
         --output /mnt/code/data/multi_track/processed_files/finder_training_train.root \
-        --pairsmup 5 \
-        --pairsmum 5 \
+        --pairsmup 3 \
+        --pairsmum 3 \
         --random \
-        --pair_dist skewed \
-        --at_least_one_pair \
         --output_mom1 /mnt/code/data/multi_track/processed_files/momentum_training-1_train.root \
         --output_mom2 /mnt/code/data/multi_track/processed_files/momentum_training-2_train.root
 
@@ -108,11 +106,9 @@ ${APPTAINER} exec --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
         /mnt/code/data/raw_files/Dimuons_Val_200K_track1.root \
         /mnt/code/data/raw_files/Dimuons_Val_200K_track2.root \
         --output /mnt/code/data/multi_track/processed_files/finder_training_val.root \
-        --pairsmup 5 \
-        --pairsmum 5 \
+        --pairsmup 3 \
+        --pairsmum 3 \
         --random \
-        --pair_dist skewed \
-        --at_least_one_pair \
         --output_mom1 /mnt/code/data/multi_track/processed_files/momentum_training-1_val.root \
         --output_mom2 /mnt/code/data/multi_track/processed_files/momentum_training-2_val.root
 

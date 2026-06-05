@@ -7,6 +7,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 absl.logging.set_verbosity("error")
 
 import argparse
+import itertools
 import ROOT  # noqa: F401
 import numpy as np
 import tensorflow as tf
@@ -54,6 +55,58 @@ def chi_squared(y_true, y_pred):
     chi2 = np.sum((res_norm**2), axis=1)  # Chi-squared per event
     chi2_mean = np.mean(chi2)  # Mean chi-squared over all events
     return chi2_mean
+
+
+def match_predictions(y_test, y_pred_argmax, mask, max_pairs):
+    """Reorder predicted pair slots per event to best match the active GT pairs.
+
+    For each event we restrict to the active GT pairs (slots with any nonzero
+    hit; GT is assumed already canonically sorted). We build a residual-based
+    cost between every predicted slot ``p`` and every active GT slot ``g``:
+
+        cost(p, g) = sum_{unmasked det} |pred_p - gt_g| for mu+
+                   + sum_{unmasked det} |pred_p - gt_g| for mu-
+
+    We enumerate all permutations of ``range(max_pairs)`` and pick the one
+    minimizing the total cost over the active GT slots. The chosen permutation
+    is applied so the predicted slot matched to GT rank ``k`` lands at index
+    ``k``. This prevents penalizing a correctly-found pair that appears in a
+    different slot order. The returned (permuted) argmax predictions can be
+    reused unchanged when computing refined predictions.
+    """
+    matched = y_pred_argmax.copy()
+    det_idx = np.where(mask)[0]
+    perms = list(itertools.permutations(range(max_pairs)))
+
+    for ev in range(len(y_test)):
+        n_active = max(
+            (k + 1 for k in range(max_pairs) if np.any(y_test[ev, k] != 0)),
+            default=0,
+        )
+        if n_active <= 1:
+            continue
+
+        gt = y_test[ev].astype(np.int32)  # (max_pairs, 2, 62)
+        pred = y_pred_argmax[ev]  # (max_pairs, 2, 62)
+
+        cost = np.zeros((max_pairs, max_pairs))
+        for p in range(max_pairs):
+            for g in range(n_active):
+                c_plus = np.sum(np.abs(pred[p, 0, det_idx] - gt[g, 0, det_idx]))
+                c_minus = np.sum(np.abs(pred[p, 1, det_idx] - gt[g, 1, det_idx]))
+                cost[p, g] = c_plus + c_minus
+
+        best_perm = None
+        best_cost = None
+        for perm in perms:
+            total = sum(cost[perm[k], k] for k in range(n_active))
+            if best_cost is None or total < best_cost:
+                best_cost = total
+                best_perm = perm
+
+        matched[ev] = pred[list(best_perm)]
+
+    return matched
 
 
 def evaluate_model(args):
@@ -139,58 +192,16 @@ def evaluate_model(args):
     y_pred_argmax = np.argmax(y_pred, axis=-1).astype(np.int32)
     # Shape: (num_events, max_pairs, 2, 62)
 
+    # Reorder predicted pair slots per event to best match the active GT pairs
+    y_pred_argmax = match_predictions(y_test, y_pred_argmax, mask, max_pairs)
+
     # Evaluate each pair
     for pair_idx in range(max_pairs):
         print(f"\n{'=' * 70}")
         print(f"Evaluating Pair {pair_idx}")
         print(f"{'=' * 70}")
 
-        # ============================================================
-        # Pair Existence Evaluation (captures FP and FN)
-        # ============================================================
-
-        print("\n--- Pair Existence Metrics ---")
-
-        # Ground truth existence
-        gt_exists = np.any(y_test[:, pair_idx, :, :] != 0, axis=(1, 2))
-
-        # Prediction existence (after argmax)
-        pred_exists = np.any(y_pred_argmax[:, pair_idx, :, :] != 0, axis=(1, 2))
-
-        TP = np.sum(gt_exists & pred_exists)
-        TN = np.sum(~gt_exists & ~pred_exists)
-        FP = np.sum(~gt_exists & pred_exists)
-        FN = np.sum(gt_exists & ~pred_exists)
-
-        total = len(gt_exists)
-
-        accuracy_exist = (TP + TN) / total if total > 0 else 0.0
-        precision = TP / (TP + FP) if (TP + FP) > 0 else 0.0
-        recall = TP / (TP + FN) if (TP + FN) > 0 else 0.0
-        specificity = TN / (TN + FP) if (TN + FP) > 0 else 0.0
-        f1 = (
-            2 * precision * recall / (precision + recall)
-            if (precision + recall) > 0
-            else 0.0
-        )
-
-        print(f"Total events: {total}")
-        print(f"True Positives : {TP}")
-        print(f"True Negatives : {TN}")
-        print(f"False Positives: {FP}")
-        print(f"False Negatives: {FN}")
-
-        print(f"\nExistence Accuracy : {accuracy_exist:.4f}")
-        print(f"Precision          : {precision:.4f}")
-        print(f"Recall             : {recall:.4f}")
-        print(f"Specificity        : {specificity:.4f}")
-        print(f"F1 Score           : {f1:.4f}")
-
-        if np.sum(~gt_exists) > 0:
-            fp_rate_empty = FP / np.sum(~gt_exists)
-            print(f"\nFalse Positive Rate on Empty Pairs: {fp_rate_empty:.4f}")
-
-        # Check for non-zero ground truth to determine valid events
+        # Restrict to events where this GT rank is active (any nonzero hit)
         valid_mask = np.any(y_test[:, pair_idx, :, :] != 0, axis=(1, 2))
 
         num_valid = np.sum(valid_mask)
@@ -200,7 +211,7 @@ def evaluate_model(args):
 
         print(f"Valid events: {num_valid}/{len(y_test)}")
 
-        # Extract predictions and ground truth for this pair
+        # Extract matched predictions and ground truth for this pair
         y_p_raw = y_pred_argmax[valid_mask, pair_idx, 0, :]  # (valid_events, 62)
         y_m_raw = y_pred_argmax[valid_mask, pair_idx, 1, :]
 

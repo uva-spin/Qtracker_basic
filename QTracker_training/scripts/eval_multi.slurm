@@ -17,7 +17,7 @@ IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training/
 
 ### Main Body ###
-MAX_PAIRS=5
+MAX_PAIRS=3
 
 # Evaluate
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
