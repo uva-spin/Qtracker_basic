@@ -64,6 +64,42 @@ class MLflowEpochCallback(tf.keras.callbacks.Callback):
                     print(f"MLflow metric log failed ({key}={val}): {e}", flush=True)
 
 
+class LivePlotCallback(tf.keras.callbacks.Callback):
+    """Save a training progress plot every N epochs so it can be inspected mid-run."""
+
+    def __init__(self, output_path: str, every_n: int = 5):
+        super().__init__()
+        self._path = output_path
+        self._every_n = every_n
+        self._history: dict[str, list] = {}
+
+    def on_epoch_end(self, epoch, logs=None):
+        if logs:
+            for k, v in logs.items():
+                self._history.setdefault(k, []).append(float(v))
+        if not MATPLOTLIB_AVAILABLE or (epoch + 1) % self._every_n != 0:
+            return
+        epochs = range(1, len(self._history.get("loss", [])) + 1)
+        fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+
+        for ax, (train_key, val_key, title) in zip(axes, [
+            ("loss", "val_loss", "Total Loss"),
+            ("segment_segment_nonempty_acc", "val_segment_segment_nonempty_acc", "Non-Empty Accuracy"),
+            ("segment_segment_mean_residual", "val_segment_segment_mean_residual", "Mean Residual (ch)"),
+        ]):
+            if train_key in self._history:
+                ax.plot(epochs, self._history[train_key], label="train")
+            if val_key in self._history:
+                ax.plot(epochs, self._history[val_key], label="val")
+            ax.set_title(title)
+            ax.set_xlabel("Epoch")
+            ax.legend()
+
+        fig.tight_layout()
+        fig.savefig(self._path)
+        plt.close(fig)
+
+
 class SegmentNonEmptyAccuracy(tf.keras.metrics.Metric):
     """Accuracy on non-empty pair slots only (true elementID != 0)."""
 
@@ -360,6 +396,9 @@ def train_model(args: argparse.Namespace) -> None:
             verbose=1,
         )
 
+        live_plot_path = os.path.join(os.path.dirname(args.output_model), "training_progress.png")
+        live_plot_cb = LivePlotCallback(output_path=live_plot_path, every_n=5)
+
         lr_scheduler = ReduceLROnPlateau(
             monitor="val_loss",
             factor=args.factor,
@@ -373,7 +412,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_low,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, checkpoint, mlflow_cb],
+            callbacks=[lr_scheduler, checkpoint, mlflow_cb, live_plot_cb],
             verbose=2,
         )
         _all_histories.append(hist_low.history)
@@ -408,7 +447,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_med,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, checkpoint, mlflow_cb],
+            callbacks=[lr_scheduler, checkpoint, mlflow_cb, live_plot_cb],
             verbose=2,
         )
         _all_histories.append(hist_med.history)
@@ -447,7 +486,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_high,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, early_stopping, checkpoint, mlflow_cb],
+            callbacks=[lr_scheduler, early_stopping, checkpoint, mlflow_cb, live_plot_cb],
             verbose=2,
         )
         _all_histories.append(hist_high.history)
