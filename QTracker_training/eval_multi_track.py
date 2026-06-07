@@ -57,7 +57,7 @@ def chi_squared(y_true, y_pred):
     return chi2_mean
 
 
-def match_predictions(y_test, y_pred_argmax, mask, max_pairs):
+def match_predictions(y_test, y_pred_argmax, mask):
     """Reorder predicted pair slots per event to best match the active GT pairs.
 
     For each event we restrict to the active GT pairs (slots with any nonzero
@@ -67,44 +67,48 @@ def match_predictions(y_test, y_pred_argmax, mask, max_pairs):
         cost(p, g) = sum_{unmasked det} |pred_p - gt_g| for mu+
                    + sum_{unmasked det} |pred_p - gt_g| for mu-
 
-    We enumerate all permutations of ``range(max_pairs)`` and pick the one
-    minimizing the total cost over the active GT slots. The chosen permutation
-    is applied so the predicted slot matched to GT rank ``k`` lands at index
-    ``k``. This prevents penalizing a correctly-found pair that appears in a
-    different slot order. The returned (permuted) argmax predictions can be
-    reused unchanged when computing refined predictions.
+    We enumerate permutations of predicted slots and pick the one minimizing
+    the total cost over the active GT slots. The chosen permutation is applied
+    so the predicted slot matched to GT rank ``k`` lands at index ``k``.
+    GT and model pair-slot counts may differ (e.g. 3-pair GT vs 5-pair model).
     """
     matched = y_pred_argmax.copy()
     det_idx = np.where(mask)[0]
-    perms = list(itertools.permutations(range(max_pairs)))
 
     for ev in range(len(y_test)):
+        gt = y_test[ev].astype(np.int32)  # (n_gt, 2, 62)
+        pred = y_pred_argmax[ev]  # (n_pred, 2, 62)
+        n_gt = gt.shape[0]
+        n_pred = pred.shape[0]
+
         n_active = max(
-            (k + 1 for k in range(max_pairs) if np.any(y_test[ev, k] != 0)),
+            (k + 1 for k in range(n_gt) if np.any(gt[k] != 0)),
             default=0,
         )
         if n_active <= 1:
             continue
 
-        gt = y_test[ev].astype(np.int32)  # (max_pairs, 2, 62)
-        pred = y_pred_argmax[ev]  # (max_pairs, 2, 62)
+        n_match = min(n_active, n_pred)
 
-        cost = np.zeros((max_pairs, max_pairs))
-        for p in range(max_pairs):
-            for g in range(n_active):
+        cost = np.zeros((n_pred, n_match))
+        for p in range(n_pred):
+            for g in range(n_match):
                 c_plus = np.sum(np.abs(pred[p, 0, det_idx] - gt[g, 0, det_idx]))
                 c_minus = np.sum(np.abs(pred[p, 1, det_idx] - gt[g, 1, det_idx]))
                 cost[p, g] = c_plus + c_minus
 
         best_perm = None
         best_cost = None
-        for perm in perms:
-            total = sum(cost[perm[k], k] for k in range(n_active))
+        for perm in itertools.permutations(range(n_pred), n_match):
+            total = sum(cost[perm[k], k] for k in range(n_match))
             if best_cost is None or total < best_cost:
                 best_cost = total
                 best_perm = perm
 
-        matched[ev] = pred[list(best_perm)]
+        reordered = pred.copy()
+        for k in range(n_match):
+            reordered[k] = pred[best_perm[k]]
+        matched[ev] = reordered
 
     return matched
 
@@ -190,13 +194,23 @@ def evaluate_model(args):
 
     # Extract argmax predictions
     y_pred_argmax = np.argmax(y_pred, axis=-1).astype(np.int32)
-    # Shape: (num_events, max_pairs, 2, 62)
+    # Shape: (num_events, pred_max_pairs, 2, 62)
+
+    gt_max_pairs = y_test.shape[1]
+    pred_max_pairs = y_pred_argmax.shape[1]
+    if gt_max_pairs != pred_max_pairs:
+        print(
+            f"WARNING: GT has {gt_max_pairs} pair slots but model outputs "
+            f"{pred_max_pairs}. Evaluating the first "
+            f"{min(gt_max_pairs, pred_max_pairs)} pair(s)."
+        )
+    eval_max_pairs = min(gt_max_pairs, pred_max_pairs)
 
     # Reorder predicted pair slots per event to best match the active GT pairs
-    y_pred_argmax = match_predictions(y_test, y_pred_argmax, mask, max_pairs)
+    y_pred_argmax = match_predictions(y_test, y_pred_argmax, mask)
 
     # Evaluate each pair
-    for pair_idx in range(max_pairs):
+    for pair_idx in range(eval_max_pairs):
         print(f"\n{'=' * 70}")
         print(f"Evaluating Pair {pair_idx}")
         print(f"{'=' * 70}")
