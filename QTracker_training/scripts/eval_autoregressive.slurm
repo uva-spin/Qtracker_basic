@@ -3,7 +3,7 @@
 #SBATCH -p gpu
 #SBATCH --gres=gpu:1
 #SBATCH -c 4
-#SBATCH -t 4:00:00
+#SBATCH -t 18:00:00
 #SBATCH -J autoregressive-eval
 #SBATCH -o Slurm_Files/autoregressive-eval.out
 #SBATCH -e Slurm_Files/autoregressive-eval.err
@@ -12,13 +12,13 @@
 module purge
 
 # For apptainer exec
-APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
+APPTAINER=/apps/software/standard/core/apptainer/1.4.5/bin/apptainer
 IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
-CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training/
+CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/.worktrees/autoregressive_track_finder/QTracker_training/
 
 ### Main Body ###
-MAX_ITERS=5
-CONFIDENCE_THRESHOLD=0.15
+MAX_PAIRS=3
+THRESHOLDS="0.3 0.4 0.5 0.6 0.7 0.8 0.9"
 
 # Single-track model used as the base finder
 MODEL=/mnt/code/checkpoints/track_finder_64.keras
@@ -26,17 +26,25 @@ MODEL=/mnt/code/checkpoints/track_finder_64.keras
 # Multi-track validation data
 VAL_DATA=/mnt/code/data/multi_track/processed_files/mc_events_val.root
 
-# --- Step 1: Run autoregressive prediction ---
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/models/AutoregressiveTrackFinder.py \
-     ${VAL_DATA} \
-     ${MODEL} \
-     --max_iters $MAX_ITERS \
-     --confidence_threshold $CONFIDENCE_THRESHOLD \
-     --max_pairs 5 \
-     --output /mnt/code/checkpoints/autoregressive_predictions.npz
+for THRESH in $THRESHOLDS; do
+    echo ""
+    echo "######################################################################"
+    echo "# THRESHOLD = ${THRESH}"
+    echo "######################################################################"
+    echo ""
 
-# --- Step 2: Evaluate ---
-${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
-    python3 /mnt/code/eval_autoregressive.py \
-     /mnt/code/checkpoints/autoregressive_predictions.npz
+    OUTPUT=/mnt/code/checkpoints/autoregressive_predictions_${THRESH}.npz
+
+    # Step 1: Run autoregressive prediction
+    ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+        python3 /mnt/code/models/AutoregressiveTrackFinder.py \
+         ${VAL_DATA} \
+         ${MODEL} \
+         --max_pairs $MAX_PAIRS \
+         --confidence_threshold $THRESH \
+         --output ${OUTPUT}
+
+    # Step 2: Evaluate
+    ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
+        python3 /mnt/code/eval_autoregressive.py ${OUTPUT} ${VAL_DATA}
+done

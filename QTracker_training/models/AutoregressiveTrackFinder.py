@@ -4,7 +4,7 @@ Autoregressive Multi-Track Finder.
 Uses a trained single-track TrackFinder iteratively:
 1. Predict the highest-confidence dimuon pair.
 2. Remove predicted hits from the input matrix.
-3. Repeat until confidence drops below threshold or max iterations.
+3. Repeat until confidence drops below threshold or max_pairs is reached.
 """
 
 # ruff: noqa: E402
@@ -117,7 +117,7 @@ def predict_single_pass(model, X):
     return hit_array_mup, hit_array_mum, softmax_mup, softmax_mum
 
 
-def autoregressive_predict(model, X, max_iters=5, confidence_threshold=0.15):
+def autoregressive_predict(model, X, max_pairs=5, confidence_threshold=0.5):
     """
     Iterative multi-track prediction.
 
@@ -125,12 +125,12 @@ def autoregressive_predict(model, X, max_iters=5, confidence_threshold=0.15):
     1. Predict one pair from the current hit matrix.
     2. Compute confidence. If below threshold, stop for this event.
     3. Remove predicted hits from the hit matrix.
-    4. Repeat up to max_iters times.
+    4. Repeat up to max_pairs times.
 
     Args:
         model: loaded single-track TrackFinder model
         X: (num_events, 62, 201, 1) input hit matrices
-        max_iters: maximum number of pairs to extract
+        max_pairs: maximum dimuon pairs to extract (and GT slots in ROOT data)
         confidence_threshold: stop when confidence drops below this
 
     Returns:
@@ -150,10 +150,8 @@ def autoregressive_predict(model, X, max_iters=5, confidence_threshold=0.15):
     active = np.ones(num_events, dtype=bool)
     n_pairs_per_event = np.zeros(num_events, dtype=np.int32)
 
-    for iteration in range(max_iters):
-        print(
-            f"  Iteration {iteration + 1}/{max_iters} — {np.sum(active)} active events"
-        )
+    for iteration in range(max_pairs):
+        print(f"  Pair {iteration + 1}/{max_pairs} — {np.sum(active)} active events")
 
         if not np.any(active):
             break
@@ -218,13 +216,13 @@ def main(args):
 
     # Run autoregressive prediction
     print(
-        f"Running autoregressive prediction (max_iters={args.max_iters}, "
+        f"Running autoregressive prediction (max_pairs={args.max_pairs}, "
         f"threshold={args.confidence_threshold})..."
     )
     all_mup, all_mum, all_conf, n_pairs = autoregressive_predict(
         model,
         X,
-        max_iters=args.max_iters,
+        max_pairs=args.max_pairs,
         confidence_threshold=args.confidence_threshold,
     )
 
@@ -232,7 +230,7 @@ def main(args):
     print(f"\n{'=' * 60}")
     print("Autoregressive Prediction Summary")
     print(f"{'=' * 60}")
-    for k in range(1, args.max_iters + 1):
+    for k in range(1, args.max_pairs + 1):
         count = np.sum(n_pairs >= k)
         print(
             f"  Events with >= {k} pairs found: {count} ({100 * count / len(X):.1f}%)"
@@ -242,9 +240,9 @@ def main(args):
     output_path = args.output if args.output else "autoregressive_predictions.npz"
     np.savez_compressed(
         output_path,
-        all_mup=np.array(all_mup),  # (max_iters, num_events, 62)
+        all_mup=np.array(all_mup),  # (max_pairs, num_events, 62)
         all_mum=np.array(all_mum),
-        all_conf=np.array(all_conf),  # (max_iters, num_events)
+        all_conf=np.array(all_conf),  # (max_pairs, num_events)
         n_pairs=n_pairs,  # (num_events,)
         y_muPlus=y_muPlus,  # GT
         y_muMinus=y_muMinus,
@@ -261,12 +259,6 @@ if __name__ == "__main__":
         "model_path", type=str, help="Path to trained single-track model."
     )
     parser.add_argument(
-        "--max_iters",
-        type=int,
-        default=5,
-        help="Maximum number of dimuon pairs to extract per event.",
-    )
-    parser.add_argument(
         "--confidence_threshold",
         type=float,
         default=0.15,
@@ -276,7 +268,7 @@ if __name__ == "__main__":
         "--max_pairs",
         type=int,
         default=5,
-        help="Max pairs in the ROOT file (for loading GT labels).",
+        help="Max dimuon pairs per event (extraction limit and ROOT GT layout).",
     )
     parser.add_argument(
         "--output",
