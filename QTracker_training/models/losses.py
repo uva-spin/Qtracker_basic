@@ -1,3 +1,5 @@
+import itertools
+
 import tensorflow as tf
 from typing import Callable
 
@@ -107,6 +109,98 @@ def multi_track_loss(
         )
 
         return cls_loss + lambda_presence * presence_loss
+
+    return loss
+
+
+def min_perm_loss(n_pairs: int) -> Callable:
+    """
+    Permutation-invariant loss for a fixed-N multi-track finder.
+
+    Brute-forces all N! permutations of predicted track slots vs. ground-truth
+    track slots and picks the minimum-cost assignment, so track slot ordering
+    does not affect training.
+
+    For N=1, the computed scalar is mathematically identical to ``custom_loss``
+    when called with equivalently shaped inputs (``y_true: (B,1,2,62)``,
+    ``y_pred: (B,1,2,62,201)`` vs the single-track ``(B,2,62)``/``(B,2,62,201)``).
+    Note that ``custom_loss`` and ``min_perm_loss(1)`` are not interchangeable
+    at the call site — inputs must carry the N=1 pair axis.
+
+    Args:
+        n_pairs (int): Number of dimuon pairs N. Must satisfy 1 <= n_pairs <= 3
+            (max 6 permutations at N=3).
+
+    Returns:
+        A loss function with signature ``loss(y_true, y_pred) -> tf.Tensor``.
+
+        Where:
+            y_true: Ground truth tensor with shape ``(B, N, 2, 62)``. Integer
+                element IDs (0 = no hit); axis 2 holds mu+/mu-.
+            y_pred: Predicted softmax probabilities with shape
+                ``(B, N, 2, 62, 201)``; axis 2 holds mu+/mu-.
+    """
+    if n_pairs < 1:
+        raise ValueError(f"n_pairs must be >= 1, got {n_pairs}")
+    if n_pairs > 3:
+        raise ValueError(
+            f"n_pairs > 3 not supported (would generate {__import__('math').factorial(n_pairs)} "
+            f"permutations); got {n_pairs}"
+        )
+
+    # Precompute permutation tensors once at factory time (not per batch).
+    perms = list(itertools.permutations(range(n_pairs)))
+    perm_tensors = [tf.constant(list(p), dtype=tf.int32) for p in perms]
+
+    def loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
+        """
+        Args:
+            y_true (tf.Tensor): Shape ``(B, N, 2, 62)``.
+            y_pred (tf.Tensor): Shape ``(B, N, 2, 62, 201)``.
+
+        Returns:
+            tf.Tensor: Scalar loss value.
+        """
+        y_pred = tf.cast(y_pred, tf.float32)
+        y_true = tf.cast(y_true, tf.int32)
+
+        # --- Cost matrix: cost[b, i, j] = CE cost of assigning pred slot i to GT slot j ---
+        # Expand pred: (B, N, 1, 2, 62, 201)
+        pred_expand = tf.expand_dims(y_pred, axis=2)
+        # Expand true: (B, 1, N, 2, 62)
+        true_expand = tf.expand_dims(y_true, axis=1)
+
+        # CE per (pred slot, GT slot, muon, detector): (B, N, N, 2, 62)
+        #   axis 3 = muon dim (size 2), axis 4 = detector dim (size 62)
+        ce = tf.keras.losses.sparse_categorical_crossentropy(true_expand, pred_expand)
+
+        # Sum over muon dim (axis=3): (B, N, N, 62)
+        # Mean over detector dim (now axis=3): (B, N, N)
+        cost = tf.reduce_mean(tf.reduce_sum(ce, axis=3), axis=3)
+
+        # --- Find minimum-cost permutation ---
+        perm_costs = []
+        for perm_tensor in perm_tensors:
+            # Reorder columns of cost by permutation, then trace = sum_i cost[b, i, perm[i]]
+            cost_perm = tf.gather(cost, perm_tensor, axis=2)  # (B, N, N) cols reordered
+            perm_costs.append(tf.linalg.trace(cost_perm))  # (B,)
+
+        # Stack along axis=1 then take minimum: (B,)
+        min_cost = tf.reduce_min(tf.stack(perm_costs, axis=1), axis=1)
+
+        # --- Overlap penalty: discourage mu+/mu- collapsing to same position ---
+        p_plus = y_pred[:, :, 0, :, :]  # (B, N, 62, 201)
+        p_minus = y_pred[:, :, 1, :, :]  # (B, N, 62, 201)
+        # Sum over 201 element IDs per (pair, detector): (B, N, 62)
+        overlap = tf.reduce_sum(tf.square(p_plus - p_minus), axis=-1)
+
+        # Mean over detectors (axis=2), sum over N pairs (axis=1): (B,)
+        # For N=1 this reduces to mean_d(sum_c (p+−p−)²), matching custom_loss exactly.
+        overlap_penalty = OVERLAP_LAMBDA * tf.reduce_sum(
+            tf.reduce_mean(overlap, axis=2), axis=1
+        )
+
+        return tf.reduce_mean(min_cost + overlap_penalty)
 
     return loss
 
