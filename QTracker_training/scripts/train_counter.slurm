@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -A spinquest_standard
 #SBATCH -p gpu
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:a100:4
 #SBATCH --ntasks-per-node=1
 #SBATCH -C gpupod
 #SBATCH -c 4
@@ -14,7 +14,7 @@
 module purge
 
 # For apptainer exec
-APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
+APPTAINER=/apps/software/standard/core/apptainer/1.4.5/bin/apptainer
 IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training/
 
