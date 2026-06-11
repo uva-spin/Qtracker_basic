@@ -1,3 +1,4 @@
+import itertools
 from typing import Callable
 
 import numpy as np
@@ -121,6 +122,58 @@ def multi_track_loss(
         )
 
         return cls_loss + lambda_presence * presence_loss
+
+    return loss
+
+
+def min_perm_loss(n_pairs: int) -> Callable:
+    """
+    Permutation-invariant segmentation loss for multi-track finding.
+
+    For each batch element, brute-forces all n_pairs! permutations of predicted
+    slots vs ground-truth slots and picks the minimum-cost assignment, so slot
+    ordering never penalises training.  Supports 1 <= n_pairs <= 3 (max 6 perms).
+
+    Args:
+        n_pairs: Number of dimuon pair slots. Must be 1-3.
+
+    Returns:
+        loss(y_true, y_pred) -> scalar
+        y_true: (B, n_pairs, 2, 62) integer elementIDs
+        y_pred: (B, n_pairs, 2, 62, 201) softmax probabilities
+    """
+    if not 1 <= n_pairs <= 3:
+        raise ValueError(f"n_pairs must be 1-3, got {n_pairs}")
+
+    perms = list(itertools.permutations(range(n_pairs)))
+    perm_tensors = [tf.constant(list(p), dtype=tf.int32) for p in perms]
+
+    def loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
+        y_pred = tf.cast(y_pred, tf.float32)
+        y_true = tf.cast(y_true, tf.int32)
+
+        # CE cost matrix over all (pred slot, gt slot) pairs: (B, N, N, 2, 62)
+        pred_expand = tf.expand_dims(y_pred, axis=2)   # (B, N, 1, 2, 62, 201)
+        true_expand = tf.expand_dims(y_true, axis=1)   # (B, 1, N, 2, 62)
+        ce = tf.keras.losses.sparse_categorical_crossentropy(true_expand, pred_expand)
+        cost = tf.reduce_mean(tf.reduce_sum(ce, axis=3), axis=3)  # (B, N, N)
+
+        # Minimum-cost permutation per event
+        perm_costs = []
+        for perm_tensor in perm_tensors:
+            cost_perm = tf.gather(cost, perm_tensor, axis=2)
+            perm_costs.append(tf.linalg.trace(cost_perm))  # (B,)
+        min_cost = tf.reduce_min(tf.stack(perm_costs, axis=1), axis=1)
+
+        # Overlap penalty: discourages mu+/mu- collapsing to the same element
+        p_plus  = y_pred[:, :, 0, :, :]  # (B, N, 62, 201)
+        p_minus = y_pred[:, :, 1, :, :]
+        overlap = tf.reduce_sum(tf.square(p_plus - p_minus), axis=-1)
+        overlap_penalty = OVERLAP_LAMBDA * tf.reduce_sum(
+            tf.reduce_mean(overlap, axis=2), axis=1
+        )
+
+        return tf.reduce_mean(min_cost + overlap_penalty)
 
     return loss
 
