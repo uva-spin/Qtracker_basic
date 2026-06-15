@@ -153,9 +153,10 @@ def min_perm_loss(n_pairs: int) -> Callable:
         y_true = tf.cast(y_true, tf.int32)
 
         # CE cost matrix over all (pred slot, gt slot) pairs: (B, N, N, 2, 62)
-        pred_expand = tf.expand_dims(y_pred, axis=2)   # (B, N, 1, 2, 62, 201)
-        true_expand = tf.expand_dims(y_true, axis=1)   # (B, 1, N, 2, 62)
-        ce = tf.keras.losses.sparse_categorical_crossentropy(true_expand, pred_expand)
+        # Keras sparse_categorical_crossentropy doesn't broadcast, so tile explicitly.
+        pred_tiled = tf.tile(tf.expand_dims(y_pred, axis=2), [1, 1, n_pairs, 1, 1, 1])  # (B, N, N, 2, 62, 201)
+        true_tiled = tf.tile(tf.expand_dims(y_true, axis=1), [1, n_pairs, 1, 1, 1])     # (B, N, N, 2, 62)
+        ce = tf.keras.losses.sparse_categorical_crossentropy(true_tiled, pred_tiled)     # (B, N, N, 2, 62)
         cost = tf.reduce_mean(tf.reduce_sum(ce, axis=3), axis=3)  # (B, N, N)
 
         # Minimum-cost permutation per event
