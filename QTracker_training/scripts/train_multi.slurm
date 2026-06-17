@@ -38,7 +38,7 @@ ${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKIN
      --lr_med 0.0001 \
      --lr_high 0.00003 \
      --patience 20 \
-     --lr_patience 5 \
+     --lr_patience 10 \
      --batch_norm $BATCH_NORM \
      --use_attn $USE_ATTENTION \
      --use_attn_ffn $USE_ATTENTION_FFN \

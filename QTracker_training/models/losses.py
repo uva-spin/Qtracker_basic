@@ -157,7 +157,7 @@ def min_perm_loss(n_pairs: int) -> Callable:
         pred_tiled = tf.tile(tf.expand_dims(y_pred, axis=2), [1, 1, n_pairs, 1, 1, 1])  # (B, N, N, 2, 62, 201)
         true_tiled = tf.tile(tf.expand_dims(y_true, axis=1), [1, n_pairs, 1, 1, 1])     # (B, N, N, 2, 62)
         ce = tf.keras.losses.sparse_categorical_crossentropy(true_tiled, pred_tiled)     # (B, N, N, 2, 62)
-        cost = tf.reduce_mean(tf.reduce_sum(ce, axis=3), axis=3)  # (B, N, N)
+        cost = tf.reduce_mean(ce, axis=[3, 4])  # mean over muon+detector axes: (B, N, N)
 
         # Minimum-cost permutation per event
         perm_costs = []

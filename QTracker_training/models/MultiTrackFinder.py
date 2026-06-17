@@ -429,7 +429,10 @@ def train_model(args: argparse.Namespace) -> None:
             [y_muPlus_train_med, y_muMinus_train_med], axis=2
         )  # Shape: (num_events, max_pairs, 2, 62)
 
-        model.optimizer.learning_rate.assign(args.lr_med)
+        _cur_lr = float(model.optimizer.learning_rate.numpy())
+        _lr_med = min(args.lr_med, _cur_lr * 3.0)
+        print(f"LR transition low→med: {_cur_lr:.2e} → {_lr_med:.2e} (target {args.lr_med:.2e})", flush=True)
+        model.optimizer.learning_rate.assign(_lr_med)
         lr_scheduler = ReduceLROnPlateau(
             monitor="val_loss",
             factor=args.factor,
@@ -464,7 +467,10 @@ def train_model(args: argparse.Namespace) -> None:
             [y_muPlus_train_high, y_muMinus_train_high], axis=2
         )  # Shape: (num_events, max_pairs, 2, 62)
 
-        model.optimizer.learning_rate.assign(args.lr_high)
+        _cur_lr = float(model.optimizer.learning_rate.numpy())
+        _lr_high = min(args.lr_high, _cur_lr * 3.0)
+        print(f"LR transition med→high: {_cur_lr:.2e} → {_lr_high:.2e} (target {args.lr_high:.2e})", flush=True)
+        model.optimizer.learning_rate.assign(_lr_high)
         lr_scheduler = ReduceLROnPlateau(
             monitor="val_loss",
             factor=args.factor,
