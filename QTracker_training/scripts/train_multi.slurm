@@ -6,38 +6,36 @@
 #SBATCH -C gpupod
 #SBATCH -c 4
 #SBATCH -t 72:00:00
-#SBATCH -J multi-track-finder
-#SBATCH -o Slurm_Files/multi-track-finder.out
-#SBATCH -e Slurm_Files/multi-track-finder.err
+#SBATCH -J train_multi
+#SBATCH -o Slurm_Files/train_multi.out
+#SBATCH -e Slurm_Files/train_multi.err
 #SBATCH --mem=256000
 
 module purge
 
 # For apptainer exec
-APPTAINER=/apps/software/standard/core/apptainer/1.3.4/bin/apptainer
+APPTAINER=/apps/software/standard/core/apptainer/1.4.5/bin/apptainer
 IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 CODEDIR=/project/ptgroup/spinquest/Donghwa/Qtracker_basic/QTracker_training/
 
-
 ### Main Body ###
-# --- Training and Evaluating Track Finder ---
 BATCH_NORM=1
 USE_ATTENTION=1
 USE_ATTENTION_FFN=0
-MAX_PAIRS=5
+MAX_PAIRS=3
 
 # GPU validation
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     echo $CUDA_VISIBLE_DEVICES
 
-# Denoise-base 16 and 32 are not too different in performance
+# Training with improved loss (min-perm matching + focal + diversity)
 ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/models/MultiTrackFinder.py \
      /mnt/code/data/multi_track/processed_files/mc_events_train_low.root \
      /mnt/code/data/multi_track/processed_files/mc_events_val.root \
      --train_root_file_med /mnt/code/data/multi_track/processed_files/mc_events_train_med.root \
      --train_root_file_high /mnt/code/data/multi_track/processed_files/mc_events_train_high.root \
-     --output_model /mnt/code/checkpoints/multi_track_finder.keras \
+     --output_model /mnt/code/checkpoints/multi_track_finder_v2.keras \
      --lr_low 0.0003 \
      --lr_med 0.0001 \
      --lr_high 0.00003 \
@@ -56,11 +54,14 @@ ${APPTAINER} exec --nv --env CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES --bind $
      --factor 0.3 \
      --pos_weight 20.0 \
      --max_pairs $MAX_PAIRS \
-     --lambda_presence 0.2 \
-     --pos_weight_presence 5.0
+     --lambda_presence 1.0 \
+     --pos_weight_presence 5.0 \
+     --focal_gamma 2.0 \
+     --lambda_diversity 0.05
 
+# Evaluate
 ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code "${IMAGE}" \
     python3 /mnt/code/eval_multi_track.py \
      /mnt/code/data/multi_track/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/multi_track_finder.keras \
+     /mnt/code/checkpoints/multi_track_finder_v2.keras \
      --max_pairs $MAX_PAIRS

@@ -19,14 +19,11 @@ from tensorflow.keras.metrics import Precision, Recall
 
 from backbones import unetpp_backbone
 from data_loader import load_data_denoise
-from losses import multi_track_loss, weighted_bce
+from losses import min_perm_multi_track_loss, weighted_bce
 
 # Set seeds
 tf.random.set_seed(42)
 np.random.seed(42)
-
-# Ensure the checkpoints directory exists
-os.makedirs("checkpoints", exist_ok=True)
 
 # Set mixed precision policy for better performance
 mixed_precision.set_global_policy("mixed_float16")
@@ -185,9 +182,12 @@ def train_model(args: argparse.Namespace) -> None:
             optimizer=optimizer,
             loss={
                 "denoise": weighted_bce(pos_weight=args.pos_weight),
-                "segment": multi_track_loss(
+                "segment": min_perm_multi_track_loss(
+                    max_pairs=args.max_pairs,
                     lambda_presence=args.lambda_presence,
                     pos_weight_presence=args.pos_weight_presence,
+                    focal_gamma=args.focal_gamma,
+                    lambda_diversity=args.lambda_diversity,
                 ),
             },
             loss_weights={
@@ -336,6 +336,9 @@ def train_model(args: argparse.Namespace) -> None:
             verbose=2,
         )
 
+    output_dir = os.path.dirname(args.output_model)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     model.save(args.output_model)
     print(f"Model saved to {args.output_model}")
 
@@ -500,7 +503,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--lambda_presence",
         type=float,
-        default=0.2,
+        default=1.0,
         help="Weight for presence term in multi-track loss.",
     )
     parser.add_argument(
@@ -508,6 +511,18 @@ if __name__ == "__main__":
         type=float,
         default=5.0,
         help="Positive class weight for presence term in multi-track loss.",
+    )
+    parser.add_argument(
+        "--focal_gamma",
+        type=float,
+        default=2.0,
+        help="Gamma for focal loss in presence term (0 = standard BCE).",
+    )
+    parser.add_argument(
+        "--lambda_diversity",
+        type=float,
+        default=0.05,
+        help="Weight for inter-pair diversity penalty.",
     )
     args = parser.parse_args()
 

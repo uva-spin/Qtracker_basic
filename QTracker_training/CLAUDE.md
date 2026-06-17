@@ -264,3 +264,5 @@ Pre-commit hook configured with ruff (v0.14.4):
 6. **File size considerations**: Training datasets can be very large (500K-19M events). Use `data/skim.py` or `data/skim_flat.py` to create manageable subsets for development.
 
 7. **Mixed precision**: Enabled by default in TrackFinder for performance. Final output layers cast to FP32 for numerical stability.
+
+8. **Commit and PR Rules**: Do NOT mention Claude Code. Preface commit msg with tag like `feat` or `fix`.
