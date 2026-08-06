@@ -13,10 +13,8 @@ import argparse
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
-import sys
 import numpy as np
 import tensorflow as tf
-import matplotlib.pyplot as plt
 from scipy.optimize import linear_sum_assignment
 import ROOT  # noqa: F401
 
@@ -102,21 +100,6 @@ def evaluate(args: argparse.Namespace) -> None:
     print("Running ensemble inference...")
     y_pred_argmax = predict_ensemble(models, X_test)  # (N, n_models, 2, 62)
 
-    # Refine
-    y_mup_pred_raw = y_pred_argmax[:, :, 0, :]  # (N, n_models, 62)
-    y_mum_pred_raw = y_pred_argmax[:, :, 1, :]
-    X_hits = X_test[:, :, :, 0]
-
-    y_mup_ref = np.stack([
-        refine_hit_arrays(y_mup_pred_raw[:, p, :], X_hits)
-        for p in range(args.n_models)
-    ], axis=1)
-    y_mum_ref = np.stack([
-        refine_hit_arrays(y_mum_pred_raw[:, p, :], X_hits)
-        for p in range(args.n_models)
-    ], axis=1)
-    y_pred_refined = np.stack([y_mup_ref, y_mum_ref], axis=2)  # (N, n_models, 2, 62)
-
     print("\n" + "=" * 70)
     print("ENSEMBLE EVALUATION — PER-MODEL PREDICTIONS (raw slot order)")
     print("=" * 70)
@@ -128,21 +111,15 @@ def evaluate(args: argparse.Namespace) -> None:
     y_pred_best = find_best_permutation(y_pred_argmax, y_test)
     _report_per_pair(y_pred_best, y_test, label="Hungarian-matched")
 
+    # Per-pair summary
     print("\n" + "=" * 70)
-    print("ENSEMBLE EVALUATION — HUNGARIAN-MATCHED + REFINED")
-    print("=" * 70)
-    y_pred_ref_best = find_best_permutation(y_pred_refined, y_test)
-    _report_per_pair(y_pred_ref_best, y_test, label="Hungarian-matched + refined")
-
-    # Summary table matching eval_multi_track.py format
-    print("\n" + "=" * 70)
-    print("SUMMARY (Hungarian + refined, non-zero GT slots only)")
+    print("SUMMARY (Hungarian-matched, non-zero GT slots only)")
     print("=" * 70)
     for pair_idx in range(args.n_models):
         gt_p = y_test[:, pair_idx, 0, :]
         gt_m = y_test[:, pair_idx, 1, :]
-        pr_p = y_pred_ref_best[:, pair_idx, 0, :]
-        pr_m = y_pred_ref_best[:, pair_idx, 1, :]
+        pr_p = y_pred_best[:, pair_idx, 0, :]
+        pr_m = y_pred_best[:, pair_idx, 1, :]
         valid = np.any(gt_p != 0, axis=1) | np.any(gt_m != 0, axis=1)
         if not np.any(valid):
             continue
@@ -156,6 +133,20 @@ def evaluate(args: argparse.Namespace) -> None:
         res_m = np.mean(np.abs((pm - gm)[nz_m])) if nz_m.any() else float("nan")
         print(f"  Model/Pair {pair_idx}: μ+ acc={acc_p:.4f}, μ- acc={acc_m:.4f} | "
               f"μ+ residual={res_p:.3f} ch, μ- residual={res_m:.3f} ch  (N={np.sum(valid)})")
+
+    # Overall line — matches eval_multi_track.py format for direct comparison
+    gp_all = y_test[:, :, 0, :].reshape(-1, 62)
+    gm_all = y_test[:, :, 1, :].reshape(-1, 62)
+    pp_all = y_pred_best[:, :, 0, :].reshape(-1, 62)
+    pm_all = y_pred_best[:, :, 1, :].reshape(-1, 62)
+    nz_p = gp_all != 0
+    nz_m = gm_all != 0
+    oacc_p = np.mean((pp_all == gp_all)[nz_p]) if nz_p.any() else float("nan")
+    oacc_m = np.mean((pm_all == gm_all)[nz_m]) if nz_m.any() else float("nan")
+    ores_p = np.mean(np.abs((pp_all - gp_all)[nz_p])) if nz_p.any() else float("nan")
+    ores_m = np.mean(np.abs((pm_all - gm_all)[nz_m])) if nz_m.any() else float("nan")
+    print(f"\nOverall best-permutation | acc μ+/μ-: {oacc_p:.4f}/{oacc_m:.4f} | "
+          f"mean residual μ+/μ-: {ores_p:.1f}/{ores_m:.1f} ch")
 
 
 def _report_per_pair(y_pred: np.ndarray, y_test: np.ndarray, label: str) -> None:
