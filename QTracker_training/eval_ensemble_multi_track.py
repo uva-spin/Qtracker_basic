@@ -22,8 +22,6 @@ import ROOT  # noqa: F401
 
 from models import data_loader
 from models.layers import AxialAttention
-import QTracker
-from refine import refine_hit_arrays
 
 
 def load_sub_models(model_dir: str, n_models: int, suffix: str = "_best") -> list:
