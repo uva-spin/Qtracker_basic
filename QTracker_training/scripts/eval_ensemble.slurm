@@ -20,7 +20,7 @@ DATADIR=${DATADIR:-/project/ptgroup/spinquest/Anvesh}
 
 N_MODELS=3
 
-${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true \
+${APPTAINER} exec --nv --pwd /mnt/code --env TF_FORCE_GPU_ALLOW_GROWTH=true \
     --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
     python3 /mnt/code/eval_ensemble_multi_track.py \
      /mnt/data/data/multi_track/processed_files/mc_events_val.root \
