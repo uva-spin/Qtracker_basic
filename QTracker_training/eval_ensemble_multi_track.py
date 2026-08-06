@@ -9,9 +9,11 @@ accuracy/residual metrics as eval_multi_track.py for direct comparison.
 """
 
 import os
+import sys
 import argparse
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
 import tensorflow as tf
