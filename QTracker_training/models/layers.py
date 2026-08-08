@@ -215,3 +215,4 @@ class AxialAttention(layers.Layer):
             "use_ffn": self.use_ffn,
         })
         return config
+
