@@ -18,10 +18,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 import tensorflow as tf
 from scipy.optimize import linear_sum_assignment
+import importlib.util
 import ROOT  # noqa: F401
 
 from models import data_loader
-from models.layers import AxialAttention
+
+# Load layers.py by absolute path — ROOT import above can corrupt sys.modules['models']
+_layers_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "layers.py")
+_spec = importlib.util.spec_from_file_location("models.layers", _layers_path)
+_layers_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_layers_mod)
+AxialAttention = _layers_mod.AxialAttention
 
 
 def load_sub_models(model_dir: str, n_models: int, suffix: str = "_best") -> list:
