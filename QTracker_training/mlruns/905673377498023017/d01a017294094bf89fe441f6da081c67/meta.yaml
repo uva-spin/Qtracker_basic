@@ -1,0 +1,14 @@
+artifact_uri: file:///scratch/am4qw/Qtracker_basic/QTracker_training/mlruns/905673377498023017/d01a017294094bf89fe441f6da081c67/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '905673377498023017'
+lifecycle_stage: active
+run_id: d01a017294094bf89fe441f6da081c67
+run_name: slurm_12735333
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1778436897113
+status: 1
+tags: []
+user_id: am4qw
