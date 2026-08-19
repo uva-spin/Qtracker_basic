@@ -4,7 +4,14 @@ import tensorflow as tf
 import argparse
 import os
 from ROOT import TTree, TMatrixD
-from numba import njit, prange
+try:
+    from numba import njit, prange
+except ImportError:
+    def njit(f=None, **kwargs):
+        if f is not None:
+            return f
+        return lambda fn: fn
+    prange = range
 from tensorflow.keras.losses import MeanSquaredError
 
 
@@ -17,7 +24,7 @@ USE_DECLUSTERING = False  # Toggle to enable/disable declustering
 USE_SMAXMATRIX = False  # Toggle to enable/disable write softmax matrix
 
 # Paths to model checkpoints
-MODEL_PATH_TRACK = "./checkpoints/track_finder.keras"
+MODEL_PATH_TRACK = "./checkpoints/track_finder_flagship.keras"
 MODEL_PATH_MOMENTUM_MUP = "./checkpoints/mom_mup.h5"
 MODEL_PATH_MOMENTUM_MUM = "./checkpoints/mom_mum.h5"
 MODEL_PATH_METRIC = "./checkpoints/chi2_predictor.h5"
@@ -156,7 +163,17 @@ def build_hit_drift_tdc_matrices(detectorIDs, elementIDs, driftDistances, tdcTim
 
 def predict_hit_arrays(model, X):
     """Runs the TrackFinder model to predict hit arrays and returns softmax responses."""
-    predictions = model.predict(tf.cast(X, tf.float32))[1]
+    print("Running hit array predictions...")
+    preds = []
+    chunk_size = 128  # even 32 is fine
+
+    for i in range(0, len(X), chunk_size):
+        X_chunk = tf.cast(X[i:i+chunk_size], tf.float32)
+        y_chunk = model.predict(X_chunk, verbose=0)
+        preds.append(y_chunk[1])
+
+    predictions = np.concatenate(preds, axis=0)
+    
     softmax_mup = predictions[:, 0, :, :]  # shape: (num_events, 62, 201)
     softmax_mum = predictions[:, 1, :, :]  # shape: (num_events, 62, 201)
     rHitArray_mup = np.argmax(softmax_mup, axis=-1)  # (num_events, 62)
@@ -186,7 +203,8 @@ def predict_momentum(hit_arrays, model):
     hit_arrays[:, 55:58, :] = 0  # DP-1
     hit_arrays[:, 59:62, :] = 0  # DP-2
 
-    return model.predict(hit_arrays)
+    print("Running momentum predictions...")
+    return model.predict(hit_arrays, verbose=0)
 
 
 def predict_chi2(hit_arrays, momentum_vectors, chi2_model_path=MODEL_PATH_METRIC):
@@ -208,7 +226,8 @@ def predict_chi2(hit_arrays, momentum_vectors, chi2_model_path=MODEL_PATH_METRIC
     X = np.hstack((hit_arrays, momentum_vectors))
 
     # Predict chi^2 values
-    chi2_predictions = chi2_model.predict(X)
+    print("Running chi^2 predictions...")
+    chi2_predictions = chi2_model.predict(X, verbose=0)
 
     return chi2_predictions.flatten()  # Flatten to 1D array
 

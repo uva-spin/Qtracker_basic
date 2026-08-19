@@ -1,23 +1,164 @@
 # ruff: noqa: E402
 
 import os
+
 import absl.logging
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 absl.logging.set_verbosity("error")
 
 import argparse
-import ROOT  # noqa: F401
-import numpy as np
-import tensorflow as tf
+
 import matplotlib.pyplot as plt
-from typing import Callable, Dict
+import numpy as np
+import QTracker
+import ROOT  # noqa: F401
+import tensorflow as tf
 
 # core TrackFinder loaders / custom loss
 from models import data_loader
 from models.layers import AxialAttention
-import QTracker
 from refine import refine_hit_arrays
+
+
+def _detect_confidence_head(model):
+    """Return True if the model has a confidence head (3+ outputs)."""
+    if isinstance(model.output, (list, tuple)):
+        return len(model.output) >= 3
+    return False
+
+
+def _compute_f1_per_event(y_pred_argmax, y_true, mu_idx):
+    """Compute per-event F1 between predicted and true element-IDs for one muon.
+
+    Args:
+        y_pred_argmax: (N, 62) predicted element-IDs.
+        y_true: (N, 62) ground-truth element-IDs.
+        mu_idx: 0 for μ+, 1 for μ- (only used for labelling, not logic).
+
+    Returns:
+        f1: (N,) per-event F1 scores.
+    """
+    pred_nz = y_pred_argmax != 0
+    true_nz = y_true != 0
+    match = (y_pred_argmax == y_true) & pred_nz & true_nz
+
+    tp = match.sum(axis=1).astype(np.float64)
+    pred_pos = pred_nz.sum(axis=1).astype(np.float64)
+    true_pos = true_nz.sum(axis=1).astype(np.float64)
+
+    precision = np.where(pred_pos > 0, tp / pred_pos, 0.0)
+    recall = np.where(true_pos > 0, tp / true_pos, 0.0)
+    denom = precision + recall
+    f1 = np.where(denom > 0, 2.0 * precision * recall / denom, 0.0)
+    return f1
+
+
+def _evaluate_confidence(
+    confidence_scores, y_p_raw, y_m_raw, y_p_true, y_m_true, model_path
+):
+    """Evaluate the confidence head and print / plot metrics.
+
+    Works for both Proposal A (event-level stop-or-go) and Proposal B
+    (track-quality F1 overlap).  It reports:
+      * Binary accuracy, precision, recall, F1 (threshold = 0.5)
+      * Correlation between confidence and combined F1 overlap
+      * Scatter plot of confidence vs F1 overlap
+    """
+
+    conf = confidence_scores.ravel()  # (N,)
+    n_events = len(conf)
+
+    # ---------- F1 overlap (Proposal-B style soft target) ----------
+    f1_plus = _compute_f1_per_event(y_p_raw, y_p_true, mu_idx=0)
+    f1_minus = _compute_f1_per_event(y_m_raw, y_m_true, mu_idx=1)
+    f1_combined = (f1_plus + f1_minus) / 2.0  # mean over muon charges
+
+    # ---------- Binary classification (Proposal-A style) ----------
+    # A "good" event is one where the combined F1 >= 0.5
+    # (also works if the GT simply has no tracks → F1 = 0)
+    gt_binary = (f1_combined >= 0.5).astype(np.float32)
+    pred_binary = (conf >= 0.5).astype(np.float32)
+
+    tp = np.sum((pred_binary == 1) & (gt_binary == 1))
+    tn = np.sum((pred_binary == 0) & (gt_binary == 0))
+    fp = np.sum((pred_binary == 1) & (gt_binary == 0))
+    fn = np.sum((pred_binary == 0) & (gt_binary == 1))
+
+    accuracy = (tp + tn) / n_events if n_events > 0 else 0.0
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1_cls = (
+        2 * precision * recall / (precision + recall)
+        if (precision + recall) > 0
+        else 0.0
+    )
+
+    print("\n" + "=" * 60)
+    print("Confidence Head Evaluation")
+    print("=" * 60)
+    print(f"  Events evaluated     : {n_events}")
+    print(f"  Mean confidence      : {np.mean(conf):.4f}")
+    print(f"  Std  confidence      : {np.std(conf):.4f}")
+    print(f"  Mean F1 overlap      : {np.mean(f1_combined):.4f}")
+    print()
+    print("  --- Binary metrics (threshold = 0.5) ---")
+    print(f"  True Positives       : {tp}")
+    print(f"  True Negatives       : {tn}")
+    print(f"  False Positives      : {fp}")
+    print(f"  False Negatives      : {fn}")
+    print(f"  Accuracy             : {accuracy:.4f}")
+    print(f"  Precision            : {precision:.4f}")
+    print(f"  Recall               : {recall:.4f}")
+    print(f"  F1 (classification)  : {f1_cls:.4f}")
+
+    # ---------- Correlation ----------
+    if np.std(conf) > 1e-8 and np.std(f1_combined) > 1e-8:
+        corr = np.corrcoef(conf, f1_combined)[0, 1]
+    else:
+        corr = float("nan")
+    print(f"\n  Pearson correlation (confidence vs F1 overlap): {corr:.4f}")
+
+    # --- Residual correlation ---
+    abs_res_p = np.mean(np.abs(y_p_true - y_p_raw), axis=1)
+    abs_res_m = np.mean(np.abs(y_m_true - y_m_raw), axis=1)
+    mean_abs_res = (abs_res_p + abs_res_m) / 2.0
+
+    if np.std(conf) > 1e-8 and np.std(mean_abs_res) > 1e-8:
+        corr_res = np.corrcoef(conf, mean_abs_res)[0, 1]
+    else:
+        corr_res = float("nan")
+    print(f"  Pearson correlation (confidence vs mean |residual|): {corr_res:.4f}")
+
+    # ---------- Confidence vs F1 scatter plot ----------
+    plot_dir = os.path.join(os.path.dirname(__file__), "plots")
+    os.makedirs(plot_dir, exist_ok=True)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Panel 1: confidence vs F1 overlap
+    ax = axes[0]
+    ax.scatter(f1_combined, conf, s=4, alpha=0.3, edgecolors="none")
+    ax.set_xlabel("F1 Overlap (pred vs true)")
+    ax.set_ylabel("Confidence Score")
+    ax.set_title(f"Confidence vs F1 Overlap  (ρ = {corr:.3f})")
+    ax.plot([0, 1], [0, 1], "r--", linewidth=1, label="y = x")
+    ax.legend()
+
+    # Panel 2: confidence vs mean |residual|
+    ax = axes[1]
+    ax.scatter(mean_abs_res, conf, s=4, alpha=0.3, edgecolors="none")
+    ax.set_xlabel("Mean Absolute Residual")
+    ax.set_ylabel("Confidence Score")
+    ax.set_title(f"Confidence vs |Residual|  (ρ = {corr_res:.3f})")
+
+    plt.tight_layout()
+    base = os.path.splitext(os.path.basename(model_path))[0]
+    fname = f"{base}_confidence_eval.png"
+    plt.savefig(os.path.join(plot_dir, fname))
+    plt.show()
+    print(f"\n  Saved confidence plot to plots/{fname}")
+    print("=" * 60)
 
 
 def plot_residuals(det_ids, res_plus, res_minus, model_path, stage_label):
@@ -75,14 +216,32 @@ def evaluate_model(args):
         compile=False,
         custom_objects=custom_objects,
     )
-    y_pred = model.predict(tf.cast(X_test, tf.float32))[1]
 
-    y_p_raw = tf.cast(
-        tf.argmax(tf.squeeze(tf.split(y_pred, 2, axis=1)[0], axis=1), axis=-1), tf.int32
-    ).numpy()
-    y_m_raw = tf.cast(
-        tf.argmax(tf.squeeze(tf.split(y_pred, 2, axis=1)[1], axis=1), axis=-1), tf.int32
-    ).numpy()
+    has_confidence = _detect_confidence_head(model)
+    if has_confidence:
+        print("\n[INFO] Model has a confidence head (3 outputs).")
+    else:
+        print("\n[INFO] Model has no confidence head (2 outputs).")
+
+    seg_preds = []
+    conf_preds = [] if has_confidence else None
+    chunk_size = 128
+
+    for i in range(0, len(X_test), chunk_size):
+        X_chunk = tf.cast(X_test[i : i + chunk_size], tf.float32)
+        y_chunk = model.predict(X_chunk, verbose=0)
+        seg_preds.append(y_chunk[1])  # segment output is always index 1
+        if has_confidence:
+            conf_preds.append(y_chunk[2])  # confidence output is index 2
+
+    y_pred = np.concatenate(seg_preds, axis=0)
+    confidence_scores = np.concatenate(conf_preds, axis=0) if has_confidence else None
+
+    y_p_logits = y_pred[:, 0]
+    y_m_logits = y_pred[:, 1]
+
+    y_p_raw = np.argmax(y_p_logits, axis=-1).astype(np.int32)
+    y_m_raw = np.argmax(y_m_logits, axis=-1).astype(np.int32)
 
     y_p_true = y_test[:, 0, :].astype(np.int32)
     y_m_true = y_test[:, 1, :].astype(np.int32)
@@ -161,6 +320,17 @@ def evaluate_model(args):
     m_p, s_p = np.mean(np.abs(ref_p_res)), np.std(np.abs(ref_p_res))
     m_m, s_m = np.mean(np.abs(ref_m_res)), np.std(np.abs(ref_m_res))
     print(f"{m_p:8.3f} | {s_p:8.3f} | {m_m:8.3f} | {s_m:8.3f}")
+
+    # ---- Confidence head evaluation ----
+    if confidence_scores is not None:
+        _evaluate_confidence(
+            confidence_scores,
+            y_p_raw,
+            y_m_raw,
+            y_p_true,
+            y_m_true,
+            args.model_path,
+        )
 
 
 if __name__ == "__main__":

@@ -121,6 +121,32 @@ python noisy_gen.py mc_events.root
 
 ---
 
+### `skim.py`
+
+**Purpose:**  
+Creates a skimmed version of a ROOT file, copying only the first `N` events from the TTree named `"tree"` or `N` random events when `--random 1` flag is set (simple random sampling). 
+
+**Usage:**  
+```bash
+python3 skim.py input_file.root
+```
+
+This creates a new ROOT file with the first or random `NUM_EVENTS_TO_KEEP` events.
+
+---
+
+### `skim_flat.py`
+
+**Purpose:**  
+Creates a skimmed version of a ROOT file, sampling `N` events from the input ROOT file based on mass spectrum (stratified random sampling). 
+
+**Usage:**  
+```bash
+python3 skim_flat.py input_file.root output_file.root
+```
+
+---
+
 ## Training Workflow Summary
 
 1. **Split the signal:**

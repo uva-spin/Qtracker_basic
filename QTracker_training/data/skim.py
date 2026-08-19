@@ -1,5 +1,6 @@
 import ROOT
 import argparse
+import random
 
 
 def skim_root_file(args):
@@ -18,8 +19,25 @@ def skim_root_file(args):
     fout.SetCompressionLevel(3)
 
     # Copy entries
-    n_entries = min(tree.GetEntries() - args.start, args.max_events)
-    skimmed_tree = tree.CopyTree("", "", n_entries, args.start)
+    if args.random:
+        # Randomly sample N events from input
+        rng = random.Random(args.random_seed)
+
+        n_total = tree.GetEntries()
+        n_entries = min(n_total, args.max_events)
+
+        indices = list(range(0, n_total))
+        indices = rng.sample(indices, n_entries)
+        indices.sort()
+
+        skimmed_tree = tree.CloneTree(0)
+        for i in indices:
+            tree.GetEntry(i)
+            skimmed_tree.Fill()
+    else:
+        # Just take the first N events from start
+        n_entries = min(tree.GetEntries() - args.start, args.max_events)
+        skimmed_tree = tree.CopyTree("", "", n_entries, args.start)
 
     # Write output
     skimmed_tree.Write()
@@ -44,6 +62,8 @@ if __name__ == "__main__":
         "--max_events", type=int, default=2000, help="Max events to keep"
     )
     parser.add_argument("--start", type=int, default=0, help="Event to start skimming.")
+    parser.add_argument("--random", type=int, default=0, help="Whether to randomly sample events (1 = yes, 0 = no).")
+    parser.add_argument("--random_seed", type=int, default=42, help="Random seed.")
 
     args = parser.parse_args()
 
