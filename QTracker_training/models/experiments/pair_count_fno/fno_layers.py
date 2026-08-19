@@ -56,6 +56,7 @@ class FourierBlock1D(layers.Layer):
             initializer=init,
             trainable=True,
             dtype=tf.float32,
+            autocast=False,
             name="spectral_weight_real",
         )
         self.w_imag = self.add_weight(
@@ -63,6 +64,7 @@ class FourierBlock1D(layers.Layer):
             initializer=init,
             trainable=True,
             dtype=tf.float32,
+            autocast=False,
             name="spectral_weight_imag",
         )
 
