@@ -137,6 +137,12 @@ def _fit_phase(
 
 
 def train_model(args: argparse.Namespace) -> None:
+    # Ensure the actual output directory exists -- the module-level
+    # os.makedirs(_HERE/checkpoints) only covers the CODEDIR-relative
+    # default; --output_model may point elsewhere (e.g. persistent project
+    # storage, as train.slurm now does).
+    os.makedirs(os.path.dirname(args.output_model) or ".", exist_ok=True)
+
     if MLFLOW_AVAILABLE:
         mlflow.set_experiment(args.mlflow_experiment)
         mlflow.start_run(run_name=args.mlflow_run_name)

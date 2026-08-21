@@ -23,13 +23,23 @@ DATADIR=${DATADIR:-/project/ptgroup/spinquest/Anvesh}
 ### Main Body ###
 MAX_PAIRS=3
 
+# Edit RUN_TAG per submission to describe what this run is testing, e.g.
+# "rehearsal_v1", "no_replay_baseline", "k_max64". Combined with the job ID
+# for a name that's both readable and guaranteed unique -- used as the
+# MLflow run name AND to scope this run's outputs to their own directory
+# under persistent project storage, so repeated runs never overwrite each
+# other's checkpoints/confusion-matrix frames.
+RUN_TAG=rehearsal_v1
+RUN_NAME=${RUN_TAG}_${SLURM_JOB_ID}
+OUTPUT_DIR=/mnt/data/checkpoints/pair_count_fno/${RUN_NAME}
+
 ${APPTAINER} exec --nv --pwd /mnt/code --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
     python3 /mnt/code/models/experiments/pair_count_fno/train.py \
      /mnt/data/data/multi_track/processed_files/mc_events_train_low.root \
      /mnt/data/data/multi_track/processed_files/mc_events_val.root \
      --train_root_file_med /mnt/data/data/multi_track/processed_files/mc_events_train_med.root \
      --train_root_file_high /mnt/data/data/multi_track/processed_files/mc_events_train_high.root \
-     --output_model /mnt/code/models/experiments/pair_count_fno/checkpoints/pair_count_fno.keras \
+     --output_model ${OUTPUT_DIR}/pair_count_fno.keras \
      --max_pairs $MAX_PAIRS \
      --base 32 \
      --fno_depth 4 \
@@ -40,4 +50,4 @@ ${APPTAINER} exec --nv --pwd /mnt/code --env TF_FORCE_GPU_ALLOW_GROWTH=true --en
      --batch_size 64 \
      --patience 12 \
      --mlflow_experiment pair_count_fno \
-     --mlflow_run_name "slurm_${SLURM_JOB_ID}"
+     --mlflow_run_name "${RUN_NAME}"
