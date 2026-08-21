@@ -19,6 +19,7 @@ from tensorflow.keras.metrics import Precision, Recall, Mean
 from backbones import unetpp_backbone
 from data_loader import load_data_denoise
 from losses import min_perm_loss, multi_track_loss, weighted_bce
+from viz_3d_callback import Viz3DCallback
 
 try:
     import mlflow
@@ -395,6 +396,15 @@ def train_model(args: argparse.Namespace) -> None:
         live_plot_path = os.path.join(os.path.dirname(args.output_model), "training_progress.png")
         live_plot_cb = LivePlotCallback(output_path=live_plot_path, every_n=5)
 
+        viz3d_dir = os.path.join(os.path.dirname(args.output_model), "plots", "3d")
+        viz3d_cb = Viz3DCallback(
+            X_val=X_val, y_val=y_val,
+            output_dir=viz3d_dir,
+            freq=10,
+            n_events=3,
+            max_pairs=args.max_pairs,
+        )
+
         lr_scheduler = ReduceLROnPlateau(
             monitor="val_loss",
             factor=args.factor,
@@ -408,7 +418,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_low,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, checkpoint, mlflow_cb, live_plot_cb],
+            callbacks=[lr_scheduler, checkpoint, mlflow_cb, live_plot_cb, viz3d_cb],
             verbose=2,
         )
         _all_histories.append(hist_low.history)
@@ -446,7 +456,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_med,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, checkpoint, mlflow_cb, live_plot_cb],
+            callbacks=[lr_scheduler, checkpoint, mlflow_cb, live_plot_cb, viz3d_cb],
             verbose=2,
         )
         _all_histories.append(hist_med.history)
@@ -488,7 +498,7 @@ def train_model(args: argparse.Namespace) -> None:
             epochs=epochs_high,
             batch_size=args.batch_size,
             validation_data=(X_val, {"denoise": X_clean_val, "segment": y_val}),
-            callbacks=[lr_scheduler, early_stopping, checkpoint, mlflow_cb, live_plot_cb],
+            callbacks=[lr_scheduler, early_stopping, checkpoint, mlflow_cb, live_plot_cb, viz3d_cb],
             verbose=2,
         )
         _all_histories.append(hist_high.history)
