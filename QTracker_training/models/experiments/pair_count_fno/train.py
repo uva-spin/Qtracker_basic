@@ -60,6 +60,28 @@ class MLflowEpochCallback(tf.keras.callbacks.Callback):
                     print(f"MLflow metric log failed ({key}={val}): {e}", flush=True)
 
 
+def _sample_replay(
+    X: np.ndarray, y: np.ndarray, fraction: float, rng: np.random.Generator
+):
+    """Randomly subsample `fraction` of (X, y), to be mixed into a later
+    curriculum phase as rehearsal data (see call site in train_model).
+
+    Rehearsal fixes catastrophic forgetting: the high phase trains on
+    34-50-background-track events only, for many epochs, with no exposure to
+    easier events -- so the model drifts away from what it learned about
+    low/med-complexity events, even though val is representative across the
+    full range and doesn't change. Mixing a slice of the earlier phase's data
+    into the high phase's training set keeps those gradient updates present.
+    """
+    if fraction <= 0:
+        return None, None
+    n = int(len(y) * fraction)
+    if n <= 0:
+        return None, None
+    idx = rng.choice(len(y), size=n, replace=False)
+    return X[idx], y[idx]
+
+
 def _class_weights(y: np.ndarray, num_classes: int) -> dict:
     """Inverse-frequency class weights, normalized so the average weight is 1.
 
@@ -157,10 +179,12 @@ def train_model(args: argparse.Namespace) -> None:
     epochs_low = int(args.epochs * args.low_ratio)
     epochs_med = int(args.epochs * args.med_ratio)
     epochs_high = args.epochs
+    replay_rng = np.random.default_rng(42)
 
     X_low, y_low = load_data_pair_count(args.train_root_file_low, args.max_pairs)
     if X_low is None:
         return
+    X_low_replay, y_low_replay = _sample_replay(X_low, y_low, args.replay_fraction, replay_rng)
     _fit_phase(
         model, X_low, y_low, X_val, y_val, 0, epochs_low, args.batch_size,
         args.lr_low, [checkpoint, mlflow_cb], num_classes, "low",
@@ -168,10 +192,12 @@ def train_model(args: argparse.Namespace) -> None:
     del X_low, y_low
     gc.collect()
 
+    X_med_replay, y_med_replay = None, None
     if args.train_root_file_med:
         X_med, y_med = load_data_pair_count(args.train_root_file_med, args.max_pairs)
         if X_med is None:
             return
+        X_med_replay, y_med_replay = _sample_replay(X_med, y_med, args.replay_fraction, replay_rng)
         _fit_phase(
             model, X_med, y_med, X_val, y_val, epochs_low, epochs_med, args.batch_size,
             args.lr_med, [checkpoint, mlflow_cb], num_classes, "med",
@@ -184,6 +210,15 @@ def train_model(args: argparse.Namespace) -> None:
         X_high, y_high = load_data_pair_count(args.train_root_file_high, args.max_pairs)
         if X_high is None:
             return
+
+        replay_X = [a for a in (X_low_replay, X_med_replay) if a is not None]
+        replay_y = [a for a in (y_low_replay, y_med_replay) if a is not None]
+        if replay_X:
+            n_replay = sum(len(a) for a in replay_y)
+            print(f"High phase rehearsal: mixing in {n_replay} low/med events (replay_fraction={args.replay_fraction})", flush=True)
+            X_high = np.concatenate([X_high, *replay_X], axis=0)
+            y_high = np.concatenate([y_high, *replay_y], axis=0)
+
         _fit_phase(
             model, X_high, y_high, X_val, y_val, epochs_med, epochs_high, args.batch_size,
             args.lr_high, [checkpoint, early_stopping, mlflow_cb], num_classes, "high",
@@ -226,6 +261,10 @@ if __name__ == "__main__":
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--low_ratio", type=float, default=0.5)
     parser.add_argument("--med_ratio", type=float, default=0.8)
+    parser.add_argument(
+        "--replay_fraction", type=float, default=0.15,
+        help="Fraction of each of low/med kept as rehearsal data mixed into the high phase (0 disables).",
+    )
     parser.add_argument("--mlflow_experiment", type=str, default="pair_count_fno")
     parser.add_argument("--mlflow_run_name", type=str, default=None)
     args = parser.parse_args()
