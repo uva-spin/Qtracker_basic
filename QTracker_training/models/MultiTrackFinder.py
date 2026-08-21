@@ -267,6 +267,11 @@ def train_model(args: argparse.Namespace) -> None:
         args (argparse.Namespace): Command-line arguments for training configuration.
     """
 
+    # Ensure the actual output directory exists -- the module-level
+    # os.makedirs("checkpoints") only covers the CODEDIR-relative default;
+    # --output_model may point elsewhere (e.g. persistent project storage).
+    os.makedirs(os.path.dirname(args.output_model) or ".", exist_ok=True)
+
     if MLFLOW_AVAILABLE:
         mlflow.set_experiment(getattr(args, "mlflow_experiment", "multi_track_training"))
         mlflow.start_run(run_name=getattr(args, "mlflow_run_name", None))

@@ -22,7 +22,7 @@ _DEFAULT_DATADIR=/project/ptgroup/spinquest/Anvesh
 CODEDIR=${CODEDIR:-${_DEFAULT_CODEDIR}}
 DATADIR=${DATADIR:-${_DEFAULT_DATADIR}}
 DATA=${DATA:-${DATADIR}/data/multi_track/processed_files/mc_events_val.root}
-MODEL=${MODEL:-/mnt/code/checkpoints/multi_track_finder_best.keras}
+MODEL=${MODEL:-/mnt/data/checkpoints/multi_track_finder_best.keras}
 MAX_PAIRS=${MAX_PAIRS:-3}
 
 ### Main Body ###

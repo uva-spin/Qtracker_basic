@@ -33,7 +33,7 @@ ${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKIN
      /mnt/data/data/multi_track/processed_files/mc_events_val.root \
      --train_root_file_med /mnt/data/data/multi_track/processed_files/mc_events_train_med.root \
      --train_root_file_high /mnt/data/data/multi_track/processed_files/mc_events_train_high.root \
-     --output_model /mnt/code/checkpoints/multi_track_finder.keras \
+     --output_model /mnt/data/checkpoints/multi_track_finder.keras \
      --lr_low 0.0003 \
      --lr_med 0.0001 \
      --lr_high 0.00003 \
@@ -59,5 +59,5 @@ ${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKIN
 ${APPTAINER} exec --nv --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
     python3 /mnt/code/eval_multi_track.py \
      /mnt/data/data/multi_track/processed_files/mc_events_val.root \
-     /mnt/code/checkpoints/multi_track_finder.keras \
+     /mnt/data/checkpoints/multi_track_finder.keras \
      --max_pairs $MAX_PAIRS
