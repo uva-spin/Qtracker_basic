@@ -29,7 +29,7 @@ MAX_PAIRS=3
 # MLflow run name AND to scope this run's outputs to their own directory
 # under persistent project storage, so repeated runs never overwrite each
 # other's checkpoints/confusion-matrix frames.
-RUN_TAG=rehearsal_v1
+RUN_TAG=widened_v1
 RUN_NAME=${RUN_TAG}_${SLURM_JOB_ID}
 OUTPUT_DIR=/mnt/data/checkpoints/pair_count_fno/${RUN_NAME}
 
@@ -41,10 +41,10 @@ ${APPTAINER} exec --nv --pwd /mnt/code --env TF_FORCE_GPU_ALLOW_GROWTH=true --en
      --train_root_file_high /mnt/data/data/multi_track/processed_files/mc_events_train_high.root \
      --output_model ${OUTPUT_DIR}/pair_count_fno.keras \
      --max_pairs $MAX_PAIRS \
-     --base 32 \
+     --base 64 \
      --fno_depth 4 \
-     --k_max 32 \
-     --num_heads 4 \
+     --k_max 64 \
+     --num_heads 8 \
      --epochs 60 \
      --med_ratio 0.7 \
      --batch_size 64 \
