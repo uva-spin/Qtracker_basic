@@ -30,6 +30,7 @@ from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from model import build_model
 from data import load_data_pair_count
 from confusion_matrix_callback import ConfusionMatrixCallback
+from event_gallery_callback import EventGalleryCallback
 
 try:
     import mlflow
@@ -189,6 +190,11 @@ def train_model(args: argparse.Namespace) -> None:
         num_classes=num_classes, freq=args.confusion_freq,
     )
 
+    gallery_dir = os.path.join(os.path.dirname(args.output_model), "plots", "gallery")
+    gallery_cb = EventGalleryCallback(
+        X_val=X_val, y_val=y_val, output_dir=gallery_dir, freq=args.confusion_freq,
+    )
+
     epochs_low = int(args.epochs * args.low_ratio)
     epochs_med = int(args.epochs * args.med_ratio)
     epochs_high = args.epochs
@@ -200,7 +206,7 @@ def train_model(args: argparse.Namespace) -> None:
     X_low_replay, y_low_replay = _sample_replay(X_low, y_low, args.replay_fraction, replay_rng)
     _fit_phase(
         model, X_low, y_low, X_val, y_val, 0, epochs_low, args.batch_size,
-        args.lr_low, [checkpoint, mlflow_cb, confusion_cb], num_classes, "low",
+        args.lr_low, [checkpoint, mlflow_cb, confusion_cb, gallery_cb], num_classes, "low",
     )
     del X_low, y_low
     gc.collect()
@@ -213,7 +219,7 @@ def train_model(args: argparse.Namespace) -> None:
         X_med_replay, y_med_replay = _sample_replay(X_med, y_med, args.replay_fraction, replay_rng)
         _fit_phase(
             model, X_med, y_med, X_val, y_val, epochs_low, epochs_med, args.batch_size,
-            args.lr_med, [checkpoint, mlflow_cb, confusion_cb], num_classes, "med",
+            args.lr_med, [checkpoint, mlflow_cb, confusion_cb, gallery_cb], num_classes, "med",
         )
         del X_med, y_med
         gc.collect()
@@ -234,7 +240,7 @@ def train_model(args: argparse.Namespace) -> None:
 
         _fit_phase(
             model, X_high, y_high, X_val, y_val, epochs_med, epochs_high, args.batch_size,
-            args.lr_high, [checkpoint, early_stopping, mlflow_cb, confusion_cb], num_classes, "high",
+            args.lr_high, [checkpoint, early_stopping, mlflow_cb, confusion_cb, gallery_cb], num_classes, "high",
         )
         del X_high, y_high
         gc.collect()
