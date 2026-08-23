@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --ntasks-per-node=1
 #SBATCH -c 4
-#SBATCH -t 12:00:00
+#SBATCH -t 24:00:00
 #SBATCH -J pair-count-fno
 #SBATCH -o Slurm_Files/pair-count-fno.out
 #SBATCH -e Slurm_Files/pair-count-fno.err
