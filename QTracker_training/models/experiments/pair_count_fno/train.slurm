@@ -33,6 +33,13 @@ RUN_TAG=widened_v1
 RUN_NAME=${RUN_TAG}_${SLURM_JOB_ID}
 OUTPUT_DIR=/mnt/data/checkpoints/pair_count_fno/${RUN_NAME}
 
+# Set to "--reverse_curriculum" to train high -> med -> low instead of the
+# default low -> med -> high. Worth trying: the widened model overfits hard
+# on clean low-complexity data first (train acc ~83%, val_loss ballooning to
+# ~4.5) then has to spend several epochs undoing that once med/high arrive --
+# starting on noisier data instead might regularize it naturally.
+REVERSE_FLAG=""
+
 ${APPTAINER} exec --nv --pwd /mnt/code --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
     python3 /mnt/code/models/experiments/pair_count_fno/train.py \
      /mnt/data/data/multi_track/processed_files/mc_events_train_low.root \
@@ -50,4 +57,5 @@ ${APPTAINER} exec --nv --pwd /mnt/code --env TF_FORCE_GPU_ALLOW_GROWTH=true --en
      --batch_size 64 \
      --patience 12 \
      --mlflow_experiment pair_count_fno \
-     --mlflow_run_name "${RUN_NAME}"
+     --mlflow_run_name "${RUN_NAME}" \
+     ${REVERSE_FLAG}
