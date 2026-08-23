@@ -195,54 +195,68 @@ def train_model(args: argparse.Namespace) -> None:
         X_val=X_val, y_val=y_val, output_dir=gallery_dir, freq=args.confusion_freq,
     )
 
-    epochs_low = int(args.epochs * args.low_ratio)
-    epochs_med = int(args.epochs * args.med_ratio)
-    epochs_high = args.epochs
-    replay_rng = np.random.default_rng(42)
-
-    X_low, y_low = load_data_pair_count(args.train_root_file_low, args.max_pairs)
-    if X_low is None:
-        return
-    X_low_replay, y_low_replay = _sample_replay(X_low, y_low, args.replay_fraction, replay_rng)
-    _fit_phase(
-        model, X_low, y_low, X_val, y_val, 0, epochs_low, args.batch_size,
-        args.lr_low, [checkpoint, mlflow_cb, confusion_cb, gallery_cb], num_classes, "low",
-    )
-    del X_low, y_low
-    gc.collect()
-
-    X_med_replay, y_med_replay = None, None
+    # Load every complexity level present, keyed by its real identity --
+    # curriculum *order* is decided separately below, via --reverse_curriculum,
+    # so a phase's label always matches the data it actually trains on.
+    named_phases = [("low", args.train_root_file_low, args.lr_low)]
     if args.train_root_file_med:
-        X_med, y_med = load_data_pair_count(args.train_root_file_med, args.max_pairs)
-        if X_med is None:
-            return
-        X_med_replay, y_med_replay = _sample_replay(X_med, y_med, args.replay_fraction, replay_rng)
-        _fit_phase(
-            model, X_med, y_med, X_val, y_val, epochs_low, epochs_med, args.batch_size,
-            args.lr_med, [checkpoint, mlflow_cb, confusion_cb, gallery_cb], num_classes, "med",
-        )
-        del X_med, y_med
-        gc.collect()
-        epochs_low = epochs_med  # next phase's initial_epoch, if high phase is skipped
-
+        named_phases.append(("med", args.train_root_file_med, args.lr_med))
     if args.train_root_file_high:
-        X_high, y_high = load_data_pair_count(args.train_root_file_high, args.max_pairs)
-        if X_high is None:
-            return
+        named_phases.append(("high", args.train_root_file_high, args.lr_high))
 
-        replay_X = [a for a in (X_low_replay, X_med_replay) if a is not None]
-        replay_y = [a for a in (y_low_replay, y_med_replay) if a is not None]
-        if replay_X:
-            n_replay = sum(len(a) for a in replay_y)
-            print(f"High phase rehearsal: mixing in {n_replay} low/med events (replay_fraction={args.replay_fraction})", flush=True)
-            X_high = np.concatenate([X_high, *replay_X], axis=0)
-            y_high = np.concatenate([y_high, *replay_y], axis=0)
+    loaded = []
+    for label, path, lr in named_phases:
+        X, y = load_data_pair_count(path, args.max_pairs)
+        if X is None:
+            return
+        loaded.append((label, X, y, lr))
+
+    # Default order is low -> med -> high (easy first). --reverse_curriculum
+    # flips it to high -> med -> low, to test whether starting on noisier
+    # data suppresses the overfitting a high-capacity model shows when it
+    # sees clean, low-complexity data first with nothing to regularize it.
+    if args.reverse_curriculum:
+        loaded = list(reversed(loaded))
+
+    # Epoch boundaries: same low_ratio/med_ratio-of-total-epochs split as
+    # before, just applied to however many phases are actually present.
+    n_phases = len(loaded)
+    if n_phases == 3:
+        bounds = [0, int(args.epochs * args.low_ratio), int(args.epochs * args.med_ratio), args.epochs]
+    elif n_phases == 2:
+        bounds = [0, int(args.epochs * args.low_ratio), args.epochs]
+    else:
+        bounds = [0, args.epochs]
+
+    replay_rng = np.random.default_rng(42)
+    replay_X: list = []
+    replay_y: list = []
+
+    for i, (label, X, y, lr) in enumerate(loaded):
+        is_last = i == n_phases - 1
+        callbacks = [checkpoint, mlflow_cb, confusion_cb, gallery_cb]
+
+        if is_last:
+            callbacks = [checkpoint, early_stopping, mlflow_cb, confusion_cb, gallery_cb]
+            if replay_X:
+                n_replay = sum(len(a) for a in replay_y)
+                print(
+                    f"{label} phase rehearsal: mixing in {n_replay} earlier-phase events "
+                    f"(replay_fraction={args.replay_fraction})", flush=True,
+                )
+                X = np.concatenate([X, *replay_X], axis=0)
+                y = np.concatenate([y, *replay_y], axis=0)
+        else:
+            rX, ry = _sample_replay(X, y, args.replay_fraction, replay_rng)
+            if rX is not None:
+                replay_X.append(rX)
+                replay_y.append(ry)
 
         _fit_phase(
-            model, X_high, y_high, X_val, y_val, epochs_med, epochs_high, args.batch_size,
-            args.lr_high, [checkpoint, early_stopping, mlflow_cb, confusion_cb, gallery_cb], num_classes, "high",
+            model, X, y, X_val, y_val, bounds[i], bounds[i + 1], args.batch_size,
+            lr, callbacks, num_classes, label,
         )
-        del X_high, y_high
+        del X, y
         gc.collect()
 
     model.save(args.output_model)
@@ -287,6 +301,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--confusion_freq", type=int, default=2,
         help="Save a validation confusion-matrix PNG every N epochs (frames for make_gif.py).",
+    )
+    parser.add_argument(
+        "--reverse_curriculum", action="store_true",
+        help="Train high -> med -> low instead of low -> med -> high. Rehearsal "
+             "replay direction flips automatically (always earlier phases -> last phase).",
     )
     parser.add_argument("--mlflow_experiment", type=str, default="pair_count_fno")
     parser.add_argument("--mlflow_run_name", type=str, default=None)
