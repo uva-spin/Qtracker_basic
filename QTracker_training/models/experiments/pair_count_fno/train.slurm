@@ -21,23 +21,15 @@ CODEDIR=${CODEDIR:-${_DEFAULT_CODEDIR}}
 DATADIR=${DATADIR:-/project/ptgroup/spinquest/Anvesh}
 
 ### Main Body ###
-MAX_PAIRS=3
+# max_pairs=5: true nPairs ranges 0-5; max_pairs=3 was folding 3/4/5 into one bucket.
+MAX_PAIRS=5
 
-# Edit RUN_TAG per submission to describe what this run is testing, e.g.
-# "rehearsal_v1", "no_replay_baseline", "k_max64". Combined with the job ID
-# for a name that's both readable and guaranteed unique -- used as the
-# MLflow run name AND to scope this run's outputs to their own directory
-# under persistent project storage, so repeated runs never overwrite each
-# other's checkpoints/confusion-matrix frames.
-RUN_TAG=widened_v1
+# Edit RUN_TAG per submission to describe what this run is testing.
+RUN_TAG=max_pairs5_v1
 RUN_NAME=${RUN_TAG}_${SLURM_JOB_ID}
 OUTPUT_DIR=/mnt/data/checkpoints/pair_count_fno/${RUN_NAME}
 
-# Set to "--reverse_curriculum" to train high -> med -> low instead of the
-# default low -> med -> high. Worth trying: the widened model overfits hard
-# on clean low-complexity data first (train acc ~83%, val_loss ballooning to
-# ~4.5) then has to spend several epochs undoing that once med/high arrive --
-# starting on noisier data instead might regularize it naturally.
+# Set to "--reverse_curriculum" to train high -> med -> low instead.
 REVERSE_FLAG=""
 
 ${APPTAINER} exec --nv --pwd /mnt/code --env TF_FORCE_GPU_ALLOW_GROWTH=true --env MLFLOW_TRACKING_URI=file:///mnt/data/mlruns --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
@@ -48,10 +40,10 @@ ${APPTAINER} exec --nv --pwd /mnt/code --env TF_FORCE_GPU_ALLOW_GROWTH=true --en
      --train_root_file_high /mnt/data/data/multi_track/processed_files/mc_events_train_high.root \
      --output_model ${OUTPUT_DIR}/pair_count_fno.keras \
      --max_pairs $MAX_PAIRS \
-     --base 64 \
+     --base 32 \
      --fno_depth 4 \
-     --k_max 64 \
-     --num_heads 8 \
+     --k_max 32 \
+     --num_heads 4 \
      --epochs 60 \
      --med_ratio 0.7 \
      --batch_size 64 \
