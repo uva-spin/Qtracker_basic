@@ -21,11 +21,10 @@ CODEDIR=${CODEDIR:-${_DEFAULT_CODEDIR}}
 DATADIR=${DATADIR:-/project/ptgroup/spinquest/Anvesh}
 
 ### Main Body ###
-# max_pairs=5: true nPairs ranges 0-5; max_pairs=3 was folding 3/4/5 into one bucket.
-MAX_PAIRS=5
+MAX_PAIRS=3
 
 # Edit RUN_TAG per submission to describe what this run is testing.
-RUN_TAG=max_pairs5_v1
+RUN_TAG=max_pairs3_v2
 RUN_NAME=${RUN_TAG}_${SLURM_JOB_ID}
 OUTPUT_DIR=/mnt/data/checkpoints/pair_count_fno/${RUN_NAME}
 
