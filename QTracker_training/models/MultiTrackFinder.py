@@ -176,6 +176,30 @@ NUM_DETECTORS = 62
 NUM_ELEMENT_IDS = 201
 
 
+def _sample_replay(
+    X: np.ndarray, X_clean: np.ndarray, y: np.ndarray, fraction: float, rng: np.random.Generator
+):
+    """Randomly subsample `fraction` of (X, X_clean, y), to be mixed into a
+    later curriculum phase as rehearsal data.
+
+    Rehearsal fixes catastrophic forgetting: the high phase trains on
+    34-50-background-track events only, for many epochs, with no exposure to
+    easier events -- so the model drifts away from what it learned about
+    low/med-complexity events, even though val is representative across the
+    full range and doesn't change. Mixing a slice of the earlier phase's data
+    into the high phase's training set keeps those gradient updates present.
+    Validated on a smaller diagnostic classifier (models/experiments/pair_count_fno)
+    before porting here.
+    """
+    if fraction <= 0:
+        return None, None, None
+    n = int(len(y) * fraction)
+    if n <= 0:
+        return None, None, None
+    idx = rng.choice(len(y), size=n, replace=False)
+    return X[idx], X_clean[idx], y[idx]
+
+
 def build_model(
     num_detectors: int = 62,
     num_elementIDs: int = 201,
@@ -427,6 +451,10 @@ def train_model(args: argparse.Namespace) -> None:
             verbose=2,
         )
         _all_histories.append(hist_low.history)
+        replay_rng = np.random.default_rng(42)
+        X_low_replay, Xc_low_replay, y_low_replay = _sample_replay(
+            X_train_low, X_clean_train_low, y_train_low, args.replay_fraction, replay_rng
+        )
         del X_train_low, X_clean_train_low, y_train_low
         gc.collect()
 
@@ -465,6 +493,9 @@ def train_model(args: argparse.Namespace) -> None:
             verbose=2,
         )
         _all_histories.append(hist_med.history)
+        X_med_replay, Xc_med_replay, y_med_replay = _sample_replay(
+            X_train_med, X_clean_train_med, y_train_med, args.replay_fraction, replay_rng
+        )
         del X_train_med, X_clean_train_med, y_train_med
         gc.collect()
 
@@ -495,6 +526,16 @@ def train_model(args: argparse.Namespace) -> None:
         early_stopping = EarlyStopping(
             monitor="val_loss", patience=args.patience, restore_best_weights=True
         )
+
+        replay_X = [a for a in (X_low_replay, X_med_replay) if a is not None]
+        replay_Xc = [a for a in (Xc_low_replay, Xc_med_replay) if a is not None]
+        replay_y = [a for a in (y_low_replay, y_med_replay) if a is not None]
+        if replay_X:
+            n_replay = sum(len(a) for a in replay_y)
+            print(f"High phase rehearsal: mixing in {n_replay} low/med events (replay_fraction={args.replay_fraction})", flush=True)
+            X_train_high = np.concatenate([X_train_high, *replay_X], axis=0)
+            X_clean_train_high = np.concatenate([X_clean_train_high, *replay_Xc], axis=0)
+            y_train_high = np.concatenate([y_train_high, *replay_y], axis=0)
 
         hist_high = model.fit(
             X_train_high,
@@ -720,6 +761,12 @@ if __name__ == "__main__":
         type=int,
         default=5,
         help="Maximum number of possible dimuon pairs in an event.",
+    )
+    parser.add_argument(
+        "--replay_fraction",
+        type=float,
+        default=0.15,
+        help="Fraction of each of low/med kept as rehearsal data mixed into the high phase (0 disables).",
     )
     parser.add_argument(
         "--lambda_presence",
