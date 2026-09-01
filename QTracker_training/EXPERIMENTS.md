@@ -14,7 +14,120 @@ MLflow run it corresponds to. Newest first.
 
 ---
 
-## 2026-08-21 — `feat/axial-fno-pair-classifier` — curriculum rehearsal fix (not yet run)
+## 2026-09-01 — `feat/independent-model-ensemble` — MultiTrackFinder eval, per-pair breakdown
+
+**What:** Full evaluation of the shared-backbone/independent-heads architecture
+(`MultiTrackFinder.py` — denoising backbone suppresses background first, then a
+segmentation backbone with axial attention outputs hit probabilities for each charge and
+pair slot simultaneously), trained with the 0-50 background-track curriculum, 60 epochs
+on 1x A100, on the 53K-event validation set. Best val_loss 2.346.
+
+Results:
+- Primary pair: 99.4% recall, 74.1% precision, F1 84.9%
+- Hit accuracy: ~43% exact, ~52-54% within ±2 channels, mean residual 7-14 ch
+- Pair 3: 25% recall, mean residual 20-33 ch
+- Pair 4: 0.7% recall
+
+(Pair-3/pair-4 breakdown implies this run used `max_pairs=5`, not the `max_pairs=3` used
+elsewhere on this branch's `train_multi.slurm` — worth confirming which commit/config
+produced this when the exact MLflow run is located.)
+
+**Why:** Checking whether the joint model actually resolves pairs beyond the primary one,
+now that the true `nPairs` label is known to range 0-5 (see the 2026-08-21 diagnostic
+entry below) rather than the previously-assumed 0-3.
+
+**What happened:** Primary-pair detection is strong (F1 84.9%) and hit-level accuracy
+on detected pairs is consistent with prior runs (~43% exact / mean residual 7-14 ch vs.
+the 42.2%/42.7% exact-accuracy baseline in `CLAUDE.md`). But pairs 3+ are badly
+underdetected — recall falls off a cliff (25% → 0.7%) rather than degrading gradually,
+consistent with under-representation in training data (these are the rarest slots:
+recall on more-rarely-populated pairs was already known to be lower even under the old
+max_pairs=3 framing — see "Pair slot ordering" in `CLAUDE.md`). Oversampling pairs 3+
+identified as the next step; momentum integration and QMetric extension are planned
+once hit accuracy improves further.
+
+**MLflow:** experiment `multi_track_v2` — exact run ID/commit not yet identified; locate
+by best val_loss ≈ 2.346 and `max_pairs=5`.
+
+---
+
+## 2026-08-22 to 2026-08-30 — `feat/axial-fno-pair-classifier` — rehearsal validated, capacity and label-scope ruled out
+
+**What:** Four follow-on experiments on the classifier, run in sequence:
+
+1. **Rehearsal fix validated** (job `rehearsal_v1`): confirmed the fix below actually
+   works. val_acc held at 0.51-0.52 and *improved* to 0.522 (val_loss 1.140) through the
+   entire high phase — no collapse, versus the pre-fix run's val_acc crashing 0.52→0.40
+   the instant the high phase started. Replicated on a rerun (`max_pairs3_v2`, different
+   job): val_acc 0.524/val_loss 1.146 — small transient dip right at the med→high
+   transition (0.527→0.514) that fully recovers, consistent with GPU non-determinism
+   rather than a real regression.
+2. **Widened model tested capacity hypothesis, result: capacity was not the bottleneck.**
+   `base=64, k_max=64, num_heads=8` (2.2M params, ~7.5x bigger) overfit hard on the clean
+   low-phase data (train acc 83%, val_loss ballooned 1.29→4.72) and, despite the same 15%
+   rehearsal mix, *also* overfit through the high phase this time (train acc climbing
+   0.51→0.57 while val_loss climbed 1.18→1.64) — a genuinely different failure mode
+   (overfitting) from the small model's clean improvement. Best checkpoint (val_loss
+   1.181, val_acc 0.509 via EarlyStopping) was worse than the small model's 0.522.
+   Reverted to the small config (`base=32, k_max=32, num_heads=4`).
+3. **max_pairs=5 tested the label-fold hypothesis, result: not hiding real accuracy.**
+   Re-derived labels over the true 0-5 range (6 classes, confirmed uniform ~16.6% each
+   in the actual data) instead of folding 3/4/5 into one "3+" bucket. Raw val_acc dropped
+   to 34.8% — looks worse, but normalized against each task's random baseline
+   (6-way: 16.7%, 4-way: 25%), both land at ~2.08-2.09x chance. The model's actual
+   discriminative skill didn't change; max_pairs=3's "3+" bucket wasn't hiding easy
+   accuracy the fold was suppressing.
+4. **Reverted to max_pairs=3 as final scope**, not because of the accuracy finding above
+   but because the router's downstream segmenters (`min_perm_loss`) only support
+   `1 <= n_pairs <= 3` — a finer 0-5 classification is precision the router can't act on
+   regardless of the classifier's real capability. `max_pairs=3, base=32, k_max=32,
+   replay_fraction=0.15` (the validated small-model + rehearsal config) is the config
+   going forward.
+
+**Why:** After the rehearsal fix worked, wanted to know whether the ~52% ceiling was a
+capacity problem (try a bigger model) or a labeling problem (the folded "3+" bucket)
+before concluding the classifier was done. Both came back negative — useful in that they
+close off two plausible-looking levers rather than leaving them as open guesses.
+
+**What happened:** See above — rehearsal fix holds under replication; the ~52% (4-way,
+correctly-scoped) ceiling appears to be a real property of this classification task given
+the current architecture and input representation (global-average-pooled classification
+over a merged noisy occupancy grid), not a capacity or label-scope artifact. Not yet
+explored: whether a pooling mechanism that preserves more spatial structure than GAP
+would move the ceiling.
+
+**MLflow:** experiment `pair_count_fno`, runs `rehearsal_v1_*`, `widened_v1_*` (two —
+one killed by the original 12h walltime, one completed at 24h), `max_pairs5_v1_*`,
+`max_pairs3_v2_*`.
+
+---
+
+## 2026-08-30 — `feat/independent-model-ensemble` — rehearsal fix ported to MultiTrackFinder
+
+**What:** Ported the same rehearsal/replay fix (5727dbf) from the classifier to
+`MultiTrackFinder.py`'s curriculum loop: `_sample_replay()` now samples matching
+`(X, X_clean, y)` triples from the low and med phases before they're deleted, and mixes
+~15% of each (`--replay_fraction`, same default as the classifier) into the high phase's
+training set alongside the original high-complexity data.
+
+**Why:** This is the actual production model with the real project-level divergence
+problem the classifier work was undertaken to understand cheaply first. Everything
+learned on the classifier (curriculum-forgetting diagnosis, rehearsal as the fix,
+capacity and label-scope ruled out as confounds) pointed back to this as the next step.
+
+**What happened:** Validated with a local integration smoke test only (stubbed
+`load_data_denoise`, tiny synthetic data, `denoise_base=8/base=8`, 6 epochs across
+low/med/high) — confirmed the "High phase rehearsal: mixing in N low/med events" path
+runs end-to-end with correct array shapes through all three phases and saves a model.
+**Not yet run on Rivanna with real curriculum data** — that's the real test of whether
+this fixes the joint model's documented divergence the way it fixed the classifier's.
+
+**MLflow:** experiment `multi_track_v2` — no run yet as of this entry; next `slurm_*`
+run after commit 5727dbf is the one to check.
+
+---
+
+## 2026-08-21 — `feat/axial-fno-pair-classifier` — curriculum rehearsal fix (validated — see 2026-08-22 to 2026-08-30 entry above)
 
 **What:** Added rehearsal/replay to `train.py`: mix ~15% of low-phase data and ~15% of
 med-phase data into the high-complexity phase's training set, instead of training the
@@ -47,7 +160,7 @@ after 2026-08-21 09:27 (commit 9d079ec).
 
 ---
 
-## 2026-08-21 — `feat/axial-fno-pair-classifier` — curriculum data diagnostic
+## 2026-08-21 — `feat/axial-fno-pair-classifier` — curriculum data diagnostic (confirmed)
 
 **What:** Built `inspect_data.py` to inspect the multi-track curriculum ROOT files
 directly (low/med/high/val) rather than trusting the documented complexity ramp,
@@ -66,18 +179,28 @@ divergence previously seen in the big joint model either. Wanted to rule out a g
 train/val distribution mismatch or data-generation bug before assuming it's a training
 dynamics problem.
 
-**What happened:** **Not yet run on Rivanna** — the script needs the ROOT files that
-only exist there, so there are no actual printed numbers yet. **The rehearsal fix
-above was written on the working assumption that this is curriculum-forgetting, not
-loss/architecture complexity — but that assumption hasn't actually been confirmed by
-this script's output. Run it before trusting that framing further.**
+**What happened:** Run on Rivanna against all four ROOT files — confirmed the
+curriculum-forgetting framing rather than a data bug. Low/med/high share identical
+`nPairs` truth distribution and event count (133,243 each) — same underlying signal
+events, only background injection differs, exactly as `messy_gen.py`'s design implies.
+Track/hit density escalates cleanly (mean tracks/event 14.2→31.2→48.2 across
+low/med/high, matching the documented 0-16/17-33/34-50 ranges). Zero events dropped by
+`load_data_denoise`'s range check. Critically, `mc_events_val.root`'s track count is
+genuinely `~Uniform(0,50)` (mean 30.0, std 15.1 — matching the theoretical mean/std of a
+uniform draw almost exactly), confirming val is representative across the full
+complexity range the whole time, not concentrated at low/med. That's what makes the
+high-phase-only training a genuine curriculum-forgetting setup: the model spends the
+final phase seeing exclusively the hardest third of what val actually contains.
 
 Separately, from working with the ground-truth branch while writing this: the true
 `nPairs` branch actually ranges **0-5**, nearly uniformly distributed (~16.6% each
 class) — not 0-3 as assumed. Both this classifier and the joint model's `min_perm_loss`
 cap at `max_pairs=3`, silently folding true pair-counts of 3, 4, and 5 into a single "3+"
-bucket. Real architecture-scope gap, separate from the curriculum question — open,
-not yet addressed anywhere.
+bucket. Addressed on the classifier in the 2026-08-22 to 2026-08-30 entry below
+(tested max_pairs=5, found it doesn't hide real accuracy, reverted to 3 anyway since
+that's what the router can act on) — the joint model still caps at max_pairs=3 in
+`train_multi.slurm`, unchanged; the 2026-09-01 entry above (max_pairs=5 eval) used a
+different/uncommitted config.
 
 **MLflow:** diagnostic script, not a training run — no MLflow entry. Capture the printed
 summary in this entry (or as a linked file) once it's actually run on Rivanna.
@@ -113,9 +236,11 @@ git-corruption entries below) and is subject to purge policies.
 **Why:** Loss curves alone don't show *where* in the detector the model is failing;
 needed training artifacts to survive rather than risk loss to a scratch purge.
 
-**What happened:** Both landed 2026-08-21 (today); not yet exercised in an actual
-training run. Next `slurm_*` run under `multi_track_v2` is the first real test of both
-the callback's plots and the new persistent-storage path.
+**What happened:** Both landed 2026-08-21. Exercised same day in job `18750604`
+(`train_multi.slurm`): confirmed checkpoints correctly saved to
+`/mnt/data/checkpoints/multi_track_finder_best.keras` (not scratch) through the first
+few epochs observed. Full curriculum run (through the high phase) not confirmed
+complete as of this doc.
 
 **MLflow:** experiment `multi_track_v2` — check for the next run after 2026-08-21 09:52
 (commit 721b993).
