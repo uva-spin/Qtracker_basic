@@ -70,9 +70,16 @@ def chi_squared(y_true, y_pred):
 def find_best_permutation(y_pred_argmax, y_test):
     """
     For each event, find the optimal assignment of predicted slots to true pairs
-    using the Hungarian algorithm (minimizes total mean absolute residual).
+    using the Hungarian algorithm (minimizes mean absolute residual, computed
+    only over detector layers where the true slot actually has a hit).
     Returns reassigned predictions aligned to true pair ordering.
     Handles mismatched pred/gt pair counts by matching up to min(pred, gt) pairs.
+
+    The residual is masked to y_test != 0 -- most of the 62 layers are empty
+    for any given muon (12 stations are unused entirely, and no real
+    trajectory fires every layer), so an unmasked mean residual is mostly
+    measuring trivial zero-vs-zero agreement rather than genuine hit-position
+    agreement, which can make the assignment noisier than it needs to be.
     """
     num_events, pred_pairs, _, _ = y_pred_argmax.shape
     gt_pairs = y_test.shape[1]
@@ -84,9 +91,13 @@ def find_best_permutation(y_pred_argmax, y_test):
         cost = np.zeros((n, n))
         for i in range(n):
             for j in range(n):
-                cost[i, j] = np.mean(np.abs(
-                    y_pred_argmax[ev, i].astype(float) - y_test[ev, j].astype(float)
-                ))
+                pred_slot = y_pred_argmax[ev, i].astype(float)
+                true_slot = y_test[ev, j].astype(float)
+                mask = true_slot != 0
+                if np.any(mask):
+                    cost[i, j] = np.mean(np.abs(pred_slot[mask] - true_slot[mask]))
+                else:
+                    cost[i, j] = 0.0
         row_ind, col_ind = linear_sum_assignment(cost)
         for k in range(len(row_ind)):
             y_pred_reassigned[ev, col_ind[k]] = y_pred_argmax[ev, row_ind[k]]
@@ -390,19 +401,36 @@ def evaluate_model(args):
             y_p_true = y_test[valid_mask, pair_idx, 0, :].astype(np.int32)
             y_m_true = y_test[valid_mask, pair_idx, 1, :].astype(np.int32)
 
-            res_p = y_p_true - y_p_best
-            res_m = y_m_true - y_m_best
+            # Mask to layers where a hit truly exists -- most of the 62
+            # layers are empty for any given muon, so unmasked accuracy is
+            # mostly free credit for correctly-predicted-empty layers
+            # (the same inflation SegmentNonEmptyAccuracy was added during
+            # training to avoid; this eval path never got the same fix).
+            hit_mask_p = y_p_true != 0
+            hit_mask_m = y_m_true != 0
+            res_p = (y_p_true - y_p_best)[hit_mask_p]
+            res_m = (y_m_true - y_m_best)[hit_mask_m]
 
-            acc_exact_p = np.mean(np.abs(res_p) == 0)
-            acc_exact_m = np.mean(np.abs(res_m) == 0)
-            acc_w2_p = np.mean(np.abs(res_p) <= 2)
-            acc_w2_m = np.mean(np.abs(res_m) <= 2)
-            mean_res_p = np.mean(np.abs(res_p))
-            mean_res_m = np.mean(np.abs(res_m))
+            acc_exact_p = np.mean(np.abs(res_p) == 0) if res_p.size else float("nan")
+            acc_exact_m = np.mean(np.abs(res_m) == 0) if res_m.size else float("nan")
+            acc_w2_p = np.mean(np.abs(res_p) <= 2) if res_p.size else float("nan")
+            acc_w2_m = np.mean(np.abs(res_m) <= 2) if res_m.size else float("nan")
+            mean_res_p = np.mean(np.abs(res_p)) if res_p.size else float("nan")
+            mean_res_m = np.mean(np.abs(res_m)) if res_m.size else float("nan")
+
+            # Detection precision: of the layers where the model predicted a
+            # hit (any nonzero element ID), what fraction are real hits --
+            # catches the model inventing phantom hits on empty layers,
+            # which the exact/within-2 numbers above don't directly show.
+            pred_hit_p = y_p_best != 0
+            pred_hit_m = y_m_best != 0
+            precision_p = np.mean(y_p_true[pred_hit_p] != 0) if np.any(pred_hit_p) else float("nan")
+            precision_m = np.mean(y_m_true[pred_hit_m] != 0) if np.any(pred_hit_m) else float("nan")
 
             print(f"Pair {pair_idx} | valid={num_valid} | "
                   f"acc μ+/μ-: {acc_exact_p:.4f}/{acc_exact_m:.4f} | "
                   f"within-2 μ+/μ-: {acc_w2_p:.4f}/{acc_w2_m:.4f} | "
+                  f"precision μ+/μ-: {precision_p:.4f}/{precision_m:.4f} | "
                   f"mean residual μ+/μ-: {mean_res_p:.3f}/{mean_res_m:.3f} ch")
 
             if _MLFLOW and mlflow.active_run():
@@ -411,26 +439,48 @@ def evaluate_model(args):
                     f"perm_pair{pair_idx}_acc_mum":     float(acc_exact_m),
                     f"perm_pair{pair_idx}_w2_mup":      float(acc_w2_p),
                     f"perm_pair{pair_idx}_w2_mum":      float(acc_w2_m),
+                    f"perm_pair{pair_idx}_precision_mup": float(precision_p),
+                    f"perm_pair{pair_idx}_precision_mum": float(precision_m),
                     f"perm_pair{pair_idx}_res_mup":     float(mean_res_p),
                     f"perm_pair{pair_idx}_res_mum":     float(mean_res_m),
                 }, step=pair_idx)
 
-        # Overall best-permutation accuracy across all pairs and events
-        all_res_p = []
-        all_res_m = []
+        # Overall best-permutation accuracy across all pairs and events --
+        # same non-empty masking as the per-pair block above, plus overall
+        # detection precision.
+        all_res_p, all_res_m = [], []
+        all_pred_hit_p, all_true_hit_p = [], []
+        all_pred_hit_m, all_true_hit_m = [], []
         for pair_idx in range(max_pairs):
             valid_mask = np.any(y_test[:, pair_idx, :, :] != 0, axis=(1, 2))
             if np.sum(valid_mask) == 0:
                 continue
-            all_res_p.append(np.abs(y_test[valid_mask, pair_idx, 0, :].astype(int) - y_pred_best[valid_mask, pair_idx, 0, :]))
-            all_res_m.append(np.abs(y_test[valid_mask, pair_idx, 1, :].astype(int) - y_pred_best[valid_mask, pair_idx, 1, :]))
+            y_p_true = y_test[valid_mask, pair_idx, 0, :].astype(int)
+            y_m_true = y_test[valid_mask, pair_idx, 1, :].astype(int)
+            y_p_best = y_pred_best[valid_mask, pair_idx, 0, :]
+            y_m_best = y_pred_best[valid_mask, pair_idx, 1, :]
+
+            hit_mask_p = y_p_true != 0
+            hit_mask_m = y_m_true != 0
+            all_res_p.append(np.abs(y_p_true - y_p_best)[hit_mask_p])
+            all_res_m.append(np.abs(y_m_true - y_m_best)[hit_mask_m])
+
+            pred_hit_p = y_p_best != 0
+            pred_hit_m = y_m_best != 0
+            all_pred_hit_p.append(pred_hit_p)
+            all_true_hit_p.append(y_p_true[pred_hit_p] != 0)
+            all_pred_hit_m.append(pred_hit_m)
+            all_true_hit_m.append(y_m_true[pred_hit_m] != 0)
 
         if all_res_p:
             all_res_p = np.concatenate(all_res_p)
             all_res_m = np.concatenate(all_res_m)
-            print(f"\nOverall best-permutation | "
+            overall_precision_p = np.mean(np.concatenate(all_true_hit_p)) if any(a.size for a in all_true_hit_p) else float("nan")
+            overall_precision_m = np.mean(np.concatenate(all_true_hit_m)) if any(a.size for a in all_true_hit_m) else float("nan")
+            print(f"\nOverall best-permutation (non-empty layers only) | "
                   f"acc μ+/μ-: {np.mean(all_res_p==0):.4f}/{np.mean(all_res_m==0):.4f} | "
                   f"within-2 μ+/μ-: {np.mean(all_res_p<=2):.4f}/{np.mean(all_res_m<=2):.4f} | "
+                  f"precision μ+/μ-: {overall_precision_p:.4f}/{overall_precision_m:.4f} | "
                   f"mean residual μ+/μ-: {np.mean(all_res_p):.3f}/{np.mean(all_res_m):.3f} ch")
 
     if _MLFLOW and _owns_run and mlflow.active_run():
