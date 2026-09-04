@@ -46,7 +46,7 @@ ${APPTAINER} exec --nv --pwd /mnt/code --env TF_FORCE_GPU_ALLOW_GROWTH=true --en
      --pos_weight 20.0 \
      --epochs 100 \
      --med_ratio 0.7 \
-     --batch_size 32 \
+     --batch_size 8 \
      --patience 20 \
      --mlflow_experiment ensemble_fno_denoiser \
      --mlflow_run_name "${RUN_NAME}"
