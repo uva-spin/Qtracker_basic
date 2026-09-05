@@ -34,6 +34,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import ROOT  # noqa: F401
 import numpy as np
 import tensorflow as tf
+from scipy.ndimage import uniform_filter1d
 
 from models import data_loader
 from models.layers import AxialAttention
@@ -103,9 +104,35 @@ def analyze(model_path: str, root_file: str, max_pairs: int, num_events, window:
     soft_pred = probs_wrong @ idx
     res_argmax = np.abs(true_wrong.astype(float) - pred_wrong.astype(float))
     res_soft = np.abs(true_wrong.astype(float) - soft_pred)
-    print(f"\nMean residual, raw argmax:  {res_argmax.mean():.2f} channels")
-    print(f"Mean residual, soft-argmax: {res_soft.mean():.2f} channels")
-    print(f"Soft-argmax closer than raw argmax on {100 * np.mean(res_soft < res_argmax):.1f}% of wrong positions")
+    print(f"\nMean residual, raw argmax:        {res_argmax.mean():.2f} channels")
+    print(f"Mean residual, global soft-argmax: {res_soft.mean():.2f} channels "
+          f"(beats raw argmax on {100 * np.mean(res_soft < res_argmax):.1f}%)")
+
+    # Local pooling decode: smooth the probability curve along elementID with
+    # a small window (like AxialAttention's axis-specific treatment, but a
+    # pooling/smoothing operation instead of learned attention), take the
+    # smoothed curve's peak, then refine with a soft-argmax *restricted to a
+    # window around that peak* -- unlike the global soft-argmax above, this
+    # can't get dragged by mass from an unrelated track/cluster elsewhere in
+    # the same 201-channel row.
+    print("\nLocal pooling decode (smooth -> local peak -> windowed soft-argmax):")
+    for pool_radius in (2, 4, 7):
+        smoothed = uniform_filter1d(probs_wrong, size=2 * pool_radius + 1, axis=1, mode="constant")
+        pooled_peak = np.argmax(smoothed, axis=1)
+
+        lo = np.clip(pooled_peak - window, 0, NUM_ELEMENT_IDS)
+        hi = np.clip(pooled_peak + window + 1, 0, NUM_ELEMENT_IDS)
+        local_pred = np.empty(len(pooled_peak))
+        for i, (l, h) in enumerate(zip(lo, hi)):
+            local_probs = probs_wrong[i, l:h]
+            local_pred[i] = (local_probs * idx[l:h]).sum() / local_probs.sum()
+
+        res_pooled_hard = np.abs(true_wrong.astype(float) - pooled_peak.astype(float))
+        res_pooled_soft = np.abs(true_wrong.astype(float) - local_pred)
+        print(f"  pool_radius={pool_radius}: hard-peak residual={res_pooled_hard.mean():.2f} ch, "
+              f"windowed-soft residual={res_pooled_soft.mean():.2f} ch "
+              f"(beats raw argmax on {100 * np.mean(res_pooled_soft < res_argmax):.1f}%, "
+              f"beats global soft-argmax on {100 * np.mean(res_pooled_soft < res_soft):.1f}%)")
 
 
 if __name__ == "__main__":
