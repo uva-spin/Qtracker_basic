@@ -293,6 +293,28 @@ def evaluate_model(args):
     print(f"\nRaw μ+ Chi-squared: {chi2_p:.3f}")
     print(f"Raw μ- Chi-squared: {chi2_m:.3f}")
 
+    # The accuracy/within-2 numbers above are computed over all 62 positions
+    # unconditionally, including layers where this specific muon never fired
+    # a hit (most of the 62 -- 12 stations are unused entirely, and no real
+    # trajectory hits every layer). That's free credit from trivial
+    # zero-vs-zero agreement, the same inflation eval_multi_track.py's
+    # Hungarian-matched accuracy had before being fixed to mask to non-empty
+    # true positions. Reporting the masked version here too so single-track
+    # and multi-track numbers are actually comparable.
+    hit_mask_p = y_p_true != 0
+    hit_mask_m = y_m_true != 0
+    raw_res_p_hits = raw_p_res[hit_mask_p]
+    raw_res_m_hits = raw_m_res[hit_mask_m]
+    pred_hit_p = y_p_raw != 0
+    pred_hit_m = y_m_raw != 0
+    precision_p = np.mean(y_p_true[pred_hit_p] != 0) if np.any(pred_hit_p) else float("nan")
+    precision_m = np.mean(y_m_true[pred_hit_m] != 0) if np.any(pred_hit_m) else float("nan")
+    print(f"\n--- Raw, masked to non-empty true positions only ({hit_mask_p.sum()} μ+ / {hit_mask_m.sum()} μ- positions) ---")
+    print(f"Raw μ+/μ- accuracy   : {np.mean(np.abs(raw_res_p_hits) == 0):.4f} / {np.mean(np.abs(raw_res_m_hits) == 0):.4f}")
+    print(f"Raw μ+/μ- within-2   : {np.mean(np.abs(raw_res_p_hits) <= 2):.4f} / {np.mean(np.abs(raw_res_m_hits) <= 2):.4f}")
+    print(f"Raw μ+/μ- mean resid : {np.mean(np.abs(raw_res_p_hits)):.3f} / {np.mean(np.abs(raw_res_m_hits)):.3f} ch")
+    print(f"Raw μ+/μ- detection precision: {precision_p:.4f} / {precision_m:.4f}")
+
     # Calculate accuracy and chi-squared after refinement
     acc_p = np.mean(np.abs(ref_p_res) == 0)
     acc_m = np.mean(np.abs(ref_m_res) == 0)
@@ -308,6 +330,13 @@ def evaluate_model(args):
     chi2_m = chi_squared(y_m_true, ref_m)
     print(f"\nRefined μ+ Chi-squared: {chi2_p:.3f}")
     print(f"Refined μ- Chi-squared: {chi2_m:.3f}")
+
+    ref_res_p_hits = ref_p_res[hit_mask_p]
+    ref_res_m_hits = ref_m_res[hit_mask_m]
+    print(f"\n--- Refined, masked to non-empty true positions only ---")
+    print(f"Refined μ+/μ- accuracy   : {np.mean(np.abs(ref_res_p_hits) == 0):.4f} / {np.mean(np.abs(ref_res_m_hits) == 0):.4f}")
+    print(f"Refined μ+/μ- within-2   : {np.mean(np.abs(ref_res_p_hits) <= 2):.4f} / {np.mean(np.abs(ref_res_m_hits) <= 2):.4f}")
+    print(f"Refined μ+/μ- mean resid : {np.mean(np.abs(ref_res_p_hits)):.3f} / {np.mean(np.abs(ref_res_m_hits)):.3f} ch")
 
     print("\n--- Raw Absolute Residuals (Before Refinement) ---")
     print("μ+ mean  |  μ+ std   |  μ- mean  |  μ- std")
