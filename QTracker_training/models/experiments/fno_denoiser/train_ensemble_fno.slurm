@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --ntasks-per-node=1
 #SBATCH -c 4
-#SBATCH -t 12:00:00
+#SBATCH -t 72:00:00
 #SBATCH -J ensemble-fno-denoiser
 #SBATCH -o Slurm_Files/ensemble-fno-denoiser.out
 #SBATCH -e Slurm_Files/ensemble-fno-denoiser.err
@@ -19,14 +19,16 @@ CODEDIR=${CODEDIR:-${_DEFAULT_CODEDIR}}
 DATADIR=${DATADIR:-/project/ptgroup/spinquest/Anvesh}
 
 ### Main Body ###
-# Short diagnostic run, not the full curriculum: ensemble_fno_v1 (base=32,
-# fno_base=32, full 100-epoch schedule) overfit hard in the low phase by
-# epoch 28 (train segment_nonempty_acc climbing, val flat, val_loss
-# increasing) -- same signature as the widened pair-count classifier, and it
-# then hit the 48h walltime before reaching med/high anyway. Testing reduced
-# per-sub-model capacity (base/fno_base 32->16) cheaply first: 20 epochs,
-# mostly low phase, before committing to another multi-day run.
-RUN_TAG=ensemble_fno_v2_reduced_capacity
+# Full curriculum run. The 20-epoch, batch_size=8 diagnostic
+# (ensemble_fno_v2_reduced_capacity) confirmed base/fno_base/k_max=16 fixes
+# the overfitting seen at 32 (train/val tracked together, val_loss flat
+# ~3.85-4.00 instead of climbing) -- but per-step time barely dropped vs the
+# full-capacity run (318ms vs 357ms), meaning step *count* from
+# batch_size=8 (16,656 steps/epoch) was the real bottleneck, not model size.
+# Bumping batch_size back to 32 (~4,164 steps/epoch) now that the smaller
+# model has more memory headroom than the batch_size=32 config that crashed
+# at full capacity.
+RUN_TAG=ensemble_fno_v3_full_run
 RUN_NAME=${RUN_TAG}_${SLURM_JOB_ID}
 OUTPUT_DIR=/mnt/data/checkpoints/ensemble_fno_denoiser/${RUN_NAME}
 
@@ -51,10 +53,9 @@ ${APPTAINER} exec --nv --pwd /mnt/code --env TF_FORCE_GPU_ALLOW_GROWTH=true --en
      --k_max 16 \
      --num_heads 4 \
      --pos_weight 20.0 \
-     --epochs 20 \
-     --low_ratio 0.75 \
-     --med_ratio 0.9 \
-     --batch_size 8 \
+     --epochs 100 \
+     --med_ratio 0.7 \
+     --batch_size 32 \
      --patience 20 \
      --mlflow_experiment ensemble_fno_denoiser \
      --mlflow_run_name "${RUN_NAME}"
