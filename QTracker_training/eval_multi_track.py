@@ -192,8 +192,22 @@ def evaluate_model(args):
         print("Single-track model predictions - reshaping for uniform processing\n")
         y_pred = y_pred[:, np.newaxis, :, :, :]  # Add pair dimension
 
-    # Extract argmax predictions
-    y_pred_argmax = np.argmax(y_pred, axis=-1).astype(np.int32)
+    # Extract predictions. "argmax" is the raw decode the model was trained
+    # under. "soft_argmax" is a decode-only change (no retraining): take the
+    # probability-weighted centroid over all 201 elementID classes instead of
+    # the single highest-probability class, then round to the nearest integer
+    # channel so downstream exact/within-2/residual logic is unchanged.
+    # diagnose_localization.py found this cuts mean residual on argmax-wrong
+    # positions from ~34 to ~18 channels on this model -- this flag checks
+    # whether that holds once applied to the full masked/Hungarian eval below,
+    # not just the isolated wrong-position subset the diagnostic measured.
+    if args.decode == "soft_argmax":
+        num_classes = y_pred.shape[-1]
+        class_idx = np.arange(num_classes, dtype=np.float32)
+        soft = np.tensordot(y_pred, class_idx, axes=([-1], [0]))  # (N, max_pairs, 2, 62)
+        y_pred_argmax = np.clip(np.round(soft), 0, num_classes - 1).astype(np.int32)
+    else:
+        y_pred_argmax = np.argmax(y_pred, axis=-1).astype(np.int32)
     # Shape: (num_events, max_pairs, 2, 62)
 
     # Evaluate each pair
@@ -519,6 +533,15 @@ if __name__ == "__main__":
         type=int,
         default=None,
         help="Limit evaluation to this many events (useful for quick tests).",
+    )
+    parser.add_argument(
+        "--decode",
+        type=str,
+        choices=["argmax", "soft_argmax"],
+        default="argmax",
+        help="How to collapse the 201-class softmax into a channel prediction. "
+             "'soft_argmax' is a decode-only change (no retraining) that diagnose_localization.py "
+             "found roughly halves mean residual on this model -- see comment at the decode site.",
     )
     args = parser.parse_args()
 

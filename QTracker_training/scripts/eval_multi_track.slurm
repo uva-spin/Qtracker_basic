@@ -16,7 +16,7 @@ APPTAINER=/apps/software/standard/core/apptainer/1.4.5/bin/apptainer
 IMAGE=/project/ptgroup/spinquest/David/TfRootBuild_v2.sif
 
 # Override any of these at submission time, e.g.:
-#   CODEDIR=... DATADIR=... MODEL=... sbatch scripts/eval_multi_track.slurm
+#   CODEDIR=... DATADIR=... MODEL=... DECODE=soft_argmax sbatch scripts/eval_multi_track.slurm
 _DEFAULT_CODEDIR=/scratch/am4qw/Qtracker_basic/QTracker_training
 _DEFAULT_DATADIR=/project/ptgroup/spinquest/Anvesh
 CODEDIR=${CODEDIR:-${_DEFAULT_CODEDIR}}
@@ -24,10 +24,14 @@ DATADIR=${DATADIR:-${_DEFAULT_DATADIR}}
 DATA=${DATA:-${DATADIR}/data/multi_track/processed_files/mc_events_val.root}
 MODEL=${MODEL:-/mnt/data/checkpoints/multi_track_finder_best.keras}
 MAX_PAIRS=${MAX_PAIRS:-3}
+# "argmax" (default, what the model was trained/decoded with) or
+# "soft_argmax" (probability-weighted centroid decode, no retraining --
+# see eval_multi_track.py's decode comment for why this is worth comparing).
+DECODE=${DECODE:-argmax}
 
 ### Main Body ###
 # --- Evaluating Multi-Track Finder ---
-EVAL_ARGS="--max_pairs ${MAX_PAIRS}"
+EVAL_ARGS="--max_pairs ${MAX_PAIRS} --decode ${DECODE}"
 [ -n "${NUM_EVENTS}" ] && EVAL_ARGS="${EVAL_ARGS} --num_events ${NUM_EVENTS}"
 
 mkdir -p ${CODEDIR}/results
@@ -44,4 +48,4 @@ ${APPTAINER} exec --nv \
         /mnt/data/data/multi_track/processed_files/mc_events_val.root \
         ${MODEL} \
         ${EVAL_ARGS} \
-        2>&1 | tee ${CODEDIR}/results/multi_track_results.txt
+        2>&1 | tee ${CODEDIR}/results/multi_track_results_${DECODE}.txt
