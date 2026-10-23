@@ -31,9 +31,24 @@ def compute_confidence(softmax_mup, softmax_mum):
     """
     Compute a confidence score for the predicted pair.
 
-    Uses the mean max-probability across all detectors for both mu+ and mu-.
-    High confidence means the model is certain about its element ID picks.
-    Low confidence (close to 1/201 ≈ 0.005) means the model is guessing.
+    Averages max-probability only over detectors where the model actually
+    predicted a hit (argmax != 0), not over all ~50 active detectors.
+    High confidence means the model is certain about the hits it proposed.
+    Low confidence (close to 1/201 ~ 0.005) means it's guessing, or there
+    are no predicted hits at all (confidence is then forced to 0).
+
+    Why not average over all layers (the original behavior): the single-track
+    model this is built on was only ever trained on inputs that contain a
+    real track, so on most layers it is correctly, trivially confident the
+    answer is "no hit" (class 0) regardless of whether any real track is
+    actually left in the residual. After a few hit-removal iterations, most
+    of the 50 layers ARE legitimately empty, so an average over all of them
+    stays high no matter what -- that's why the stopping threshold never
+    fired in eval (TN=0 on the existence confusion matrix: the model never
+    predicted "no more pairs", because its confidence never actually dropped
+    based on whether a new track was present). Conditioning on
+    predicted-hit layers measures confidence about the specific hits being
+    proposed instead.
 
     Args:
         softmax_mup: (num_events, 62, 201) softmax output for mu+
@@ -44,14 +59,23 @@ def compute_confidence(softmax_mup, softmax_mum):
     """
     max_prob_mup = np.max(softmax_mup, axis=-1)  # (num_events, 62)
     max_prob_mum = np.max(softmax_mum, axis=-1)  # (num_events, 62)
+    hit_mup = np.argmax(softmax_mup, axis=-1) != 0  # (num_events, 62)
+    hit_mum = np.argmax(softmax_mum, axis=-1) != 0
 
-    # Average across detectors (excluding masked detectors 7-12, 55-62)
+    # Exclude structurally unused detectors (7-12, 55-62) regardless of what
+    # the model predicted there.
     mask = np.ones(62, dtype=bool)
     mask[6:12] = False
     mask[54:62] = False
 
-    conf_mup = np.mean(max_prob_mup[:, mask], axis=-1)  # (num_events,)
-    conf_mum = np.mean(max_prob_mum[:, mask], axis=-1)
+    def masked_mean(max_prob, hit_pred):
+        sel = mask[None, :] & hit_pred
+        n_hit = sel.sum(axis=-1)
+        sums = np.where(sel, max_prob, 0.0).sum(axis=-1)
+        return np.divide(sums, n_hit, out=np.zeros_like(sums), where=n_hit > 0)
+
+    conf_mup = masked_mean(max_prob_mup, hit_mup)  # (num_events,)
+    conf_mum = masked_mean(max_prob_mum, hit_mum)
 
     return (conf_mup + conf_mum) / 2.0
 
