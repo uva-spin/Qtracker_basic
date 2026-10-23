@@ -24,9 +24,10 @@ DATADIR=${DATADIR:-${_DEFAULT_DATADIR}}
 DATA=${DATA:-${DATADIR}/data/multi_track/processed_files/mc_events_val.root}
 MODEL=${MODEL:-/mnt/data/checkpoints/multi_track_finder_best.keras}
 MAX_PAIRS=${MAX_PAIRS:-3}
-# "argmax" (default, what the model was trained/decoded with) or
-# "soft_argmax" (probability-weighted centroid decode, no retraining --
-# see eval_multi_track.py's decode comment for why this is worth comparing).
+# "argmax" (default, what the model was trained/decoded with), "soft_argmax"
+# (probability-weighted centroid over all classes), or "soft_argmax_hit"
+# (argmax decides existence, centroid only localizes within a predicted hit)
+# -- see eval_multi_track.py's decode comment for why these differ.
 DECODE=${DECODE:-argmax}
 
 ### Main Body ###

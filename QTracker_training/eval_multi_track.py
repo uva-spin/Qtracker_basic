@@ -193,19 +193,31 @@ def evaluate_model(args):
         y_pred = y_pred[:, np.newaxis, :, :, :]  # Add pair dimension
 
     # Extract predictions. "argmax" is the raw decode the model was trained
-    # under. "soft_argmax" is a decode-only change (no retraining): take the
-    # probability-weighted centroid over all 201 elementID classes instead of
-    # the single highest-probability class, then round to the nearest integer
-    # channel so downstream exact/within-2/residual logic is unchanged.
-    # diagnose_localization.py found this cuts mean residual on argmax-wrong
-    # positions from ~34 to ~18 channels on this model -- this flag checks
-    # whether that holds once applied to the full masked/Hungarian eval below,
-    # not just the isolated wrong-position subset the diagnostic measured.
+    # under. "soft_argmax" takes the probability-weighted centroid over ALL
+    # 201 elementID classes (including class 0, the no-hit sentinel) instead
+    # of the single highest-probability class -- this measurably improved
+    # residual (35.0/24.5 -> 19.0/10.8 ch) but tanked precision (98.3/97.7% ->
+    # 76.2/78.1%), because averaging class 0 in with the rest means the
+    # centroid almost never lands exactly on 0, so layers the model correctly
+    # thought were empty get decoded as phantom hits.
+    #
+    # "soft_argmax_hit" fixes that by keeping existence a hard argmax decision
+    # (unchanged from baseline, so precision should hold) and only applying
+    # the soft centroid to localize *within* classes 1-200 (renormalized) for
+    # positions already decided to be a hit.
+    num_classes = y_pred.shape[-1]
+    class_idx = np.arange(num_classes, dtype=np.float32)
     if args.decode == "soft_argmax":
-        num_classes = y_pred.shape[-1]
-        class_idx = np.arange(num_classes, dtype=np.float32)
         soft = np.tensordot(y_pred, class_idx, axes=([-1], [0]))  # (N, max_pairs, 2, 62)
         y_pred_argmax = np.clip(np.round(soft), 0, num_classes - 1).astype(np.int32)
+    elif args.decode == "soft_argmax_hit":
+        argmax_full = np.argmax(y_pred, axis=-1)
+        hit_exists = argmax_full != 0
+        probs_hit = y_pred[..., 1:]
+        probs_hit_sum = np.clip(probs_hit.sum(axis=-1), 1e-8, None)
+        soft_hit = np.tensordot(probs_hit, class_idx[1:], axes=([-1], [0])) / probs_hit_sum
+        soft_hit_rounded = np.clip(np.round(soft_hit), 1, num_classes - 1).astype(np.int32)
+        y_pred_argmax = np.where(hit_exists, soft_hit_rounded, 0).astype(np.int32)
     else:
         y_pred_argmax = np.argmax(y_pred, axis=-1).astype(np.int32)
     # Shape: (num_events, max_pairs, 2, 62)
@@ -537,11 +549,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--decode",
         type=str,
-        choices=["argmax", "soft_argmax"],
+        choices=["argmax", "soft_argmax", "soft_argmax_hit"],
         default="argmax",
-        help="How to collapse the 201-class softmax into a channel prediction. "
-             "'soft_argmax' is a decode-only change (no retraining) that diagnose_localization.py "
-             "found roughly halves mean residual on this model -- see comment at the decode site.",
+        help="How to collapse the 201-class softmax into a channel prediction. All are "
+             "decode-only changes (no retraining) -- see comment at the decode site. "
+             "'soft_argmax': centroid over all 201 classes (big residual win, precision loss). "
+             "'soft_argmax_hit': argmax decides existence, centroid only localizes within a hit.",
     )
     args = parser.parse_args()
 
