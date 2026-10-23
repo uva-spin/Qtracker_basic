@@ -51,8 +51,15 @@ def load_data(
         mu_minus_array = np.array(list(event.HitArray_mum), dtype=np.int32)
 
         if multi_track and max_pairs is not None:
-            mu_plus_array = mu_plus_array.reshape(max_pairs, num_detectors)
-            mu_minus_array = mu_minus_array.reshape(max_pairs, num_detectors)
+            # HitArray_mup/mum are stored at the ROOT file's native pair count
+            # (currently 5*62=310 elements/event), not necessarily `max_pairs`
+            # -- slice to the requested prefix before reshaping instead of
+            # reshaping the full array, which only worked by coincidence when
+            # max_pairs happened to match the file's actual layout. Same fix
+            # already applied on fix/eval-metric-masking; ported here since
+            # this branch forked before that fix existed.
+            mu_plus_array = mu_plus_array[: max_pairs * num_detectors].reshape(max_pairs, num_detectors)
+            mu_minus_array = mu_minus_array[: max_pairs * num_detectors].reshape(max_pairs, num_detectors)
 
         X.append(event_hits_matrix)
         y_muPlus.append(mu_plus_array)
@@ -123,8 +130,15 @@ def load_data_denoise(
         mu_minus_array = np.array(list(event.HitArray_mum), dtype=np.int32)
 
         if multi_track and max_pairs is not None:
-            mu_plus_array = mu_plus_array.reshape(max_pairs, num_detectors)
-            mu_minus_array = mu_minus_array.reshape(max_pairs, num_detectors)
+            # HitArray_mup/mum are stored at the ROOT file's native pair count
+            # (currently 5*62=310 elements/event), not necessarily `max_pairs`
+            # -- slice to the requested prefix before reshaping instead of
+            # reshaping the full array, which only worked by coincidence when
+            # max_pairs happened to match the file's actual layout. Same fix
+            # already applied on fix/eval-metric-masking; ported here since
+            # this branch forked before that fix existed.
+            mu_plus_array = mu_plus_array[: max_pairs * num_detectors].reshape(max_pairs, num_detectors)
+            mu_minus_array = mu_minus_array[: max_pairs * num_detectors].reshape(max_pairs, num_detectors)
 
         if np.any(mu_plus_array < 0) or np.any(mu_plus_array >= num_elementIDs):
             continue
