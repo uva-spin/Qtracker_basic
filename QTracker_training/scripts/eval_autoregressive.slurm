@@ -13,9 +13,13 @@ module purge
 
 # For apptainer exec
 APPTAINER=/apps/software/standard/core/apptainer/1.4.5/bin/apptainer
-# v1 (TfRootBuild.sif, Donghwa's original here) has a known CUDA 13.0
-# double-registration bug -- use v2, same as the rest of this project's jobs.
-IMAGE=/project/ptgroup/spinquest/David/TfRootBuild_v2.sif
+# Using v1 (Donghwa's original image here), not v2 like the rest of this
+# project's jobs: track_finder_64.keras was saved under v1's older Keras
+# internals, and v2's Keras can't deserialize it
+# (TypeError: Could not deserialize class 'Functional' because its parent
+# module keras.src.engine.functional cannot be imported). If a checkpoint
+# trained/saved under v2 is used here instead, switch this back to v2.
+IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
 
 # Override any of these at submission time, e.g.:
 #   CODEDIR=... DATADIR=... MODEL=... sbatch scripts/eval_autoregressive.slurm
