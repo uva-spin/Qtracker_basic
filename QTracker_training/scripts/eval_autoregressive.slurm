@@ -13,13 +13,20 @@ module purge
 
 # For apptainer exec
 APPTAINER=/apps/software/standard/core/apptainer/1.4.5/bin/apptainer
-# Using v1 (Donghwa's original image here), not v2 like the rest of this
-# project's jobs: track_finder_64.keras was saved under v1's older Keras
-# internals, and v2's Keras can't deserialize it
-# (TypeError: Could not deserialize class 'Functional' because its parent
-# module keras.src.engine.functional cannot be imported). If a checkpoint
-# trained/saved under v2 is used here instead, switch this back to v2.
-IMAGE=/project/ptgroup/spinquest/David/TfRootBuild.sif
+# Two different images for the two steps below, not one for the whole job:
+# - IMAGE_INFER (v1, Donghwa's original image): track_finder_64.keras was
+#   saved under v1's older Keras internals, and v2's Keras can't deserialize
+#   it (TypeError: Could not deserialize class 'Functional' because its
+#   parent module keras.src.engine.functional cannot be imported).
+# - IMAGE_EVAL (v2): eval_autoregressive.py imports QTracker.py, which
+#   unconditionally does `from numba import njit, prange` -- numba isn't
+#   installed in v1 (ModuleNotFoundError there), but every v2-based job this
+#   project has run imports QTracker fine.
+# They only communicate through the .npz file in between, which doesn't care
+# which image wrote/read it. If a checkpoint trained/saved under v2 is used
+# for MODEL instead, IMAGE_INFER can switch to v2 too.
+IMAGE_INFER=/project/ptgroup/spinquest/David/TfRootBuild.sif
+IMAGE_EVAL=/project/ptgroup/spinquest/David/TfRootBuild_v2.sif
 
 # Override any of these at submission time, e.g.:
 #   CODEDIR=... DATADIR=... MODEL=... sbatch scripts/eval_autoregressive.slurm
@@ -55,7 +62,7 @@ for THRESH in $THRESHOLDS; do
     OUTPUT=${OUTPUT_DIR}/autoregressive_predictions_${THRESH}.npz
 
     # Step 1: Run autoregressive prediction
-    ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
+    ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE_INFER}" \
         python3 /mnt/code/models/AutoregressiveTrackFinder.py \
          ${VAL_DATA} \
          ${MODEL} \
@@ -64,6 +71,6 @@ for THRESH in $THRESHOLDS; do
          --output ${OUTPUT}
 
     # Step 2: Evaluate
-    ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE}" \
+    ${APPTAINER} exec --nv --bind ${CODEDIR}:/mnt/code --bind ${DATADIR}:/mnt/data "${IMAGE_EVAL}" \
         python3 /mnt/code/eval_autoregressive.py ${OUTPUT} ${VAL_DATA}
 done
