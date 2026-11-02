@@ -8,9 +8,48 @@ git merge-base <branch> feat/independent-model-ensemble
 git log --oneline <merge-base>..<branch>
 ```
 
-Last verified: 2026-09-01.
+Last verified: 2026-11-02.
 
 ## Active
+
+### `feat/ar-masked-confidence` — reviving the autoregressive approach
+**Status:** actively developed (last commit 2026-11-02), blocked on a training job.
+Branches off Donghwa Shin's unmerged, stale `feat/autoregressive-track-finder`
+(merge-base `0cfd6a2`), not off `feat/independent-model-ensemble` — a deliberate
+restart on top of the single-track `TrackFinder`'s already-proven accuracy, rather than
+another patch to the joint model's harder permutation + presence-detection problem.
+
+Fixed the original branch's stopping criterion (`AutoregressiveTrackFinder.py`'s
+`compute_confidence()` averaged over all ~50 active layers instead of just layers where
+the model predicted a hit, so confidence never actually dropped when a track was
+genuinely absent — see EXPERIMENTS.md). That fix is unverified: four rounds of
+environment/checkpoint issues (ROOT branch-size reshape bug, two rounds of Keras
+checkpoint-deserialization failures across both available apptainer images) blocked
+every attempt to run even one threshold sweep. Currently training a fresh single-track
+checkpoint under the current v2 image (`train_single_track_v2.slurm`) rather than chase
+further version mismatches on the old one. Full blow-by-blow in EXPERIMENTS.md.
+
+6 commits ahead of the merge-base with `feat/autoregressive-track-finder`.
+
+MLflow: no run yet — blocked on the checkpoint training job.
+
+### `fix/eval-metric-masking` — corrected joint-model eval, decode-only fixes
+**Status:** last commit 2026-10-23. Branches off `feat/independent-model-ensemble` at
+its tip (`5727dbf`, 2026-08-30), so it tracks that branch's shared code.
+
+Fixed `eval_multi_track.py` to mask scoring to non-empty ground-truth positions and
+Hungarian-match predicted pair-slots before scoring — the previously-reported 43% exact
+accuracy (see 2026-09-01 entry in EXPERIMENTS.md) was inflated by not doing either.
+Corrected baseline: ~9-13% exact, ~98% precision, ~35-channel mean residual. Added a
+`--decode {argmax,soft_argmax,soft_argmax_hit}` option to test whether the residual is a
+genuine model-capability ceiling or a decoding artifact (it's mostly the latter).
+`soft_argmax_hit` (preserves existence precision, still localizes via the softmax
+centroid) is committed but **never run on Rivanna** — an open experiment, deprioritized
+in favor of the autoregressive detour above.
+
+8 commits ahead of the merge-base with `feat/independent-model-ensemble`.
+
+MLflow: eval-only, no training runs — see `results/multi_track_results_<decode>.txt`.
 
 ### `feat/independent-model-ensemble` — current active approach
 **Status:** actively developed (last commit 2026-08-21, same day as this doc).
@@ -55,8 +94,15 @@ MLflow: experiment `multi_track_v2` (MultiTrackFinder.py path) / `ensemble_track
 (EnsembleTrackFinder.py path), tracking URI `/project/ptgroup/spinquest/Anvesh/mlruns`,
 run names `slurm_${SLURM_JOB_ID}`.
 
+## Shelved
+
 ### `feat/axial-fno-pair-classifier` — Stage-A classifier, config settled
-**Status:** active (last commit 2026-08-30). Branches off
+**Status:** shelved 2026-10-04 (last commit 2026-08-30) — decided to stop pursuing the
+FNO classifier+router design (along with `feat/independent-model-ensemble`'s
+`EnsembleTrackFinder.py` half) in favor of directly fixing the joint model's eval/decode
+path and the autoregressive alternative — see EXPERIMENTS.md. Config below was fully
+settled and validated at the time of shelving; revisit only if the router framing
+becomes relevant again. Branches off
 `feat/independent-model-ensemble` at e1817dc, then merges it back in at 18eb2e3
 (2026-08-18) to pick up shared infra, so it tracks the ensemble branch's shared code.
 
@@ -113,14 +159,16 @@ to reconstruct, safe to ignore or delete:
   (single-track finder, distance-based loss). Not part of current work.
 - `main` — ~129 commits behind the active branch as of this writing. Do not base new
   work on it; it does not reflect the current multi-track effort.
-- Remote-only branches (`origin/feat/ensemble-fixed-n-track-finder`,
-  `origin/feat/autoregressive-track-finder`, `origin/feat/plan-01-multi-track-loss-data`,
-  `origin/QMetric-Single`, `origin/dev`, `origin/feature/multi-track-qtracker`,
-  `origin/MultiTrackTrackFinder`, `origin/Data-Team`, `origin/testing`,
-  `origin/Devin-Testing`) all last touched 2026-06-07 or earlier — predate the current
-  ensemble/curriculum work and weren't inspected in depth for this doc. Worth a fresh
-  look only if one of their names becomes relevant again (e.g. the fixed-N or
-  autoregressive framing resurfaces).
+- `origin/feat/autoregressive-track-finder` (Donghwa Shin, May-Jun 2026, last commit
+  2026-06-07) — no longer purely dormant: revived as `feat/ar-masked-confidence` (see
+  Active, above) as of 2026-10-23.
+- Remaining remote-only branches (`origin/feat/ensemble-fixed-n-track-finder`,
+  `origin/feat/plan-01-multi-track-loss-data`, `origin/QMetric-Single`, `origin/dev`,
+  `origin/feature/multi-track-qtracker`, `origin/MultiTrackTrackFinder`,
+  `origin/Data-Team`, `origin/testing`, `origin/Devin-Testing`) all last touched
+  2026-06-07 or earlier — predate the current ensemble/curriculum work and weren't
+  inspected in depth for this doc. Worth a fresh look only if one of their names becomes
+  relevant again (e.g. the fixed-N framing resurfaces).
 
 ## This branch (`AnveshTrackFinderWork`)
 

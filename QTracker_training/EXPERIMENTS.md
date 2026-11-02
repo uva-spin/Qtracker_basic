@@ -14,6 +14,125 @@ MLflow run it corresponds to. Newest first.
 
 ---
 
+## 2026-10-23 to 2026-11-02 — `feat/ar-masked-confidence` — reviving the autoregressive approach, blocked on checkpoint infra
+
+**What:** Revisited Donghwa Shin's unmerged, stale `feat/autoregressive-track-finder`
+branch (May-Jun 2026) — reuse a trained single-track `TrackFinder` iteratively: predict
+one pair, remove its hits from the input, repeat until a confidence score drops below a
+threshold or `max_pairs` is reached. Branched off it as `feat/ar-masked-confidence`
+(merge-base `0cfd6a2`) rather than working on `main` or the ensemble branch, so Donghwa
+can review the diff directly.
+
+Root cause of the original branch's stopping criterion never firing: `compute_confidence()`
+averaged max-softmax-probability across all ~50 active detector layers, which is
+dominated by trivial high confidence on layers the single-track model correctly (but
+unhelpfully) believes are empty — after a few hit-removal iterations most layers
+legitimately *are* empty, so the average stays high regardless of whether a real track is
+left. Fixed (`8318a3c`) by restricting the average to layers where the model predicted a
+hit (`argmax != 0`): existence confidence is now about the specific hits proposed, not
+diluted by background. Verified in isolation (synthetic no-hit input → confidence 0.0;
+synthetic real-hit input → confidence ~0.9, vs. both reading ~0.97 before regardless of
+input).
+
+**Why:** Reconsidering whether multi-track should build on the single-track model's
+already-proven accuracy (iteratively) rather than keep patching the joint
+`MultiTrackFinder.py` model's harder permutation + presence-detection problem in one shot.
+
+**What happened — the fix itself is untested; blocked on four rounds of environment
+issues before a single threshold sweep could run:**
+1. `data_loader.py`'s `load_data()`/`load_data_denoise()` did a blind
+   `.reshape(max_pairs, 62)` on `HitArray_mup/mum`, but those ROOT branches are stored flat
+   at the file's native pair count (5×62=310), not whatever `max_pairs` the caller
+   requests — fixed by slicing to `max_pairs*62` first (`26d44f9`, ported from
+   `fix/eval-metric-masking`).
+2. The single-track checkpoint (`track_finder_64.keras`, Donghwa's, Feb 2026) failed to
+   deserialize under the v2 apptainer image (`TypeError: ... keras.src.engine.functional
+   cannot be imported` — saved under older Keras internals v2 no longer has). Reverted to
+   v1 (`cb537d3`) on the assumption v1 still matched what it was saved under.
+3. v1 then hit `ModuleNotFoundError: No module named 'numba'` in `eval_autoregressive.py`'s
+   `import QTracker` — v1 lacks `numba`, v2 has it. Split the pipeline across two images,
+   `IMAGE_INFER` (v1) for prediction, `IMAGE_EVAL` (v2) for scoring, since they only
+   communicate via an intermediate `.npz` (`af8026e`).
+4. **Same deserialize error reappeared under v1** for every threshold, confirming v1 no
+   longer matches what the checkpoint was saved under either — both images have
+   apparently been rebuilt since February. (Initially misread a verbose Keras config dump
+   in the error output as evidence of a successful load; it wasn't — same error, just
+   printed with its full config attached.)
+
+Given neither available image can load this specific checkpoint, decided to train a
+fresh single-track checkpoint under the current v2 image rather than keep chasing version
+archaeology (`train_single_track_v2.slurm`, `4942bff`/`314a13e`) — writes to persistent
+project storage, not scratch, given the known recurring scratch-corruption issue.
+Single-track training data located at the shared pool
+`/project/ptgroup/spinquest/TrackFinder/training_data/` (not under `CODEDIR`/`DATADIR`
+as assumed from `scripts/train.slurm`'s existing convention). Training job (4×A100,
+72hr) submitted 2026-11-02; result pending.
+
+**MLflow:** no run yet — blocked on the fresh checkpoint finishing training.
+
+---
+
+## 2026-09-03 to 2026-10-23 — `fix/eval-metric-masking` — corrected joint-model baseline, decode-only fixes
+
+**What:** The 2026-09-01 joint-model eval below (43% exact) turned out to be inflated —
+it wasn't masking out empty ground-truth positions or aligning predicted pair-slots to
+ground-truth pairs before scoring. Fixed `eval_multi_track.py` (`c69dad9`) to restrict
+accuracy/residual/precision to positions where `y_true != 0`, and to use
+`find_best_permutation()` (Hungarian/`linear_sum_assignment`) to align predicted slots to
+ground truth first. Corrected real numbers: **~9-13% exact, ~98% precision, ~35-channel
+mean residual** under the model's existing argmax decoding.
+
+Added a `diagnose_localization.py` diagnostic (`37442ee`) to separate "does the model
+know roughly where the hit is" from "does greedy argmax decoding pick the right exact
+channel" — motivated the two decode-only (no retraining) experiments below, since the
+model's underlying segmenter outputs a full 201-class softmax per position, not just the
+argmax:
+
+- **`soft_argmax`** (`a3d8064`): probability-weighted centroid over all 201 classes
+  including class 0 (the no-hit sentinel). Nearly halves mean residual, but corrupts
+  precision — the centroid almost never lands exactly on 0, so existence detection
+  collapses.
+- **`soft_argmax_hit`** (`99608a2`): existence decided by hard argmax as before
+  (preserves precision), centroid computed only over classes 1-200 (renormalized) to
+  localize *within* a position already decided to be a hit — "we don't need to average
+  across all classes." **Committed but never run on Rivanna** — superseded in priority by
+  the `feat/ar-masked-confidence` detour above; still an open experiment.
+
+**Why:** Needed real numbers before deciding whether the joint model's residual problem
+was a genuine capability ceiling or an artifact of greedy decoding throwing away
+information the softmax already had.
+
+**What happened:** `soft_argmax` confirmed most of the residual is a decoding artifact,
+not a capability ceiling — but naive averaging over all 201 classes was the wrong fix
+since it damages existence detection. `soft_argmax_hit` is designed to fix that precision
+loss while keeping the residual win, but is unverified pending a Rivanna run.
+
+**MLflow:** eval-only changes, no training runs — see
+`results/multi_track_results_<decode>.txt` per decode mode on Rivanna.
+
+---
+
+## 2026-10-04 — decision — FNO segmenter/ensemble path shelved
+
+**What:** Decided to stop pursuing the FNO-based pair-count classifier/segmenter and
+`EnsembleTrackFinder.py` lines of work (`feat/axial-fno-pair-classifier`,
+`feat/independent-model-ensemble`'s ensemble half) and return focus to the joint
+`MultiTrackFinder.py` model as the active line.
+
+**Why:** Despite a settled, validated classifier config (val_acc≈0.52-0.53, see the
+2026-08-22 to 2026-08-30 entry below), the FNO classifier+router design was judged a dead
+end relative to directly improving the joint model's eval/decode path and (later) the
+single-track-based autoregressive alternative.
+
+**What happened:** No further commits on `feat/axial-fno-pair-classifier` after this
+decision. Work shifted to corrected evaluation of `MultiTrackFinder.py`
+(`fix/eval-metric-masking`, above) and then to reviving the autoregressive approach
+(`feat/ar-masked-confidence`, above).
+
+**MLflow:** n/a — strategic decision, not a run.
+
+---
+
 ## 2026-09-01 — `feat/independent-model-ensemble` — MultiTrackFinder eval, per-pair breakdown
 
 **What:** Full evaluation of the shared-backbone/independent-heads architecture
